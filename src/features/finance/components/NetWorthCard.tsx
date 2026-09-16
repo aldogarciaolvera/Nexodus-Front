@@ -35,7 +35,7 @@ export const NetWorthCard = ({ summary, loading }: NetWorthCardProps) => {
 
       {/* Main Balance */}
       <View style={styles.balanceRow}>
-        <Text style={styles.balance}>{loading ? '...' : formatCurrency(netBalance)}</Text>
+        <Text style={[styles.balance, netBalance < 0 && { color: theme.colors.error }]}>{loading ? '...' : formatCurrency(netBalance)}</Text>
         <Text style={styles.currency}>MXN</Text>
       </View>
 
@@ -47,16 +47,18 @@ export const NetWorthCard = ({ summary, loading }: NetWorthCardProps) => {
         <View style={styles.velocityHeader}>
           <View style={styles.velocityLabelContainer}>
             <View style={styles.statusIndicator} />
-            <Text style={styles.velocityLabel}>MONTHLY{'\n'}OVERVIEW</Text>
+            <Text style={styles.velocityLabel}>RESUMEN MENSUAL</Text>
           </View>
           <View style={styles.velocityAmountContainer}>
             <Text style={styles.velocityAmount}>{loading ? '...' : formatCurrency(totalIncome)}</Text>
-            <Text style={styles.velocityRemaining}>Ingresos</Text>
           </View>
         </View>
         
         <View style={styles.largeProgressTrack}>
-          <View style={[styles.largeProgressFill, { width: totalIncome > 0 ? `${Math.min((totalExpense / totalIncome) * 100, 100)}%` : '0%' }]} />
+          <View style={[styles.largeProgressFill, { 
+            width: totalIncome > 0 ? `${Math.min((totalExpense / totalIncome) * 100, 100)}%` : '0%',
+            backgroundColor: netBalance < 0 ? theme.colors.error : theme.colors.neonCyan 
+          }]} />
         </View>
 
         <View style={styles.velocityFooter}>
@@ -171,11 +173,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   velocityAmount: {
     fontFamily: 'JetBrainsMono_500Medium',
     fontSize: 14,
-    color: colors.neonCyan,
-  },
-  velocityRemaining: {
-    fontFamily: 'Geist_400Regular',
-    fontSize: 10,
     color: colors.neonCyan,
   },
   largeProgressTrack: {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Rect, Circle } from 'react-native-svg';
 import { useTheme } from '../utils/ThemeContext';
 import { ThemeColors } from '../utils/theme';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
@@ -28,7 +28,9 @@ const ICONS = {
   ),
   Money: (active: boolean, colors: ThemeColors) => (
     <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={active ? colors.neonCyan : "currentColor"} color={colors.mutedText} strokeWidth={active ? 1.8 : 1.6}>
-      <Path strokeLinecap="round" strokeLinejoin="round" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3" />
+      <Rect width="20" height="12" x="2" y="6" rx="2" />
+      <Circle cx="12" cy="12" r="2" />
+      <Path strokeLinecap="round" strokeLinejoin="round" d="M6 12h.01M18 12h.01" />
     </Svg>
   ),
 };

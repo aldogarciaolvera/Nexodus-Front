@@ -3,6 +3,7 @@ import { apiFetch, handleResponse } from './api';
 export interface CategoryPayload {
   name: string;
   description?: string;
+  monthlyLimit?: number;
 }
 
 export interface Category extends CategoryPayload {

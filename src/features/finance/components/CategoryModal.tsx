@@ -18,6 +18,7 @@ export const CategoryModal = ({ visible, onClose, editingCategory, onSuccess }: 
   
   const [categoryName, setCategoryName] = useState('');
   const [categoryDesc, setCategoryDesc] = useState('');
+  const [monthlyLimit, setMonthlyLimit] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Error State
@@ -34,9 +35,11 @@ export const CategoryModal = ({ visible, onClose, editingCategory, onSuccess }: 
       if (editingCategory) {
         setCategoryName(editingCategory.name);
         setCategoryDesc(editingCategory.description || '');
+        setMonthlyLimit(editingCategory.monthlyLimit ? editingCategory.monthlyLimit.toString() : '');
       } else {
         setCategoryName('');
         setCategoryDesc('');
+        setMonthlyLimit('');
       }
     }
   }, [visible, editingCategory]);
@@ -49,16 +52,21 @@ export const CategoryModal = ({ visible, onClose, editingCategory, onSuccess }: 
 
     try {
       setLoading(true);
+      
+      const parsedLimit = parseFloat(monthlyLimit) || 0.0;
+
       if (editingCategory) {
         const updated = await CategoryService.update(editingCategory.id!, {
           name: categoryName,
           description: categoryDesc,
+          monthlyLimit: parsedLimit,
         });
         if (onSuccess) onSuccess(updated);
       } else {
         const newCat = await CategoryService.create({
           name: categoryName,
           description: categoryDesc,
+          monthlyLimit: parsedLimit,
         });
         if (onSuccess) onSuccess(newCat);
       }
@@ -102,6 +110,18 @@ export const CategoryModal = ({ visible, onClose, editingCategory, onSuccess }: 
               placeholderTextColor={theme.colors.slate600}
               value={categoryDesc}
               onChangeText={setCategoryDesc}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Límite Mensual (Opcional)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ej. 500.00"
+              placeholderTextColor={theme.colors.slate600}
+              value={monthlyLimit}
+              onChangeText={setMonthlyLimit}
+              keyboardType="decimal-pad"
             />
           </View>
 

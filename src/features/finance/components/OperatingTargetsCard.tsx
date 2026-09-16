@@ -1,20 +1,34 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
-import { FinanceTransaction } from '../../../services/finance.service';
-import { Category } from '../../../services/category.service';
+import { FinanceTransaction, FinanceService } from '../../../services/finance.service';
+import { Category, CategoryService } from '../../../services/category.service';
+import { ActionSheet } from '../../../components/ActionSheet';
+import { CategoryModal } from './CategoryModal';
+import { CategoryDetailsModal } from './CategoryDetailsModal';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 interface OperatingTargetsCardProps {
   transactions?: FinanceTransaction[];
   categories?: Category[];
   loading?: boolean;
+  onSuccess?: () => void;
 }
 
-export const OperatingTargetsCard = ({ transactions = [], categories = [], loading = false }: OperatingTargetsCardProps) => {
+export const OperatingTargetsCard = ({ transactions = [], categories = [], loading = false, onSuccess }: OperatingTargetsCardProps) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
+
+  const [actionSheetVisible, setActionSheetVisible] = useState(false);
+  const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
+  const [actionCategory, setActionCategory] = useState<Category | null>(null);
+  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
+  const [detailsModalVisible, setDetailsModalVisible] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [catLoading, setCatLoading] = useState(false);
 
   const targets = useMemo(() => {
     return categories.map((cat, index) => {
@@ -31,6 +45,14 @@ export const OperatingTargetsCard = ({ transactions = [], categories = [], loadi
         })
         .reduce((sum, t) => sum + t.amount, 0);
 
+      const income = transactions
+        .filter(t => {
+          if (t.transactionType !== 'Ingreso' || t.categoryId !== cat.id || !t.transactionDate) return false;
+          const tDate = new Date(t.transactionDate);
+          return tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear;
+        })
+        .reduce((sum, t) => sum + t.amount, 0);
+
       // Colors to cycle through
       const colors = [theme.colors.neonCyan, '#FFD700', '#FF3366', '#00E676'];
       
@@ -39,23 +61,22 @@ export const OperatingTargetsCard = ({ transactions = [], categories = [], loadi
         label: cat.name,
         sub: cat.description || '',
         value: spent,
-        total: 500, // Hardcoded to 500 per user request for now
+        income: income,
+        total: cat.monthlyLimit || 0,
         color: colors[index % colors.length],
       };
-    }).sort((a, b) => b.value - a.value); // Sort by highest spend
+    })
+    .sort((a, b) => b.value - a.value); // Sort by highest spend
   }, [transactions, categories, theme.colors]);
+
+  const navigation = useNavigation<NativeStackNavigationProp<any>>();
 
   return (
     <View style={styles.card}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.kicker}>ALLOCATION PILLARS</Text>
-          <Text style={styles.title}>Monthly Operating Targets</Text>
-        </View>
-        <View style={styles.iconBtn}>
-          <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={theme.colors.slate400} strokeWidth={2}>
-            <Path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-          </Svg>
+          <Text style={styles.kicker}>ASIGNACIONES</Text>
+          <Text style={styles.title}>Restricciones de Mes</Text>
         </View>
       </View>
 
@@ -66,28 +87,128 @@ export const OperatingTargetsCard = ({ transactions = [], categories = [], loadi
           <Text style={{ color: theme.colors.slate400, fontFamily: 'JetBrainsMono_400Regular', textAlign: 'center' }}>No targets found</Text>
         ) : (
           targets.map((item, index) => {
-            const fillPercent = Math.min((item.value / item.total) * 100, 100);
+            const hasLimit = item.total > 0;
+            const fillPercent = hasLimit ? Math.min((item.value / item.total) * 100, 100) : 0;
+            const isOverLimit = hasLimit && item.value > item.total;
             return (
-              <View key={item.id || index} style={styles.listItem}>
+              <TouchableOpacity 
+                key={item.id || index} 
+                style={styles.listItem}
+                activeOpacity={0.8}
+                onPress={() => {
+                  const cat = categories.find(c => c.id === item.id);
+                  if (cat) {
+                    setActionCategory(cat);
+                    setDetailsModalVisible(true);
+                  }
+                }}
+                onLongPress={() => {
+                  const cat = categories.find(c => c.id === item.id);
+                  if (cat) {
+                    setActionCategory(cat);
+                    setActionSheetVisible(true);
+                  }
+                }}
+                delayLongPress={300}
+              >
                 <View style={styles.itemHeader}>
                   <View style={styles.itemLabelRow}>
                     <View style={[styles.dot, { backgroundColor: item.color }]} />
-                    <Text style={styles.itemLabel} numberOfLines={1}>{item.label}</Text>
-                    {item.sub ? <Text style={styles.itemSub} numberOfLines={1}>{item.sub}</Text> : null}
+                    <Text style={[styles.itemLabel, isOverLimit && { color: theme.colors.error }]} numberOfLines={1}>{item.label}</Text>
+                    {isOverLimit && (
+                      <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={theme.colors.error} strokeWidth={2} style={{ marginLeft: 4 }}>
+                        <Path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </Svg>
+                    )}
                   </View>
                   <View style={styles.amountContainer}>
-                    <Text style={styles.amountValue}>${item.value.toFixed(2)}</Text>
-                    <Text style={styles.amountTotal}> / ${item.total}</Text>
+                    <Text style={[styles.amountValue, isOverLimit && { color: theme.colors.error }]}>${item.value.toFixed(2)}</Text>
+                    {hasLimit && <Text style={styles.amountTotal}> / ${item.total.toFixed(2)}</Text>}
                   </View>
                 </View>
+                {hasLimit && (
                 <View style={styles.progressTrack}>
-                  <View style={[styles.progressFill, { width: `${fillPercent}%`, backgroundColor: item.color }]} />
+                  <View style={[styles.progressFill, { width: `${fillPercent}%`, backgroundColor: isOverLimit ? theme.colors.error : item.color }]} />
                 </View>
-              </View>
+                )}
+              </TouchableOpacity>
             );
           })
         )}
       </View>
+
+      <CategoryModal
+        visible={categoryModalVisible}
+        onClose={() => setCategoryModalVisible(false)}
+        editingCategory={editingCategory}
+        onSuccess={() => {
+          if (onSuccess) onSuccess();
+        }}
+      />
+
+      <CategoryDetailsModal
+        visible={detailsModalVisible}
+        onClose={() => setDetailsModalVisible(false)}
+        category={actionCategory}
+        transactions={transactions}
+      />
+
+      <ActionSheet
+        visible={actionSheetVisible}
+        onClose={() => setActionSheetVisible(false)}
+        title="Opciones de Categoría"
+        subtitle={actionCategory ? `¿Qué deseas hacer con "${actionCategory.name}"?` : ''}
+        options={[
+          {
+            label: 'Editar',
+            onPress: () => {
+              if (actionCategory) {
+                setEditingCategory(actionCategory);
+                setCategoryModalVisible(true);
+              }
+            }
+          },
+          {
+            label: 'Eliminar',
+            destructive: true,
+            onPress: () => {
+              setConfirmDeleteVisible(true);
+            }
+          }
+        ]}
+      />
+
+      <ActionSheet
+        visible={confirmDeleteVisible}
+        onClose={() => setConfirmDeleteVisible(false)}
+        title="Confirmar Eliminación"
+        subtitle={actionCategory ? `¿Estás seguro que deseas eliminar "${actionCategory.name}"?` : ''}
+        options={[
+          {
+            label: 'Sí, Eliminar',
+            destructive: true,
+            onPress: async () => {
+              if (!actionCategory) return;
+              try {
+                setCatLoading(true);
+                
+                // Eliminar primero todas las transacciones asociadas a la categoría
+                const catTxs = transactions.filter(t => t.categoryId === actionCategory.id);
+                await Promise.all(catTxs.map(t => FinanceService.delete(t.id)));
+                
+                // Luego eliminar la categoría
+                await CategoryService.delete(actionCategory.id!);
+                
+                if (onSuccess) onSuccess();
+              } catch (e) {
+                console.error(e);
+              } finally {
+                setCatLoading(false);
+              }
+            }
+          }
+        ]}
+      />
     </View>
   );
 };

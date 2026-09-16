@@ -48,7 +48,7 @@ export const WeeklyOutflowCard = ({ transactions = [], loading = false }: Weekly
 
     const calculatedRunRate = (todayIndex + 1) > 0 ? (totalSpent / (todayIndex + 1)) : 0;
     
-    const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    const dayLabels = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
     const calculatedDays = dayLabels.map((label, i) => ({
       label,
       value: dayTotals[i],
@@ -63,12 +63,9 @@ export const WeeklyOutflowCard = ({ transactions = [], loading = false }: Weekly
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.kicker}>BURN TELEMETRY</Text>
-          <Text style={styles.title}>Weekly Outflow</Text>
-        </View>
+          <Text style={styles.title}>Semanales</Text>
         <View style={styles.pill}>
-          <Text style={styles.pillText}>RUN-RATE: ${runRate.toFixed(2)}/D</Text>
+          <Text style={styles.pillText}>Promedio: ${runRate.toFixed(2)}/D</Text>
         </View>
       </View>
 
@@ -124,13 +121,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 24,
-  },
-  kicker: {
-    fontFamily: 'JetBrainsMono_400Regular',
-    fontSize: 9,
-    color: colors.slate400,
-    letterSpacing: 1,
-    marginBottom: 4,
   },
   title: {
     fontFamily: 'Geist_500Medium',

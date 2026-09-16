@@ -9,6 +9,8 @@ import React, { useEffect, useState } from 'react';
 
 import { DashboardScreen } from './src/features/dashboard/DashboardScreen';
 import { FinanceScreen } from './src/features/finance/FinanceScreen';
+import { AllTransactionsScreen } from './src/features/finance/AllTransactionsScreen';
+import { SettingsScreen } from './src/features/settings/SettingsScreen';
 import { LoginScreen } from './src/features/auth/LoginScreen';
 import { BottomNav } from './src/components/BottomNav';
 import { View, ActivityIndicator } from 'react-native';
@@ -74,7 +76,11 @@ function AppInner() {
         <StatusBar style={isDarkMode ? "light" : "dark"} />
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {isAuthenticated ? (
-            <Stack.Screen name="MainTabs" component={MainTabs} />
+            <>
+              <Stack.Screen name="MainTabs" component={MainTabs} />
+              <Stack.Screen name="AllTransactions" component={AllTransactionsScreen} />
+              <Stack.Screen name="Settings" component={SettingsScreen} />
+            </>
           ) : (
             <Stack.Screen name="Login" component={LoginScreen} />
           )}

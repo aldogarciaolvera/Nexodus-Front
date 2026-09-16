@@ -12,7 +12,6 @@ import { NetWorthCard } from './components/NetWorthCard';
 import { WeeklyOutflowCard } from './components/WeeklyOutflowCard';
 import { OperatingTargetsCard } from './components/OperatingTargetsCard';
 import { TransactionsCard } from './components/TransactionsCard';
-import { CapitalEfficiencyCard } from './components/CapitalEfficiencyCard';
 import { TransactionModal } from './components/TransactionModal';
 
 export const FinanceScreen = () => {
@@ -61,9 +60,8 @@ export const FinanceScreen = () => {
           <View style={styles.stack}>
             <NetWorthCard summary={summary} loading={loading} />
             <WeeklyOutflowCard transactions={transactions} loading={loading} />
-            <OperatingTargetsCard transactions={transactions} categories={categories} loading={loading} />
-            <TransactionsCard transactions={transactions} categories={categories} loading={loading} />
-            <CapitalEfficiencyCard summary={summary} loading={loading} />
+            <OperatingTargetsCard transactions={transactions} categories={categories} loading={loading} onSuccess={fetchData} />
+            <TransactionsCard transactions={transactions} categories={categories} loading={loading} onSuccess={fetchData} />
           </View>
           
           {/* Spacer for bottom nav */}

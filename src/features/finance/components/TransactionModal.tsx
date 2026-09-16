@@ -13,9 +13,10 @@ interface TransactionModalProps {
   categories?: Category[];
   transactions?: FinanceTransaction[];
   onSuccess?: () => void;
+  editingTransaction?: FinanceTransaction | null;
 }
 
-export const TransactionModal = ({ visible, onClose, categories = [], transactions = [], onSuccess }: TransactionModalProps) => {
+export const TransactionModal = ({ visible, onClose, categories = [], transactions = [], onSuccess, editingTransaction }: TransactionModalProps) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
   
@@ -49,6 +50,15 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
 
   useEffect(() => {
     if (visible) {
+      if (editingTransaction) {
+        setAmount(editingTransaction.amount.toString());
+        setType(editingTransaction.transactionType as 'Ingreso' | 'Gasto');
+        setSelectedCategory(editingTransaction.categoryId || null);
+      } else {
+        setAmount('');
+        setType('Gasto');
+        setSelectedCategory(null);
+      }
       setShowModal(true);
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -64,7 +74,7 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
         setShowModal(false);
       });
     }
-  }, [visible]);
+  }, [visible, editingTransaction]);
 
   const handleSubmit = async () => {
     if (!amount || isNaN(Number(amount))) {
@@ -78,11 +88,19 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
 
     try {
       setLoading(true);
-      await FinanceService.create({
-        amount: Number(amount),
-        transactionType: type,
-        categoryId: selectedCategory,
-      });
+      if (editingTransaction) {
+        await FinanceService.update(editingTransaction.id!, {
+          amount: Number(amount),
+          transactionType: type,
+          categoryId: selectedCategory,
+        });
+      } else {
+        await FinanceService.create({
+          amount: Number(amount),
+          transactionType: type,
+          categoryId: selectedCategory,
+        });
+      }
       
       setAmount('');
       setType('Gasto');
@@ -94,7 +112,7 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
       onClose();
     } catch (error) {
       console.error(error);
-      showError('No se pudo crear la transacción');
+      showError(editingTransaction ? 'No se pudo actualizar la transacción' : 'No se pudo crear la transacción');
     } finally {
       setLoading(false);
     }
@@ -120,7 +138,7 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
       <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
         <View style={styles.content}>
-          <Text style={styles.title}>Nueva Transaccion</Text>
+          <Text style={styles.title}>{editingTransaction ? 'Editar Transaccion' : 'Nueva Transaccion'}</Text>
           
           <View style={styles.typeSelector}>
             <TouchableOpacity 

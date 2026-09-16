@@ -1,20 +1,31 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
-import { FinanceTransaction } from '../../../services/finance.service';
+import { FinanceTransaction, FinanceService } from '../../../services/finance.service';
 import { Category } from '../../../services/category.service';
+import { ActionSheet } from '../../../components/ActionSheet';
+import { TransactionModal } from './TransactionModal';
 
 interface TransactionsCardProps {
   transactions: FinanceTransaction[];
   categories?: Category[];
   loading?: boolean;
+  onSuccess?: () => void;
 }
 
-export const TransactionsCard = ({ transactions, categories = [], loading }: TransactionsCardProps) => {
+export const TransactionsCard = ({ transactions, categories = [], loading, onSuccess }: TransactionsCardProps) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
+  const navigation = useNavigation<any>();
+
+  const [actionSheetVisible, setActionSheetVisible] = useState(false);
+  const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
+  const [actionTransaction, setActionTransaction] = useState<FinanceTransaction | null>(null);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [txLoading, setTxLoading] = useState(false);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -46,19 +57,28 @@ export const TransactionsCard = ({ transactions, categories = [], loading }: Tra
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <Text style={styles.headerText}>RECENT TRANSACTIONS • {loading ? '...' : transactions.length} LOGGED</Text>
+        <Text style={styles.headerText}>TRANSACCIONES RECIENTES • {loading ? '...' : transactions.length} REGISTROS</Text>
       </View>
 
       <View style={styles.list}>
         {transactions.length === 0 && !loading && (
-          <Text style={styles.subText}>No transactions found.</Text>
+          <Text style={styles.subText}>No se encontraron transacciones.</Text>
         )}
-        {transactions.map(item => {
+        {transactions.slice(0, 3).map(item => {
           const isIncome = item.transactionType === 'Ingreso';
           const categoryName = categories.find(c => c.id === item.categoryId)?.name || 'Sin Categoría';
           
           return (
-            <View key={item.id} style={styles.transactionItem}>
+            <TouchableOpacity 
+              key={item.id} 
+              style={styles.transactionItem}
+              onLongPress={() => {
+                setActionTransaction(item);
+                setActionSheetVisible(true);
+              }}
+              delayLongPress={300}
+              activeOpacity={0.8}
+            >
               <View style={styles.iconContainer}>
                 {isIncome ? <IncomeIcon /> : <ExpenseIcon />}
               </View>
@@ -74,10 +94,77 @@ export const TransactionsCard = ({ transactions, categories = [], loading }: Tra
                   {isIncome ? '+' : '-'}{formatCurrency(item.amount)}
                 </Text>
               </View>
-            </View>
+            </TouchableOpacity>
           );
         })}
+        {transactions.length > 3 && (
+          <TouchableOpacity 
+            style={styles.viewAllBtn} 
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate('AllTransactions')}
+          >
+            <Text style={styles.viewAllText}>Ver todas</Text>
+          </TouchableOpacity>
+        )}
       </View>
+
+      <ActionSheet
+        visible={actionSheetVisible}
+        onClose={() => setActionSheetVisible(false)}
+        title="Opciones de Movimiento"
+        subtitle={actionTransaction ? '¿Qué deseas hacer con este movimiento?' : ''}
+        options={[
+          {
+            label: 'Editar',
+            onPress: () => {
+              if (actionTransaction) {
+                setEditModalVisible(true);
+              }
+            }
+          },
+          {
+            label: 'Eliminar',
+            destructive: true,
+            onPress: () => {
+              setConfirmDeleteVisible(true);
+            }
+          }
+        ]}
+      />
+
+      <ActionSheet
+        visible={confirmDeleteVisible}
+        onClose={() => setConfirmDeleteVisible(false)}
+        title="Confirmar Eliminación"
+        subtitle={actionTransaction ? '¿Estás seguro que deseas eliminar este movimiento?' : ''}
+        options={[
+          {
+            label: 'Sí, Eliminar',
+            destructive: true,
+            onPress: async () => {
+              if (!actionTransaction) return;
+              try {
+                setTxLoading(true);
+                await FinanceService.delete(actionTransaction.id);
+                if (onSuccess) onSuccess();
+              } catch (e) {
+                console.error(e);
+              } finally {
+                setTxLoading(false);
+              }
+            }
+          }
+        ]}
+      />
+
+      <TransactionModal 
+        visible={editModalVisible} 
+        onClose={() => setEditModalVisible(false)}
+        categories={categories}
+        transactions={transactions}
+        editingTransaction={actionTransaction}
+        onSuccess={onSuccess || (() => {})}
+      />
     </View>
   );
 };
@@ -144,5 +231,18 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: 'JetBrainsMono_500Medium',
     fontSize: 14,
     color: colors.text,
+  },
+  viewAllBtn: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    borderRadius: 8,
+    backgroundColor: colors.surfaceLight,
+  },
+  viewAllText: {
+    fontFamily: 'Geist_500Medium',
+    fontSize: 14,
+    color: colors.neonCyan,
   },
 });
