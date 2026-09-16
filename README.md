@@ -36,15 +36,13 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
 
 ## 🆕 Últimos Cambios
 
+- **Gestión de Estado de Servidor:** Integración de `@tanstack/react-query` para manejo eficiente de caché, mutaciones optimistas y estado asíncrono.
+- **Autenticación y Persistencia:** Sistema de sesión utilizando Zustand y `SecureStore` (Expo) con timeout de inactividad de 48 horas para proteger la sesión.
+- **Arquitectura de Servicios:** Implementación de un patrón de API en `src/services/` que maneja tokens (JWT), interceptores globales para errores `401`, y abstracciones por dominio (`UserService`, `FinanceService`, `CategoryService`).
+- **Módulo de Configuración:** Creación de `SettingsScreen` conectada al backend (`/api/user/me`) permitiendo actualización del perfil y toggle de tema dinámico (claro/oscuro).
+- **Dashboard Reactivo:** La tarjeta de Finanzas (`FinanceCard`) se ha conectado a la API en tiempo real para mostrar ingresos vs. gastos (Ayer/Hoy) de forma dinámica.
+- **Correcciones de UI/UX:** Mitigación de "destellos blancos" en la navegación configurando el color de fondo raíz en el `SafeAreaProvider`, `NavigationContainer` y `app.json` alineados a la filosofía *Obsidian Cyan*.
 - **Navegación**: Migración de Native Stack a `@react-navigation/bottom-tabs` con una barra inferior personalizada (`BottomNav`).
-- **Arquitectura y Diseño**:
-  - Creación de las carpetas faltantes (`assets`, `hooks`, `services`, `store`) para cumplir con `Clean Architecture`.
-  - Remoción de sombras (Drop Shadows) en tarjetas (como `DailyTodoCard`) para respetar las guías de diseño de `Stealth Luxury`.
-- **Tipografía**: Integración de `@expo-google-fonts/geist` y `@expo-google-fonts/jetbrains-mono` cargadas dinámicamente en el inicio de la app.
-- **Módulo Finance & Wealth (Money)**: 
-  - Pantalla completa con diseño "Stealth Luxury".
-  - Tarjetas modulares: `NetWorthCard`, `WeeklyOutflowCard` (con gráfico dinámico), `OperatingTargetsCard`, `TransactionsCard`, y `CapitalEfficiencyCard`.
-  - Integración de modal de transacción flotante (`TransactionModal`).
 
 ## 🚀 Instalación y Uso
 
