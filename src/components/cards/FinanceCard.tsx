@@ -2,8 +2,57 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { theme } from '../../utils/theme';
+import { useQuery } from '@tanstack/react-query';
+import { FinanceService } from '../../services/finance.service';
+import { CategoryService } from '../../services/category.service';
+import { ActivityIndicator } from 'react-native';
 
 export const FinanceCard = () => {
+  const { data: summary, isLoading: loadingSummary } = useQuery({
+    queryKey: ['financeSummary'],
+    queryFn: FinanceService.getSummary,
+  });
+
+  const { data: categories = [], isLoading: loadingCategories } = useQuery({
+    queryKey: ['categories'],
+    queryFn: CategoryService.getAll,
+  });
+
+  const { data: transactions = [], isLoading: loadingTransactions } = useQuery({
+    queryKey: ['financeTransactions'],
+    queryFn: FinanceService.getAll,
+  });
+
+  const isLoading = loadingSummary || loadingCategories || loadingTransactions;
+
+  const totalSpent = summary?.totalExpense || 0;
+  
+  // Calculate total monthly limit from all categories
+  const totalLimit = categories.reduce((acc, cat) => acc + (cat.monthlyLimit || 0), 0);
+  const remaining = (summary?.totalIncome || 0) - totalSpent;
+  const isNegative = remaining < 0;
+
+  // Calculate today's and yesterday's spending
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const yesterday = today - 86400000; // Subtract 24 hours in milliseconds
+
+  let spentToday = 0;
+  let spentYesterday = 0;
+
+  transactions.forEach(t => {
+    if (t.transactionType === 'Gasto' && t.transactionDate) {
+      const tDate = new Date(t.transactionDate).getTime();
+      if (tDate >= today) {
+        spentToday += t.amount;
+      } else if (tDate >= yesterday && tDate < today) {
+        spentYesterday += t.amount;
+      }
+    }
+  });
+
+  const maxDaily = Math.max(spentToday, spentYesterday, 1); // Avoid division by zero
+
   return (
     <View style={styles.card}>
       <View>
@@ -11,37 +60,38 @@ export const FinanceCard = () => {
           <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={theme.colors.neonCyan} strokeWidth={1.8}>
             <Path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </Svg>
-          <Text style={styles.headerTitle} numberOfLines={1}>Finance Summary</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Finanzas</Text>
         </View>
         
-        <Text style={styles.spentText}>
-          Spent: <Text style={styles.spentValue}>$115.50</Text>
-        </Text>
-        
-        <View style={styles.chartRow}>
-          <View style={styles.barsContainer}>
-            <View style={styles.barColumn}>
-              <View style={[styles.bar, styles.barActive]}>
-                <View style={styles.barGlow} />
+        {isLoading ? (
+          <ActivityIndicator color={theme.colors.neonCyan} style={{ marginTop: 20 }} />
+        ) : (
+          <>
+            <Text style={styles.spentText}>
+              Gastado: <Text style={styles.spentValue}>${totalSpent.toFixed(2)}</Text>
+            </Text>
+            
+            <View style={styles.chartRow}>
+              <View style={styles.barsContainer}>
+                <View style={styles.barColumn}>
+                  <View style={[styles.bar, styles.barInactive, { height: Math.max((spentYesterday / maxDaily) * 44, 4) }]} />
+                  <Text style={styles.barLabel}>Ayer</Text>
+                </View>
+                <View style={styles.barColumn}>
+                  <View style={[styles.bar, styles.barActive, { height: Math.max((spentToday / maxDaily) * 44, 4) }]}>
+                    <View style={styles.barGlow} />
+                  </View>
+                  <Text style={styles.barLabel}>Hoy</Text>
+                </View>
               </View>
-              <Text style={styles.barLabel}>Mon</Text>
+              
+              <View style={styles.remainingContainer}>
+                <Text style={[styles.remainingValue, isNegative && { color: theme.colors.error }]}>${remaining.toFixed(2)}</Text>
+                <Text style={[styles.remainingLabel, isNegative && { color: theme.colors.error }]}>(Restante)</Text>
+              </View>
             </View>
-            <View style={styles.barColumn}>
-              <View style={[styles.bar, styles.barInactive]} />
-              <Text style={styles.barLabel}>Tue</Text>
-            </View>
-          </View>
-          
-          <View style={styles.remainingContainer}>
-            <Text style={styles.remainingValue}>$450.20</Text>
-            <Text style={styles.remainingLabel}>(Remaining)</Text>
-          </View>
-        </View>
-      </View>
-      
-      <View style={styles.footer}>
-        <Text style={styles.footerLabel}>Weekly Cap</Text>
-        <Text style={styles.footerValue}>$800</Text>
+          </>
+        )}
       </View>
     </View>
   );
@@ -150,25 +200,5 @@ const styles = StyleSheet.create({
     color: theme.colors.mutedText,
     letterSpacing: 0.5,
     fontFamily: 'Geist',
-  },
-  footer: {
-    marginTop: 12,
-    paddingTop: 4,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(34, 40, 54, 0.6)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  footerLabel: {
-    fontSize: 10,
-    color: theme.colors.mutedText,
-    fontFamily: 'Geist',
-  },
-  footerValue: {
-    fontSize: 10,
-    fontWeight: '500',
-    color: theme.colors.slate300,
-    fontFamily: 'JetBrains Mono',
   },
 });

@@ -11,7 +11,7 @@ interface HeaderProps {
   subtitle?: string;
 }
 
-export const Header = ({ title = "Good morning, Alex!" }: HeaderProps) => {
+export const Header = ({ title = "Nexodus" }: HeaderProps) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
   const navigation = useNavigation<any>();
