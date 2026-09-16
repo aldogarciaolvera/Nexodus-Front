@@ -13,13 +13,15 @@ import { AllTransactionsScreen } from './src/features/finance/AllTransactionsScr
 import { SettingsScreen } from './src/features/settings/SettingsScreen';
 import { LoginScreen } from './src/features/auth/LoginScreen';
 import { BottomNav } from './src/components/BottomNav';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, AppState, AppStateStatus } from 'react-native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './src/store/authStore';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ThemeProvider, useTheme } from './src/utils/ThemeContext';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+const queryClient = new QueryClient();
 
 function MainTabs() {
   return (
@@ -37,7 +39,7 @@ function MainTabs() {
 }
 
 function AppInner() {
-  const { isAuthenticated, initialize } = useAuthStore();
+  const { isAuthenticated, initialize, updateLastActive } = useAuthStore();
   const [isReady, setIsReady] = useState(false);
   const theme = useTheme();
   const { isDarkMode } = theme;
@@ -45,6 +47,18 @@ function AppInner() {
   useEffect(() => {
     initialize().finally(() => setIsReady(true));
   }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        updateLastActive();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [updateLastActive]);
 
   const [fontsLoaded] = useFonts({
     Geist_400Regular,
@@ -71,10 +85,10 @@ function AppInner() {
   }
 
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider style={{ flex: 1, backgroundColor: theme.colors.obsidian }}>
       <NavigationContainer theme={AppTheme}>
         <StatusBar style={isDarkMode ? "light" : "dark"} />
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.colors.obsidian } }}>
           {isAuthenticated ? (
             <>
               <Stack.Screen name="MainTabs" component={MainTabs} />
@@ -92,8 +106,10 @@ function AppInner() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AppInner />
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <AppInner />
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }

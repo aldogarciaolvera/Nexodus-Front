@@ -3,7 +3,7 @@ import { View, StyleSheet, ScrollView, Platform, TouchableOpacity, Text } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../utils/ThemeContext';
 import { ThemeColors } from '../../utils/theme';
-import { useFocusEffect } from '@react-navigation/native';
+import { useQuery } from '@tanstack/react-query';
 import { FinanceService, FinanceSummary, FinanceTransaction } from '../../services/finance.service';
 import { CategoryService, Category } from '../../services/category.service';
 
@@ -19,34 +19,31 @@ export const FinanceScreen = () => {
   const styles = createStyles(theme.colors);
   
   const [modalVisible, setModalVisible] = useState(false);
-  const [summary, setSummary] = useState<FinanceSummary | null>(null);
-  const [transactions, setTransactions] = useState<FinanceTransaction[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
+  
+  const { data: summary = null, isLoading: loadingSummary, refetch: refetchSummary } = useQuery({
+    queryKey: ['financeSummary'],
+    queryFn: FinanceService.getSummary,
+  });
+
+  const { data: transactions = [], isLoading: loadingTransactions, refetch: refetchTransactions } = useQuery({
+    queryKey: ['financeTransactions'],
+    queryFn: FinanceService.getAll,
+  });
+
+  const { data: categories = [], isLoading: loadingCategories, refetch: refetchCategories } = useQuery({
+    queryKey: ['categories'],
+    queryFn: CategoryService.getAll,
+  });
+
+  const loading = loadingSummary || loadingTransactions || loadingCategories;
 
   const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [sumData, txData, catData] = await Promise.all([
-        FinanceService.getSummary(),
-        FinanceService.getAll(),
-        CategoryService.getAll(),
-      ]);
-      setSummary(sumData);
-      setTransactions(txData);
-      setCategories(catData);
-    } catch (err) {
-      console.error('Failed to fetch finance data', err);
-    } finally {
-      setLoading(false);
-    }
+    await Promise.all([
+      refetchSummary(),
+      refetchTransactions(),
+      refetchCategories(),
+    ]);
   };
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchData();
-    }, [])
-  );
 
   return (
     <SafeAreaView style={styles.safeArea}>

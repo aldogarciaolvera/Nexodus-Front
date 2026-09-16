@@ -10,6 +10,7 @@ import { CategoryModal } from './CategoryModal';
 import { CategoryDetailsModal } from './CategoryDetailsModal';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface OperatingTargetsCardProps {
   transactions?: FinanceTransaction[];
@@ -28,7 +29,8 @@ export const OperatingTargetsCard = ({ transactions = [], categories = [], loadi
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [catLoading, setCatLoading] = useState(false);
+  
+  const queryClient = useQueryClient();
 
   const targets = useMemo(() => {
     return categories.map((cat, index) => {
@@ -70,6 +72,39 @@ export const OperatingTargetsCard = ({ transactions = [], categories = [], loadi
   }, [transactions, categories, theme.colors]);
 
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
+
+  const deleteCategoryMutation = useMutation({
+    mutationFn: async (categoryId: string) => {
+      const catTxs = transactions.filter(t => t.categoryId === categoryId);
+      await Promise.all(catTxs.map(t => FinanceService.delete(t.id!)));
+      await CategoryService.delete(categoryId);
+    },
+    onMutate: async (categoryId) => {
+      await queryClient.cancelQueries({ queryKey: ['categories'] });
+      await queryClient.cancelQueries({ queryKey: ['financeTransactions'] });
+
+      const previousCategories = queryClient.getQueryData(['categories']);
+      const previousTransactions = queryClient.getQueryData(['financeTransactions']);
+
+      queryClient.setQueryData(['categories'], (old: any) => old?.filter((c: any) => c.id !== categoryId));
+      queryClient.setQueryData(['financeTransactions'], (old: any) => old?.filter((t: any) => t.categoryId !== categoryId));
+
+      return { previousCategories, previousTransactions };
+    },
+    onError: (err, variables, context) => {
+      queryClient.setQueryData(['categories'], context?.previousCategories);
+      queryClient.setQueryData(['financeTransactions'], context?.previousTransactions);
+      console.error(err);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      queryClient.invalidateQueries({ queryKey: ['financeTransactions'] });
+      queryClient.invalidateQueries({ queryKey: ['financeSummary'] });
+    },
+    onSuccess: () => {
+      if (onSuccess) onSuccess();
+    }
+  });
 
   return (
     <View style={styles.card}>
@@ -187,24 +222,9 @@ export const OperatingTargetsCard = ({ transactions = [], categories = [], loadi
           {
             label: 'Sí, Eliminar',
             destructive: true,
-            onPress: async () => {
+            onPress: () => {
               if (!actionCategory) return;
-              try {
-                setCatLoading(true);
-                
-                // Eliminar primero todas las transacciones asociadas a la categoría
-                const catTxs = transactions.filter(t => t.categoryId === actionCategory.id);
-                await Promise.all(catTxs.map(t => FinanceService.delete(t.id)));
-                
-                // Luego eliminar la categoría
-                await CategoryService.delete(actionCategory.id!);
-                
-                if (onSuccess) onSuccess();
-              } catch (e) {
-                console.error(e);
-              } finally {
-                setCatLoading(false);
-              }
+              deleteCategoryMutation.mutate(actionCategory.id!);
             }
           }
         ]}

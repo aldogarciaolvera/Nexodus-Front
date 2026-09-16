@@ -6,6 +6,7 @@ import { FinanceService, FinanceTransaction } from '../../../services/finance.se
 import { ActionSheet } from '../../../components/ActionSheet';
 import { Category, CategoryService } from '../../../services/category.service';
 import { CategoryModal } from './CategoryModal';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface TransactionModalProps {
   visible: boolean;
@@ -23,7 +24,7 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<'Ingreso' | 'Gasto'>('Gasto');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
 
   // Action Sheet State
   const [actionSheetVisible, setActionSheetVisible] = useState(false);
@@ -76,7 +77,50 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
     }
   }, [visible, editingTransaction]);
 
-  const handleSubmit = async () => {
+  const mutation = useMutation({
+    mutationFn: async (newTx: any) => {
+      if (editingTransaction) {
+        return FinanceService.update(editingTransaction.id!, newTx);
+      } else {
+        return FinanceService.create(newTx);
+      }
+    },
+    onMutate: async (newTx) => {
+      await queryClient.cancelQueries({ queryKey: ['financeTransactions'] });
+      await queryClient.cancelQueries({ queryKey: ['financeSummary'] });
+
+      const previousTransactions = queryClient.getQueryData(['financeTransactions']);
+      const previousSummary = queryClient.getQueryData(['financeSummary']);
+
+      queryClient.setQueryData(['financeTransactions'], (old: any) => {
+        const tx = {
+          id: editingTransaction ? editingTransaction.id : Math.random().toString(),
+          ...newTx,
+          date: editingTransaction ? editingTransaction.date : new Date().toISOString(),
+        };
+        if (editingTransaction && old) {
+          return old.map((t: any) => t.id === editingTransaction.id ? tx : t);
+        }
+        return old ? [tx, ...old] : [tx];
+      });
+
+      return { previousTransactions, previousSummary };
+    },
+    onError: (err, newTx, context) => {
+      queryClient.setQueryData(['financeTransactions'], context?.previousTransactions);
+      queryClient.setQueryData(['financeSummary'], context?.previousSummary);
+      Alert.alert('Error', editingTransaction ? 'No se pudo actualizar la transacción' : 'No se pudo crear la transacción');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['financeTransactions'] });
+      queryClient.invalidateQueries({ queryKey: ['financeSummary'] });
+    },
+    onSuccess: () => {
+      if (onSuccess) onSuccess();
+    }
+  });
+
+  const handleSubmit = () => {
     if (!amount || isNaN(Number(amount))) {
       showError('Por favor ingresa un monto válido');
       return;
@@ -86,36 +130,16 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
       return;
     }
 
-    try {
-      setLoading(true);
-      if (editingTransaction) {
-        await FinanceService.update(editingTransaction.id!, {
-          amount: Number(amount),
-          transactionType: type,
-          categoryId: selectedCategory,
-        });
-      } else {
-        await FinanceService.create({
-          amount: Number(amount),
-          transactionType: type,
-          categoryId: selectedCategory,
-        });
-      }
-      
-      setAmount('');
-      setType('Gasto');
-      setSelectedCategory(null);
-      
-      if (onSuccess) {
-        onSuccess();
-      }
-      onClose();
-    } catch (error) {
-      console.error(error);
-      showError(editingTransaction ? 'No se pudo actualizar la transacción' : 'No se pudo crear la transacción');
-    } finally {
-      setLoading(false);
-    }
+    mutation.mutate({
+      amount: Number(amount),
+      transactionType: type,
+      categoryId: selectedCategory,
+    });
+    
+    setAmount('');
+    setType('Gasto');
+    setSelectedCategory(null);
+    onClose();
   };
 
   const handleCategoryLongPress = (cat: Category) => {
@@ -127,6 +151,40 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
     setEditingCategory(null);
     setCategoryModalVisible(true);
   };
+
+  const deleteMutation = useMutation({
+    mutationFn: async (categoryId: string) => {
+      const catTxs = transactions.filter(t => t.categoryId === categoryId);
+      await Promise.all(catTxs.map(t => FinanceService.delete(t.id!)));
+      await CategoryService.delete(categoryId);
+    },
+    onMutate: async (categoryId) => {
+      await queryClient.cancelQueries({ queryKey: ['categories'] });
+      await queryClient.cancelQueries({ queryKey: ['financeTransactions'] });
+
+      const previousCategories = queryClient.getQueryData(['categories']);
+      const previousTransactions = queryClient.getQueryData(['financeTransactions']);
+
+      queryClient.setQueryData(['categories'], (old: any) => old?.filter((c: any) => c.id !== categoryId));
+      queryClient.setQueryData(['financeTransactions'], (old: any) => old?.filter((t: any) => t.categoryId !== categoryId));
+
+      return { previousCategories, previousTransactions };
+    },
+    onError: (err, variables, context) => {
+      queryClient.setQueryData(['categories'], context?.previousCategories);
+      queryClient.setQueryData(['financeTransactions'], context?.previousTransactions);
+      Alert.alert('Error', 'No se pudo eliminar la categoría o sus transacciones');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      queryClient.invalidateQueries({ queryKey: ['financeTransactions'] });
+      queryClient.invalidateQueries({ queryKey: ['financeSummary'] });
+    },
+    onSuccess: () => {
+      if (selectedCategory === actionCategory?.id) setSelectedCategory(null);
+      if (onSuccess) onSuccess();
+    }
+  });
 
   return (
     <Modal
@@ -192,8 +250,8 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
             </ScrollView>
           </View>
 
-          <TouchableOpacity style={styles.submitBtn} activeOpacity={0.8} onPress={handleSubmit} disabled={loading}>
-            {loading ? (
+          <TouchableOpacity style={styles.submitBtn} activeOpacity={0.8} onPress={handleSubmit} disabled={mutation.isPending}>
+            {mutation.isPending ? (
               <ActivityIndicator color={theme.colors.obsidian} />
             ) : (
               <Text style={styles.submitText}>CONFIRMAR</Text>
@@ -249,25 +307,9 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
           {
             label: 'Sí, Eliminar',
             destructive: true,
-            onPress: async () => {
+            onPress: () => {
               if (!actionCategory) return;
-              try {
-                setCatLoading(true);
-                
-                // Eliminar primero todas las transacciones asociadas a la categoría
-                const catTxs = transactions.filter(t => t.categoryId === actionCategory.id);
-                await Promise.all(catTxs.map(t => FinanceService.delete(t.id)));
-                
-                // Luego eliminar la categoría
-                await CategoryService.delete(actionCategory.id!);
-                
-                if (selectedCategory === actionCategory.id) setSelectedCategory(null);
-                if (onSuccess) onSuccess();
-              } catch (e) {
-                showError('No se pudo eliminar la categoría o sus transacciones');
-              } finally {
-                setCatLoading(false);
-              }
+              deleteMutation.mutate(actionCategory.id!);
             }
           }
         ]}

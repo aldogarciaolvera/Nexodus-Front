@@ -62,7 +62,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   menuContainer: {
     position: 'absolute',
-    top: 60, // Adjust based on header height (approximate)
+    top: 80, // Adjust based on header height (approximate)
     right: 20,
     width: 200,
     backgroundColor: colors.surface,
