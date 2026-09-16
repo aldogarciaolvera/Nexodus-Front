@@ -107,6 +107,8 @@ export const SettingsScreen = () => {
         <TouchableOpacity style={styles.logoutButton} onPress={logout} activeOpacity={0.8}>
           <Text style={styles.logoutText}>Cerrar sesión</Text>
         </TouchableOpacity>
+
+        <Text style={styles.versionText}>v0.0.2</Text>
       </View>
 
       {/* Edit Profile Modal */}
@@ -283,13 +285,25 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: 16,
     color: '#FFFFFF',
   },
+  versionText: {
+    marginTop: 24,
+    textAlign: 'center',
+    color: colors.slate500,
+    fontFamily: 'JetBrainsMono_400Regular',
+    fontSize: 10,
+    letterSpacing: 1,
+  },
   modalOverlay: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalOverlayBackground: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: 'rgba(13, 14, 17, 0.8)',
   },
   modalContent: {

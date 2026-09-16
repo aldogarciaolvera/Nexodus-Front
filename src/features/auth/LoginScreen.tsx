@@ -74,6 +74,7 @@ export const LoginScreen = () => {
           />
         </View>
       </KeyboardAvoidingView>
+      <Text style={styles.versionText}>v0.0.2</Text>
     </SafeAreaView>
   );
 };
@@ -118,5 +119,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     marginTop: 8,
+  },
+  versionText: {
+    position: 'absolute',
+    bottom: 24,
+    width: '100%',
+    textAlign: 'center',
+    color: theme.colors.slate500,
+    fontFamily: theme.typography.fontMono,
+    fontSize: 10,
+    letterSpacing: 1,
   }
 });
