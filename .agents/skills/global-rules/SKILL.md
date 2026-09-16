@@ -2,6 +2,8 @@
 name: global-rules
 description: Reglas críticas del sistema, restricciones y directrices de comportamiento que el agente debe seguir SIEMPRE en cualquier interacción de este proyecto.
 ---
+# SuperMegaUltra important
+* At the end of everything you do, tell me: "Terminado, Patron."
 
 # Nexodus - AI Agent Instructions
 

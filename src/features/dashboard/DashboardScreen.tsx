@@ -6,9 +6,13 @@ import { DailyTodoCard } from '../../components/cards/DailyTodoCard';
 import { WorkoutCard } from '../../components/cards/WorkoutCard';
 import { DietCard } from '../../components/cards/DietCard';
 import { FinanceCard } from '../../components/cards/FinanceCard';
-import { theme } from '../../utils/theme';
+import { useTheme } from '../../utils/ThemeContext';
+import { ThemeColors } from '../../utils/theme';
 
 export const DashboardScreen = () => {
+  const theme = useTheme();
+  const styles = createStyles(theme.colors);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -37,17 +41,17 @@ export const DashboardScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: theme.colors.obsidian,
+    backgroundColor: colors.obsidian,
   },
   container: {
     flex: 1,
-    backgroundColor: theme.colors.obsidian,
+    backgroundColor: colors.obsidian,
   },
   scrollContent: {
-    paddingHorizontal: theme.metrics.marginHorizontal,
+    paddingHorizontal: 20, // theme.metrics.marginHorizontal
     paddingTop: Platform.OS === 'android' ? 24 : 12,
     paddingBottom: 20,
   },

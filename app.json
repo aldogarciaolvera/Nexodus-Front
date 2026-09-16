@@ -2,17 +2,18 @@
   "expo": {
     "name": "Nexodus",
     "slug": "Nexodus",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "icon": "./assets/icono_app.png",
+    "backgroundColor": "#0D0E11",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundColor": "#0D0E11",
+        "foregroundImage": "./assets/icono_app.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },

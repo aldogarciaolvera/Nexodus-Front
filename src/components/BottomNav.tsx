@@ -1,33 +1,36 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
-import { theme } from '../utils/theme';
+import Svg, { Path, Rect, Circle } from 'react-native-svg';
+import { useTheme } from '../utils/ThemeContext';
+import { ThemeColors } from '../utils/theme';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
 const ICONS = {
-  Dashboard: (active: boolean) => (
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={active ? theme.colors.neonCyan : "currentColor"} color={theme.colors.mutedText} strokeWidth={active ? 1.8 : 1.6}>
+  Dashboard: (active: boolean, colors: ThemeColors) => (
+    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={active ? colors.neonCyan : "currentColor"} color={colors.mutedText} strokeWidth={active ? 1.8 : 1.6}>
       <Path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955a1.126 1.126 0 011.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
     </Svg>
   ),
-  Tasks: (active: boolean) => (
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={active ? theme.colors.neonCyan : "currentColor"} color={theme.colors.mutedText} strokeWidth={active ? 1.8 : 1.6}>
+  Tasks: (active: boolean, colors: ThemeColors) => (
+    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={active ? colors.neonCyan : "currentColor"} color={colors.mutedText} strokeWidth={active ? 1.8 : 1.6}>
       <Path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </Svg>
   ),
-  Gym: (active: boolean) => (
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={active ? theme.colors.neonCyan : "currentColor"} color={theme.colors.mutedText} strokeWidth={active ? 1.8 : 1.6}>
+  Gym: (active: boolean, colors: ThemeColors) => (
+    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={active ? colors.neonCyan : "currentColor"} color={colors.mutedText} strokeWidth={active ? 1.8 : 1.6}>
       <Path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9v6m3-8.25v10.5m0-10.5h1.5a1.5 1.5 0 011.5 1.5v7.5a1.5 1.5 0 01-1.5 1.5h-1.5m10.5-10.5v10.5m0-10.5h-1.5a1.5 1.5 0 00-1.5 1.5v7.5a1.5 1.5 0 001.5 1.5h1.5m3-8.25v6" />
     </Svg>
   ),
-  Meals: (active: boolean) => (
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={active ? theme.colors.neonCyan : "currentColor"} color={theme.colors.mutedText} strokeWidth={active ? 1.8 : 1.6}>
+  Meals: (active: boolean, colors: ThemeColors) => (
+    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={active ? colors.neonCyan : "currentColor"} color={colors.mutedText} strokeWidth={active ? 1.8 : 1.6}>
       <Path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
     </Svg>
   ),
-  Money: (active: boolean) => (
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={active ? theme.colors.neonCyan : "currentColor"} color={theme.colors.mutedText} strokeWidth={active ? 1.8 : 1.6}>
-      <Path strokeLinecap="round" strokeLinejoin="round" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3" />
+  Money: (active: boolean, colors: ThemeColors) => (
+    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={active ? colors.neonCyan : "currentColor"} color={colors.mutedText} strokeWidth={active ? 1.8 : 1.6}>
+      <Rect width="20" height="12" x="2" y="6" rx="2" />
+      <Circle cx="12" cy="12" r="2" />
+      <Path strokeLinecap="round" strokeLinejoin="round" d="M6 12h.01M18 12h.01" />
     </Svg>
   ),
 };
@@ -41,6 +44,10 @@ const LABELS = {
 };
 
 export const BottomNav = ({ state, descriptors, navigation }: BottomTabBarProps) => {
+  const theme = useTheme();
+  const { isDarkMode } = theme;
+  const styles = createStyles(theme.colors, isDarkMode);
+
   return (
     <View style={styles.container}>
       <View style={styles.navBar}>
@@ -67,7 +74,7 @@ export const BottomNav = ({ state, descriptors, navigation }: BottomTabBarProps)
               onPress={onPress}
             >
               <View style={styles.iconContainer}>
-                {ICONS[route.name as keyof typeof ICONS](isFocused)}
+                {ICONS[route.name as keyof typeof ICONS](isFocused, theme.colors)}
                 {isFocused && <View style={styles.iconGlow} />}
               </View>
               <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>
@@ -81,7 +88,7 @@ export const BottomNav = ({ state, descriptors, navigation }: BottomTabBarProps)
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, isDarkMode: boolean) => StyleSheet.create({
   container: {
     position: 'absolute',
     bottom: 0,
@@ -90,9 +97,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 24, // Account for safe area roughly
     paddingTop: 10,
-    backgroundColor: 'rgba(16, 19, 26, 0.9)',
+    backgroundColor: isDarkMode ? 'rgba(16, 19, 26, 0.9)' : 'rgba(255, 255, 255, 0.9)',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(34, 40, 54, 0.8)',
+    borderTopColor: isDarkMode ? 'rgba(34, 40, 54, 0.8)' : 'rgba(226, 232, 240, 0.8)',
   },
   navBar: {
     flexDirection: 'row',
@@ -122,12 +129,12 @@ const styles = StyleSheet.create({
   tabLabel: {
     fontSize: 10,
     fontWeight: '500',
-    color: theme.colors.mutedText,
+    color: colors.mutedText,
     letterSpacing: 0.5,
-    fontFamily: 'Geist',
+    fontFamily: 'Geist_400Regular',
   },
   tabLabelActive: {
     fontWeight: '600',
-    color: theme.colors.neonCyan,
+    color: colors.neonCyan,
   },
 });

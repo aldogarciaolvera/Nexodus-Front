@@ -1,118 +1,451 @@
-import React from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput } from 'react-native';
-import { theme } from '../../../utils/theme';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, Alert, Animated } from 'react-native';
+import { useTheme } from '../../../utils/ThemeContext';
+import { ThemeColors } from '../../../utils/theme';
+import { FinanceService, FinanceTransaction } from '../../../services/finance.service';
+import { ActionSheet } from '../../../components/ActionSheet';
+import { Category, CategoryService } from '../../../services/category.service';
+import { CategoryModal } from './CategoryModal';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface TransactionModalProps {
   visible: boolean;
   onClose: () => void;
+  categories?: Category[];
+  transactions?: FinanceTransaction[];
+  onSuccess?: () => void;
+  editingTransaction?: FinanceTransaction | null;
 }
 
-export const TransactionModal = ({ visible, onClose }: TransactionModalProps) => {
+export const TransactionModal = ({ visible, onClose, categories = [], transactions = [], onSuccess, editingTransaction }: TransactionModalProps) => {
+  const theme = useTheme();
+  const styles = createStyles(theme.colors);
+  
+  const [amount, setAmount] = useState('');
+  const [type, setType] = useState<'Ingreso' | 'Gasto'>('Gasto');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  // Action Sheet State
+  const [actionSheetVisible, setActionSheetVisible] = useState(false);
+  const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
+  const [actionCategory, setActionCategory] = useState<Category | null>(null);
+
+  // Category Modal State
+  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [catLoading, setCatLoading] = useState(false);
+
+  // Animation State
+  const [showModal, setShowModal] = useState(visible);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // Error Alert State
+  const [errorVisible, setErrorVisible] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const showError = (msg: string) => {
+    setErrorMsg(msg);
+    setErrorVisible(true);
+  };
+
+  useEffect(() => {
+    if (visible) {
+      if (editingTransaction) {
+        setAmount(editingTransaction.amount.toString());
+        setType(editingTransaction.transactionType as 'Ingreso' | 'Gasto');
+        setSelectedCategory(editingTransaction.categoryId || null);
+      } else {
+        setAmount('');
+        setType('Gasto');
+        setSelectedCategory(null);
+      }
+      setShowModal(true);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 150, // Animación de fade más rápida (150ms)
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }).start(() => {
+        setShowModal(false);
+      });
+    }
+  }, [visible, editingTransaction]);
+
+  const mutation = useMutation({
+    mutationFn: async (newTx: any) => {
+      if (editingTransaction) {
+        return FinanceService.update(editingTransaction.id!, newTx);
+      } else {
+        return FinanceService.create(newTx);
+      }
+    },
+    onMutate: async (newTx) => {
+      await queryClient.cancelQueries({ queryKey: ['financeTransactions'] });
+      await queryClient.cancelQueries({ queryKey: ['financeSummary'] });
+
+      const previousTransactions = queryClient.getQueryData(['financeTransactions']);
+      const previousSummary = queryClient.getQueryData(['financeSummary']);
+
+      queryClient.setQueryData(['financeTransactions'], (old: any) => {
+        const tx = {
+          id: editingTransaction ? editingTransaction.id : Math.random().toString(),
+          ...newTx,
+          date: editingTransaction ? editingTransaction.date : new Date().toISOString(),
+        };
+        if (editingTransaction && old) {
+          return old.map((t: any) => t.id === editingTransaction.id ? tx : t);
+        }
+        return old ? [tx, ...old] : [tx];
+      });
+
+      return { previousTransactions, previousSummary };
+    },
+    onError: (err, newTx, context) => {
+      queryClient.setQueryData(['financeTransactions'], context?.previousTransactions);
+      queryClient.setQueryData(['financeSummary'], context?.previousSummary);
+      Alert.alert('Error', editingTransaction ? 'No se pudo actualizar la transacción' : 'No se pudo crear la transacción');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['financeTransactions'] });
+      queryClient.invalidateQueries({ queryKey: ['financeSummary'] });
+    },
+    onSuccess: () => {
+      if (onSuccess) onSuccess();
+    }
+  });
+
+  const handleSubmit = () => {
+    if (!amount || isNaN(Number(amount))) {
+      showError('Por favor ingresa un monto válido');
+      return;
+    }
+    if (!selectedCategory) {
+      showError('Por favor selecciona una categoría');
+      return;
+    }
+
+    mutation.mutate({
+      amount: Number(amount),
+      transactionType: type,
+      categoryId: selectedCategory,
+    });
+    
+    setAmount('');
+    setType('Gasto');
+    setSelectedCategory(null);
+    onClose();
+  };
+
+  const handleCategoryLongPress = (cat: Category) => {
+    setActionCategory(cat);
+    setActionSheetVisible(true);
+  };
+
+  const openAddCategory = () => {
+    setEditingCategory(null);
+    setCategoryModalVisible(true);
+  };
+
+  const deleteMutation = useMutation({
+    mutationFn: async (categoryId: string) => {
+      const catTxs = transactions.filter(t => t.categoryId === categoryId);
+      await Promise.all(catTxs.map(t => FinanceService.delete(t.id!)));
+      await CategoryService.delete(categoryId);
+    },
+    onMutate: async (categoryId) => {
+      await queryClient.cancelQueries({ queryKey: ['categories'] });
+      await queryClient.cancelQueries({ queryKey: ['financeTransactions'] });
+
+      const previousCategories = queryClient.getQueryData(['categories']);
+      const previousTransactions = queryClient.getQueryData(['financeTransactions']);
+
+      queryClient.setQueryData(['categories'], (old: any) => old?.filter((c: any) => c.id !== categoryId));
+      queryClient.setQueryData(['financeTransactions'], (old: any) => old?.filter((t: any) => t.categoryId !== categoryId));
+
+      return { previousCategories, previousTransactions };
+    },
+    onError: (err, variables, context) => {
+      queryClient.setQueryData(['categories'], context?.previousCategories);
+      queryClient.setQueryData(['financeTransactions'], context?.previousTransactions);
+      Alert.alert('Error', 'No se pudo eliminar la categoría o sus transacciones');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      queryClient.invalidateQueries({ queryKey: ['financeTransactions'] });
+      queryClient.invalidateQueries({ queryKey: ['financeSummary'] });
+    },
+    onSuccess: () => {
+      if (selectedCategory === actionCategory?.id) setSelectedCategory(null);
+      if (onSuccess) onSuccess();
+    }
+  });
+
   return (
     <Modal
-      visible={visible}
+      visible={showModal}
       transparent
-      animationType="slide"
+      animationType="none"
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
+      <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
         <View style={styles.content}>
-          <View style={styles.handle} />
-          <Text style={styles.title}>Log Transaction</Text>
+          <Text style={styles.title}>{editingTransaction ? 'Editar Transaccion' : 'Nueva Transaccion'}</Text>
           
+          <View style={styles.typeSelector}>
+            <TouchableOpacity 
+              style={[styles.typeBtn, type === 'Gasto' && styles.typeBtnActive]} 
+              onPress={() => setType('Gasto')}
+            >
+              <Text style={[styles.typeText, type === 'Gasto' && styles.typeTextActive]}>GASTO</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.typeBtn, type === 'Ingreso' && styles.typeBtnActive]} 
+              onPress={() => setType('Ingreso')}
+            >
+              <Text style={[styles.typeText, type === 'Ingreso' && styles.typeTextActive]}>INGRESO</Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Amount (USD)</Text>
+            <Text style={styles.label}>Monto (MXN)</Text>
             <TextInput
               style={styles.input}
-              placeholder="$0.00"
+              placeholder="0.00"
               placeholderTextColor={theme.colors.slate600}
               keyboardType="decimal-pad"
+              value={amount}
+              onChangeText={setAmount}
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Merchant / Description</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. Whole Foods"
-              placeholderTextColor={theme.colors.slate600}
-            />
+            <Text style={styles.label}>Categoria</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
+              {categories.map(cat => (
+                <TouchableOpacity 
+                  key={cat.id} 
+                  style={[styles.categoryBtn, selectedCategory === cat.id && styles.categoryBtnActive]}
+                  onPress={() => setSelectedCategory(cat.id!)}
+                  onLongPress={() => handleCategoryLongPress(cat)}
+                  delayLongPress={300}
+                >
+                  <Text style={[styles.categoryText, selectedCategory === cat.id && styles.categoryTextActive]}>
+                    {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity 
+                style={[styles.categoryBtn, { borderStyle: 'dashed' }]}
+                onPress={openAddCategory}
+              >
+                <Text style={styles.categoryText}>+</Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
 
-          <TouchableOpacity style={styles.submitBtn} activeOpacity={0.8} onPress={onClose}>
-            <Text style={styles.submitText}>CONFIRM TRANSACTION</Text>
+          <TouchableOpacity style={styles.submitBtn} activeOpacity={0.8} onPress={handleSubmit} disabled={mutation.isPending}>
+            {mutation.isPending ? (
+              <ActivityIndicator color={theme.colors.obsidian} />
+            ) : (
+              <Text style={styles.submitText}>CONFIRMAR</Text>
+            )}
           </TouchableOpacity>
         </View>
-      </View>
+      </Animated.View>
+
+      {/* Modal para Crear/Editar Categoría */}
+      <CategoryModal
+        visible={categoryModalVisible}
+        onClose={() => setCategoryModalVisible(false)}
+        editingCategory={editingCategory}
+        onSuccess={(savedCat) => {
+          setSelectedCategory(savedCat.id!);
+          if (onSuccess) onSuccess();
+        }}
+      />
+
+      {/* Action Sheet para opciones de Categoría */}
+      <ActionSheet
+        visible={actionSheetVisible}
+        onClose={() => setActionSheetVisible(false)}
+        title="Opciones de Categoría"
+        subtitle={actionCategory ? `¿Qué deseas hacer con "${actionCategory.name}"?` : ''}
+        options={[
+          {
+            label: 'Editar',
+            onPress: () => {
+              if (actionCategory) {
+                setEditingCategory(actionCategory);
+                setCategoryModalVisible(true);
+              }
+            }
+          },
+          {
+            label: 'Eliminar',
+            destructive: true,
+            onPress: () => {
+              setConfirmDeleteVisible(true);
+            }
+          }
+        ]}
+      />
+
+      {/* Action Sheet para confirmar eliminación */}
+      <ActionSheet
+        visible={confirmDeleteVisible}
+        onClose={() => setConfirmDeleteVisible(false)}
+        title="Confirmar Eliminación"
+        subtitle={actionCategory ? `¿Estás seguro que deseas eliminar "${actionCategory.name}"?` : ''}
+        options={[
+          {
+            label: 'Sí, Eliminar',
+            destructive: true,
+            onPress: () => {
+              if (!actionCategory) return;
+              deleteMutation.mutate(actionCategory.id!);
+            }
+          }
+        ]}
+      />
+
+      {/* Action Sheet para errores */}
+      <ActionSheet
+        visible={errorVisible}
+        onClose={() => setErrorVisible(false)}
+        title="Error"
+        subtitle={errorMsg}
+        isError={true}
+        options={[
+          {
+            label: 'OK',
+            onPress: () => setErrorVisible(false)
+          }
+        ]}
+      />
     </Modal>
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   content: {
-    backgroundColor: theme.colors.surfaceLight,
+    backgroundColor: colors.surfaceLight,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
     minHeight: '40%',
     borderWidth: 1,
-    borderColor: theme.colors.borderGlow,
+    borderColor: colors.borderGlow,
     borderBottomWidth: 0,
   },
-  handle: {
-    width: 40,
-    height: 4,
-    backgroundColor: theme.colors.slate700,
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 24,
-  },
   title: {
-    fontFamily: theme.typography.fontFamilyMedium,
+    fontFamily: 'Geist_500Medium',
     fontSize: 20,
-    color: theme.colors.white,
+    color: colors.text,
     marginBottom: 24,
+    textTransform: 'uppercase',
+    textAlign: 'center',
+  },
+  typeSelector: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: colors.borderGlow,
+  },
+  typeBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  typeBtnActive: {
+    backgroundColor: colors.borderGlow,
+  },
+  typeText: {
+    fontFamily: 'JetBrainsMono_500Medium',
+    fontSize: 12,
+    color: colors.slate400,
+  },
+  typeTextActive: {
+    color: colors.white, // Keep this white or neonCyan depending on preference
   },
   inputGroup: {
     marginBottom: 20,
   },
   label: {
-    fontFamily: theme.typography.fontMonoMedium,
+    fontFamily: 'JetBrainsMono_500Medium',
     fontSize: 12,
-    color: theme.colors.slate400,
+    color: colors.slate400,
     marginBottom: 8,
     textTransform: 'uppercase',
   },
   input: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: theme.colors.borderGlow,
+    borderColor: colors.borderGlow,
     borderRadius: 12,
     padding: 16,
-    color: theme.colors.white,
-    fontFamily: theme.typography.fontMono,
+    color: colors.text,
+    fontFamily: 'JetBrainsMono_400Regular',
     fontSize: 16,
   },
+  categoryScroll: {
+    gap: 8,
+    paddingRight: 20,
+  },
+  categoryBtn: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderGlow,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 9999,
+  },
+  categoryBtnActive: {
+    borderColor: colors.neonCyan,
+    backgroundColor: 'rgba(0, 240, 255, 0.1)',
+  },
+  categoryText: {
+    fontFamily: 'JetBrainsMono_400Regular',
+    fontSize: 12,
+    color: colors.mutedText,
+  },
+  categoryTextActive: {
+    color: colors.neonCyan,
+    fontWeight: '600',
+  },
   submitBtn: {
-    backgroundColor: theme.colors.neonCyan,
+    backgroundColor: colors.neonCyan,
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
     marginTop: 12,
   },
   submitText: {
-    fontFamily: theme.typography.fontMonoBold || theme.typography.fontMonoMedium,
+    fontFamily: 'JetBrainsMono_500Medium',
     fontSize: 14,
-    color: theme.colors.obsidian,
+    color: colors.surface,
     letterSpacing: 0.5,
   },
 });
