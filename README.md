@@ -59,3 +59,20 @@ pnpm start
 pnpm run android
 pnpm run ios
 ```
+
+## 📦 Generar APK (Android)
+
+Para generar el archivo instalable `.apk` para Android utilizamos **EAS Build** (Expo Application Services). 
+
+```bash
+# 1. Instalar la herramienta EAS CLI globalmente
+pnpm add -g eas-cli
+
+# 2. Iniciar sesión en tu cuenta de Expo
+eas login
+
+# 3. Mandar a compilar la aplicación a los servidores de Expo
+eas build -p android --profile preview
+```
+
+> **Nota:** La configuración ya incluye un perfil `preview` en `eas.json` parametrizado con `"buildType": "apk"` para que Expo devuelva el binario directo (APK) en lugar de un Android App Bundle (AAB). Al finalizar la compilación, se proveerá un enlace de descarga en la terminal.
