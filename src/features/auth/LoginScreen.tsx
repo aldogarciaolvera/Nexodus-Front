@@ -6,6 +6,7 @@ import { Button } from '../../components/Button';
 import { theme } from '../../utils/theme';
 import { AuthService } from '../../services/auth.service';
 import { useAuthStore } from '../../store/authStore';
+import { useNavigation } from '@react-navigation/native';
 
 export const LoginScreen = () => {
   const [email, setEmail] = useState('');
@@ -14,6 +15,7 @@ export const LoginScreen = () => {
   const [error, setError] = useState('');
   
   const login = useAuthStore(state => state.login);
+  const navigation = useNavigation<any>();
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -75,7 +77,7 @@ export const LoginScreen = () => {
           
           <View style={styles.registerContainer}>
             <Text style={styles.registerText}>¿No tienes cuenta? </Text>
-            <TouchableOpacity onPress={() => {/* TODO: Navigate to Register */}}>
+            <TouchableOpacity onPress={() => navigation.navigate('Register')}>
               <Text style={styles.registerLink}>Regístrate</Text>
             </TouchableOpacity>
           </View>

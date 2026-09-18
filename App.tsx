@@ -12,6 +12,7 @@ import { FinanceScreen } from './src/features/finance/FinanceScreen';
 import { AllTransactionsScreen } from './src/features/finance/AllTransactionsScreen';
 import { SettingsScreen } from './src/features/settings/SettingsScreen';
 import { LoginScreen } from './src/features/auth/LoginScreen';
+import { RegisterScreen } from './src/features/auth/RegisterScreen';
 import { TasksScreen } from './src/features/tasks/TasksScreen';
 import { BottomNav } from './src/components/BottomNav';
 import { View, ActivityIndicator, AppState, AppStateStatus } from 'react-native';
@@ -97,7 +98,10 @@ function AppInner() {
               <Stack.Screen name="Settings" component={SettingsScreen} />
             </>
           ) : (
-            <Stack.Screen name="Login" component={LoginScreen} />
+            <>
+              <Stack.Screen name="Login" component={LoginScreen} />
+              <Stack.Screen name="Register" component={RegisterScreen} />
+            </>
           )}
         </Stack.Navigator>
       </NavigationContainer>
