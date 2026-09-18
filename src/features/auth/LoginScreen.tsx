@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
@@ -44,13 +44,13 @@ export const LoginScreen = () => {
       >
         <View style={styles.header}>
           <Text style={styles.title}>Nexodus</Text>
-          <Text style={styles.subtitle}>Command Center Authentication</Text>
+          <Text style={styles.subtitle}>Centro de control</Text>
         </View>
 
         <View style={styles.form}>
           <Input 
             label="EMAIL" 
-            placeholder="Enter your email" 
+            placeholder="Ingresa tu correo electrónico" 
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
@@ -58,7 +58,7 @@ export const LoginScreen = () => {
           />
           <Input 
             label="PASSWORD" 
-            placeholder="Enter your password" 
+            placeholder="Ingresa tu contraseña" 
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -67,11 +67,18 @@ export const LoginScreen = () => {
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
           
           <Button 
-            title="SYSTEM INITIATION" 
+            title="Iniciar Sesión" 
             onPress={handleLogin} 
             loading={loading}
             style={styles.submitButton}
           />
+          
+          <View style={styles.registerContainer}>
+            <Text style={styles.registerText}>¿No tienes cuenta? </Text>
+            <TouchableOpacity onPress={() => {/* TODO: Navigate to Register */}}>
+              <Text style={styles.registerLink}>Regístrate</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </KeyboardAvoidingView>
       <Text style={styles.versionText}>v0.0.2</Text>
@@ -129,5 +136,21 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.fontMono,
     fontSize: 10,
     letterSpacing: 1,
+  },
+  registerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 24,
+  },
+  registerText: {
+    color: theme.colors.slate400,
+    fontFamily: theme.typography.fontFamily,
+    fontSize: 14,
+  },
+  registerLink: {
+    color: theme.colors.neonCyan,
+    fontFamily: theme.typography.fontFamilyBold,
+    fontSize: 14,
+    textDecorationLine: 'underline',
   }
 });
