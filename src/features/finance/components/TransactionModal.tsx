@@ -24,6 +24,7 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<'Ingreso' | 'Gasto'>('Gasto');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<string>('Tarjeta');
   const queryClient = useQueryClient();
 
   // Action Sheet State
@@ -53,12 +54,15 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
     if (visible) {
       if (editingTransaction) {
         setAmount(editingTransaction.amount.toString());
-        setType(editingTransaction.transactionType as 'Ingreso' | 'Gasto');
+        const txType = (editingTransaction.transactionType === 'Income' || editingTransaction.transactionType === 'Ingreso') ? 'Ingreso' : 'Gasto';
+        setType(txType);
         setSelectedCategory(editingTransaction.categoryId || null);
+        setPaymentMethod(editingTransaction.paymentMethod || 'Tarjeta');
       } else {
         setAmount('');
         setType('Gasto');
         setSelectedCategory(null);
+        setPaymentMethod('Tarjeta');
       }
       setShowModal(true);
       Animated.timing(fadeAnim, {
@@ -96,7 +100,7 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
         const tx = {
           id: editingTransaction ? editingTransaction.id : Math.random().toString(),
           ...newTx,
-          date: editingTransaction ? editingTransaction.date : new Date().toISOString(),
+          transactionDate: editingTransaction ? editingTransaction.transactionDate : new Date().toISOString(),
         };
         if (editingTransaction && old) {
           return old.map((t: any) => t.id === editingTransaction.id ? tx : t);
@@ -106,10 +110,10 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
 
       return { previousTransactions, previousSummary };
     },
-    onError: (err, newTx, context) => {
+    onError: (err: any, newTx, context) => {
       queryClient.setQueryData(['financeTransactions'], context?.previousTransactions);
       queryClient.setQueryData(['financeSummary'], context?.previousSummary);
-      Alert.alert('Error', editingTransaction ? 'No se pudo actualizar la transacción' : 'No se pudo crear la transacción');
+      showError(err.message || (editingTransaction ? 'No se pudo actualizar la transacción' : 'No se pudo crear la transacción'));
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['financeTransactions'] });
@@ -130,15 +134,21 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
       return;
     }
 
+    const selectedCategoryObj = categories.find(c => c.id === selectedCategory);
+    
     mutation.mutate({
       amount: Number(amount),
-      transactionType: type,
+      transactionType: type === 'Ingreso' ? 'Ingreso' : 'Gasto',
+      category: selectedCategoryObj?.name || 'Uncategorized',
       categoryId: selectedCategory,
+      transactionDate: editingTransaction ? editingTransaction.transactionDate : new Date().toISOString(),
+      paymentMethod: paymentMethod,
     });
     
     setAmount('');
     setType('Gasto');
     setSelectedCategory(null);
+    setPaymentMethod('Tarjeta');
     onClose();
   };
 
@@ -248,6 +258,23 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
                 <Text style={styles.categoryText}>+</Text>
               </TouchableOpacity>
             </ScrollView>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Método de Pago</Text>
+            <View style={styles.paymentMethodSelector}>
+              {['Tarjeta', 'Efectivo'].map(method => (
+                <TouchableOpacity
+                  key={method}
+                  style={[styles.paymentMethodBtn, paymentMethod === method && styles.paymentMethodBtnActive]}
+                  onPress={() => setPaymentMethod(method)}
+                >
+                  <Text style={[styles.paymentMethodText, paymentMethod === method && styles.paymentMethodTextActive]}>
+                    {method}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
 
           <TouchableOpacity style={styles.submitBtn} activeOpacity={0.8} onPress={handleSubmit} disabled={mutation.isPending}>
@@ -434,6 +461,33 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   categoryTextActive: {
     color: colors.neonCyan,
     fontWeight: '600',
+  },
+  paymentMethodSelector: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.borderGlow,
+    overflow: 'hidden',
+  },
+  paymentMethodBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRightWidth: 1,
+    borderRightColor: colors.borderGlow,
+  },
+  paymentMethodBtnActive: {
+    backgroundColor: 'rgba(0, 240, 255, 0.1)',
+  },
+  paymentMethodText: {
+    fontFamily: 'JetBrainsMono_400Regular',
+    fontSize: 11,
+    color: colors.slate400,
+  },
+  paymentMethodTextActive: {
+    color: colors.neonCyan,
+    fontFamily: 'JetBrainsMono_500Medium',
   },
   submitBtn: {
     backgroundColor: colors.neonCyan,

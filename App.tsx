@@ -12,6 +12,7 @@ import { FinanceScreen } from './src/features/finance/FinanceScreen';
 import { AllTransactionsScreen } from './src/features/finance/AllTransactionsScreen';
 import { SettingsScreen } from './src/features/settings/SettingsScreen';
 import { LoginScreen } from './src/features/auth/LoginScreen';
+import { TasksScreen } from './src/features/tasks/TasksScreen';
 import { BottomNav } from './src/components/BottomNav';
 import { View, ActivityIndicator, AppState, AppStateStatus } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -30,7 +31,7 @@ function MainTabs() {
       screenOptions={{ headerShown: false }}
     >
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
-      <Tab.Screen name="Tasks" component={DashboardScreen} />
+      <Tab.Screen name="Tasks" component={TasksScreen} />
       <Tab.Screen name="Gym" component={DashboardScreen} />
       <Tab.Screen name="Meals" component={DashboardScreen} />
       <Tab.Screen name="Money" component={FinanceScreen} />

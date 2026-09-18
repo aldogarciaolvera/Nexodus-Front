@@ -8,15 +8,15 @@ import { FinanceTransaction, FinanceService } from '../../../services/finance.se
 import { Category } from '../../../services/category.service';
 import { ActionSheet } from '../../../components/ActionSheet';
 import { TransactionModal } from './TransactionModal';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface TransactionsCardProps {
   transactions: FinanceTransaction[];
   categories?: Category[];
   loading?: boolean;
-  onSuccess?: () => void;
 }
 
-export const TransactionsCard = ({ transactions, categories = [], loading, onSuccess }: TransactionsCardProps) => {
+export const TransactionsCard = ({ transactions, categories = [], loading }: TransactionsCardProps) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
   const navigation = useNavigation<any>();
@@ -25,7 +25,16 @@ export const TransactionsCard = ({ transactions, categories = [], loading, onSuc
   const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
   const [actionTransaction, setActionTransaction] = useState<FinanceTransaction | null>(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
-  const [txLoading, setTxLoading] = useState(false);
+  
+  const queryClient = useQueryClient();
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => FinanceService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['financeTransactions'] });
+      queryClient.invalidateQueries({ queryKey: ['financeSummary'] });
+    }
+  });
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -65,8 +74,8 @@ export const TransactionsCard = ({ transactions, categories = [], loading, onSuc
           <Text style={styles.subText}>No se encontraron transacciones.</Text>
         )}
         {transactions.slice(0, 3).map(item => {
-          const isIncome = item.transactionType === 'Ingreso';
-          const categoryName = categories.find(c => c.id === item.categoryId)?.name || 'Sin Categoría';
+          const isIncome = item.transactionType === 'Ingreso' || item.transactionType === 'Income';
+          const categoryName = item.category || categories.find(c => c.id === item.categoryId)?.name || 'Sin Categoría';
           
           return (
             <TouchableOpacity 
@@ -141,17 +150,9 @@ export const TransactionsCard = ({ transactions, categories = [], loading, onSuc
           {
             label: 'Sí, Eliminar',
             destructive: true,
-            onPress: async () => {
+            onPress: () => {
               if (!actionTransaction) return;
-              try {
-                setTxLoading(true);
-                await FinanceService.delete(actionTransaction.id);
-                if (onSuccess) onSuccess();
-              } catch (e) {
-                console.error(e);
-              } finally {
-                setTxLoading(false);
-              }
+              deleteMutation.mutate(actionTransaction.id!);
             }
           }
         ]}
@@ -163,7 +164,6 @@ export const TransactionsCard = ({ transactions, categories = [], loading, onSuc
         categories={categories}
         transactions={transactions}
         editingTransaction={actionTransaction}
-        onSuccess={onSuccess || (() => {})}
       />
     </View>
   );

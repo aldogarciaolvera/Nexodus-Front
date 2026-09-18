@@ -1,9 +1,11 @@
 import { apiFetch, handleResponse } from './api';
 
 export interface FinancePayload {
-  transactionType: 'Ingreso' | 'Gasto';
+  transactionType: 'Income' | 'Expense' | 'Ingreso' | 'Gasto';
   amount: number;
+  category?: string;
   categoryId?: string;
+  paymentMethod?: string;
   transactionDate?: string;
 }
 

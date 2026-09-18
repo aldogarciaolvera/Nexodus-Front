@@ -1,3 +1,15 @@
+## [0.0.3] - 2026-09-18
+
+### Features
+
+- feat: Mejoras en pantalla de finanzas y persistencia
+- feat: inicio de To-do
+- feat: Creacion de APK
+- feat: Icono nuevo
+- feat: actualizacion del Dashboard
+- feat: modales en lugar de Alrts
+- feat: funciones principales de finanzas
+
 ## [0.0.2] - 2026-09-12
 
 ### Features

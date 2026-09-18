@@ -7,13 +7,14 @@ import { useTheme } from '../../utils/ThemeContext';
 import { ThemeColors } from '../../utils/theme';
 import { useAuthStore } from '../../store/authStore';
 import { UserService, UserProfile } from '../../services/user.service';
+import Constants from 'expo-constants';
 
 export const SettingsScreen = () => {
   const theme = useTheme();
   const { isDarkMode, toggleTheme } = theme;
   const styles = createStyles(theme.colors);
   const navigation = useNavigation();
-  const { logout, user } = useAuthStore();
+  const { logout, user, accessToken, refreshToken, updateAccessToken, updateTokens } = useAuthStore();
   const [isProfileModalVisible, setProfileModalVisible] = useState(false);
   
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -108,7 +109,7 @@ export const SettingsScreen = () => {
           <Text style={styles.logoutText}>Cerrar sesión</Text>
         </TouchableOpacity>
 
-        <Text style={styles.versionText}>v0.0.2</Text>
+        <Text style={styles.versionText}>v{Constants.expoConfig?.version || '0.0.2'}</Text>
       </View>
 
       {/* Edit Profile Modal */}
@@ -228,6 +229,19 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: 'JetBrainsMono_400Regular',
     fontSize: 11,
     color: colors.slate400,
+  },
+  testButton: {
+    backgroundColor: 'rgba(0, 240, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: colors.neonCyan,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  testButtonText: {
+    fontFamily: 'JetBrainsMono_500Medium',
+    fontSize: 10,
+    color: colors.neonCyan,
   },
   profileSection: {
     flexDirection: 'row',

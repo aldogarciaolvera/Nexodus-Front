@@ -30,7 +30,7 @@ export const WeeklyOutflowCard = ({ transactions = [], loading = false }: Weekly
     endOfWeek.setHours(23, 59, 59, 999);
 
     const weekExpenses = transactions.filter(t => {
-      if (t.transactionType !== 'Gasto' || !t.transactionDate) return false;
+      if ((t.transactionType !== 'Gasto' && t.transactionType !== 'Expense') || !t.transactionDate) return false;
       const tDate = new Date(t.transactionDate);
       return tDate >= startOfWeek && tDate <= endOfWeek;
     });

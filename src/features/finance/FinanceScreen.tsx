@@ -37,14 +37,6 @@ export const FinanceScreen = () => {
 
   const loading = loadingSummary || loadingTransactions || loadingCategories;
 
-  const fetchData = async () => {
-    await Promise.all([
-      refetchSummary(),
-      refetchTransactions(),
-      refetchCategories(),
-    ]);
-  };
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -55,10 +47,10 @@ export const FinanceScreen = () => {
           <Header title="Finanzas" />
           
           <View style={styles.stack}>
-            <NetWorthCard summary={summary} loading={loading} />
+            <NetWorthCard summary={summary} transactions={transactions} loading={loading} />
             <WeeklyOutflowCard transactions={transactions} loading={loading} />
-            <OperatingTargetsCard transactions={transactions} categories={categories} loading={loading} onSuccess={fetchData} />
-            <TransactionsCard transactions={transactions} categories={categories} loading={loading} onSuccess={fetchData} />
+            <OperatingTargetsCard transactions={transactions} categories={categories} loading={loading} />
+            <TransactionsCard transactions={transactions} categories={categories} loading={loading} />
           </View>
           
           {/* Spacer for bottom nav */}
@@ -71,7 +63,6 @@ export const FinanceScreen = () => {
         onClose={() => setModalVisible(false)}
         categories={categories}
         transactions={transactions}
-        onSuccess={fetchData}
       />
 
       {/* Floating Action Button */}

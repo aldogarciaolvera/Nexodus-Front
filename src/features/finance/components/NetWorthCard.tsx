@@ -3,14 +3,15 @@ import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
-import { FinanceSummary } from '../../../services/finance.service';
+import { FinanceSummary, FinanceTransaction } from '../../../services/finance.service';
 
 interface NetWorthCardProps {
   summary: FinanceSummary | null;
+  transactions: FinanceTransaction[];
   loading?: boolean;
 }
 
-export const NetWorthCard = ({ summary, loading }: NetWorthCardProps) => {
+export const NetWorthCard = ({ summary, transactions = [], loading }: NetWorthCardProps) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
 
@@ -26,6 +27,15 @@ export const NetWorthCard = ({ summary, loading }: NetWorthCardProps) => {
       currency: 'USD',
     }).format(val);
   };
+  // Calculate Efectivo and Tarjeta balances
+  const efectivoIncomes = transactions.filter(t => t.transactionType === 'Ingreso' && t.paymentMethod === 'Efectivo').reduce((acc, curr) => acc + curr.amount, 0);
+  const efectivoExpenses = transactions.filter(t => t.transactionType === 'Gasto' && t.paymentMethod === 'Efectivo').reduce((acc, curr) => acc + curr.amount, 0);
+  const totalEfectivo = efectivoIncomes - efectivoExpenses;
+
+  const tarjetaIncomes = transactions.filter(t => t.transactionType === 'Ingreso' && t.paymentMethod === 'Tarjeta').reduce((acc, curr) => acc + curr.amount, 0);
+  const tarjetaExpenses = transactions.filter(t => t.transactionType === 'Gasto' && t.paymentMethod === 'Tarjeta').reduce((acc, curr) => acc + curr.amount, 0);
+  const totalTarjeta = tarjetaIncomes - tarjetaExpenses;
+
   return (
     <View style={styles.card}>
       {/* Top Header */}
@@ -42,28 +52,26 @@ export const NetWorthCard = ({ summary, loading }: NetWorthCardProps) => {
       {/* Separator */}
       <View style={styles.separator} />
 
-      {/* Weekly Cap Velocity */}
+      {/* Breakdown */}
       <View style={styles.velocitySection}>
         <View style={styles.velocityHeader}>
           <View style={styles.velocityLabelContainer}>
-            <View style={styles.statusIndicator} />
-            <Text style={styles.velocityLabel}>RESUMEN MENSUAL</Text>
+            <View style={[styles.statusIndicator, { backgroundColor: '#00E676' }]} />
+            <Text style={styles.velocityLabel}>EN EFECTIVO</Text>
           </View>
           <View style={styles.velocityAmountContainer}>
-            <Text style={styles.velocityAmount}>{loading ? '...' : formatCurrency(totalIncome)}</Text>
+            <Text style={[styles.velocityAmount, { color: '#00E676' }]}>{loading ? '...' : formatCurrency(totalEfectivo)}</Text>
           </View>
         </View>
         
-        <View style={styles.largeProgressTrack}>
-          <View style={[styles.largeProgressFill, { 
-            width: totalIncome > 0 ? `${Math.min((totalExpense / totalIncome) * 100, 100)}%` : '0%',
-            backgroundColor: netBalance < 0 ? theme.colors.error : theme.colors.neonCyan 
-          }]} />
-        </View>
-
-        <View style={styles.velocityFooter}>
-          <Text style={styles.velocitySubtext}>Gastos: {loading ? '...' : formatCurrency(totalExpense)}</Text>
-          <Text style={styles.velocitySubtext}>Ingresos: {loading ? '...' : formatCurrency(totalIncome)}</Text>
+        <View style={[styles.velocityHeader, { marginTop: 16, marginBottom: 0 }]}>
+          <View style={styles.velocityLabelContainer}>
+            <View style={[styles.statusIndicator, { backgroundColor: theme.colors.neonCyan }]} />
+            <Text style={styles.velocityLabel}>EN TARJETAS</Text>
+          </View>
+          <View style={styles.velocityAmountContainer}>
+            <Text style={[styles.velocityAmount, { color: theme.colors.neonCyan }]}>{loading ? '...' : formatCurrency(totalTarjeta)}</Text>
+          </View>
         </View>
       </View>
     </View>

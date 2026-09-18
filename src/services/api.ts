@@ -26,7 +26,7 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
     clearTimeout(timeoutId);
 
     if (response.status === 401 && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/refresh')) {
-      const { refreshToken, updateAccessToken, logout } = useAuthStore.getState();
+      const { refreshToken, updateAccessToken, updateTokens, logout } = useAuthStore.getState();
       if (refreshToken) {
         try {
           const refreshResponse = await fetch(`${API_URL}/api/auth/refresh`, {
@@ -36,8 +36,15 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
           });
           if (refreshResponse.ok) {
             const data = await refreshResponse.json();
-            const newToken = data.token || data.accessToken;
-            await updateAccessToken(newToken);
+            const newToken = data.content?.token || data.token || data.content?.accessToken || data.accessToken;
+            const newRefreshToken = data.content?.refreshToken || data.refreshToken;
+            
+            if (newToken && newRefreshToken) {
+              await updateTokens(newToken, newRefreshToken);
+            } else if (newToken) {
+              await updateAccessToken(newToken);
+            }
+            
             headers.Authorization = `Bearer ${newToken}`;
             return fetch(`${API_URL}${endpoint}`, { ...options, headers });
           } else {
