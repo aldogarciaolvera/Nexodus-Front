@@ -31,8 +31,8 @@ export const CategoryDetailsModal = ({ visible, onClose, category, transactions 
       if (t.categoryId !== category.id || !t.transactionDate) return;
       const tDate = new Date(t.transactionDate);
       if (tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear) {
-        if (t.transactionType === 'Gasto') totalSpent += t.amount;
-        if (t.transactionType === 'Ingreso') totalIncome += t.amount;
+        if (t.transactionType === 'Gasto' || t.transactionType === 'Expense') totalSpent += t.amount;
+        if (t.transactionType === 'Ingreso' || t.transactionType === 'Income') totalIncome += t.amount;
       }
     });
 

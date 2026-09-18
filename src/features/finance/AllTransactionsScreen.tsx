@@ -9,41 +9,32 @@ import { FinanceService, FinanceTransaction } from '../../services/finance.servi
 import { CategoryService, Category } from '../../services/category.service';
 import { ActionSheet } from '../../components/ActionSheet';
 import { TransactionModal } from './components/TransactionModal';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 export const AllTransactionsScreen = () => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
   const navigation = useNavigation();
   
-  const [transactions, setTransactions] = useState<FinanceTransaction[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+
+  const { data: transactions = [], isLoading: loadingTx } = useQuery({
+    queryKey: ['financeTransactions'],
+    queryFn: FinanceService.getAll,
+  });
+
+  const { data: categories = [], isLoading: loadingCat } = useQuery({
+    queryKey: ['categories'],
+    queryFn: CategoryService.getAll,
+  });
+
+  const loading = loadingTx || loadingCat;
 
   const [actionSheetVisible, setActionSheetVisible] = useState(false);
   const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
   const [actionTransaction, setActionTransaction] = useState<FinanceTransaction | null>(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [txLoading, setTxLoading] = useState(false);
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [txData, catData] = await Promise.all([
-        FinanceService.getAll(),
-        CategoryService.getAll(),
-      ]);
-      setTransactions(txData);
-      setCategories(catData);
-    } catch (err) {
-      console.error('Failed to fetch transactions', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -92,8 +83,8 @@ export const AllTransactionsScreen = () => {
         ) : (
           <View style={styles.list}>
             {transactions.map(item => {
-              const isIncome = item.transactionType === 'Ingreso';
-              const categoryName = categories.find(c => c.id === item.categoryId)?.name || 'Sin Categoría';
+              const isIncome = item.transactionType === 'Ingreso' || item.transactionType === 'Income';
+              const categoryName = item.category || categories.find(c => c.id === item.categoryId)?.name || 'Sin Categoría';
               
               return (
                 <TouchableOpacity 
@@ -166,7 +157,8 @@ export const AllTransactionsScreen = () => {
               try {
                 setTxLoading(true);
                 await FinanceService.delete(actionTransaction.id);
-                fetchData();
+                queryClient.invalidateQueries({ queryKey: ['financeTransactions'] });
+                queryClient.invalidateQueries({ queryKey: ['financeSummary'] });
               } catch (e) {
                 console.error(e);
               } finally {
@@ -183,7 +175,6 @@ export const AllTransactionsScreen = () => {
         categories={categories}
         transactions={transactions}
         editingTransaction={actionTransaction}
-        onSuccess={fetchData}
       />
     </SafeAreaView>
   );

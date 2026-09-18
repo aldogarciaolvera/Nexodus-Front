@@ -16,10 +16,9 @@ interface OperatingTargetsCardProps {
   transactions?: FinanceTransaction[];
   categories?: Category[];
   loading?: boolean;
-  onSuccess?: () => void;
 }
 
-export const OperatingTargetsCard = ({ transactions = [], categories = [], loading = false, onSuccess }: OperatingTargetsCardProps) => {
+export const OperatingTargetsCard = ({ transactions = [], categories = [], loading = false }: OperatingTargetsCardProps) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
 
@@ -41,7 +40,7 @@ export const OperatingTargetsCard = ({ transactions = [], categories = [], loadi
 
       const spent = transactions
         .filter(t => {
-          if (t.transactionType !== 'Gasto' || t.categoryId !== cat.id || !t.transactionDate) return false;
+          if ((t.transactionType !== 'Gasto' && t.transactionType !== 'Expense') || t.categoryId !== cat.id || !t.transactionDate) return false;
           const tDate = new Date(t.transactionDate);
           return tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear;
         })
@@ -49,7 +48,7 @@ export const OperatingTargetsCard = ({ transactions = [], categories = [], loadi
 
       const income = transactions
         .filter(t => {
-          if (t.transactionType !== 'Ingreso' || t.categoryId !== cat.id || !t.transactionDate) return false;
+          if ((t.transactionType !== 'Ingreso' && t.transactionType !== 'Income') || t.categoryId !== cat.id || !t.transactionDate) return false;
           const tDate = new Date(t.transactionDate);
           return tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear;
         })
@@ -100,9 +99,6 @@ export const OperatingTargetsCard = ({ transactions = [], categories = [], loadi
       queryClient.invalidateQueries({ queryKey: ['categories'] });
       queryClient.invalidateQueries({ queryKey: ['financeTransactions'] });
       queryClient.invalidateQueries({ queryKey: ['financeSummary'] });
-    },
-    onSuccess: () => {
-      if (onSuccess) onSuccess();
     }
   });
 
@@ -176,9 +172,7 @@ export const OperatingTargetsCard = ({ transactions = [], categories = [], loadi
         visible={categoryModalVisible}
         onClose={() => setCategoryModalVisible(false)}
         editingCategory={editingCategory}
-        onSuccess={() => {
-          if (onSuccess) onSuccess();
-        }}
+        onSuccess={() => {}}
       />
 
       <CategoryDetailsModal

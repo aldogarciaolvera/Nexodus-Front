@@ -37,10 +37,10 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
 ## 🆕 Últimos Cambios
 
 - **Gestión de Estado de Servidor:** Integración de `@tanstack/react-query` para manejo eficiente de caché, mutaciones optimistas y estado asíncrono.
-- **Autenticación y Persistencia:** Sistema de sesión utilizando Zustand y `SecureStore` (Expo) con timeout de inactividad de 48 horas para proteger la sesión.
+- **Autenticación y Persistencia:** Sistema de sesión utilizando Zustand y `SecureStore` (Expo), implementando rotación de Refresh Tokens transparente en el backend (interceptores) y un timeout de inactividad de 48 horas.
 - **Arquitectura de Servicios:** Implementación de un patrón de API en `src/services/` que maneja tokens (JWT), interceptores globales para errores `401`, y abstracciones por dominio (`UserService`, `FinanceService`, `CategoryService`).
 - **Módulo de Configuración:** Creación de `SettingsScreen` conectada al backend (`/api/user/me`) permitiendo actualización del perfil y toggle de tema dinámico (claro/oscuro).
-- **Dashboard Reactivo:** La tarjeta de Finanzas (`FinanceCard`) se ha conectado a la API en tiempo real para mostrar ingresos vs. gastos (Ayer/Hoy) de forma dinámica.
+- **Dashboard de Finanzas Avanzado:** La tarjeta de Patrimonio Neto (`NetWorthCard`) divide automáticamente el saldo restante según el método de pago ("En Efectivo" vs "En Tarjetas"), calculado de forma reactiva con React Query en base al historial de transacciones (ingresos y gastos).
 - **Correcciones de UI/UX:** Mitigación de "destellos blancos" en la navegación configurando el color de fondo raíz en el `SafeAreaProvider`, `NavigationContainer` y `app.json` alineados a la filosofía *Obsidian Cyan*.
 - **Navegación**: Migración de Native Stack a `@react-navigation/bottom-tabs` con una barra inferior personalizada (`BottomNav`).
 
