@@ -2,7 +2,6 @@
   "expo": {
     "name": "Nexodus",
     "slug": "Nexodus",
-    "version": "0.0.2",
     "orientation": "portrait",
     "icon": "./assets/icono_app.png",
     "backgroundColor": "#0D0E11",

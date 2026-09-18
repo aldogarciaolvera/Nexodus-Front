@@ -7,6 +7,7 @@ import { useTheme } from '../../utils/ThemeContext';
 import { ThemeColors } from '../../utils/theme';
 import { useAuthStore } from '../../store/authStore';
 import { UserService, UserProfile } from '../../services/user.service';
+import Constants from 'expo-constants';
 
 export const SettingsScreen = () => {
   const theme = useTheme();
@@ -108,7 +109,7 @@ export const SettingsScreen = () => {
           <Text style={styles.logoutText}>Cerrar sesión</Text>
         </TouchableOpacity>
 
-        <Text style={styles.versionText}>v0.0.2</Text>
+        <Text style={styles.versionText}>v{Constants.expoConfig?.version || '0.0.2'}</Text>
       </View>
 
       {/* Edit Profile Modal */}
