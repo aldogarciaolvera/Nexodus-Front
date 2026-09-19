@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Text, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, Text, TouchableOpacity, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { theme } from '../../utils/theme';
@@ -12,12 +12,12 @@ import { Header } from '../../components/Header';
 import { Skeleton } from '../../components/Skeleton';
 
 const FILTERS = [
-  { id: 'today', label: 'TODAY' },
-  { id: 'upcoming', label: 'UPCOMING' },
-  { id: 'all', label: 'ALL SECTORS' },
-  { id: 'work', label: 'WORK' },
+  { id: 'today', label: 'HOY' },
+  { id: 'upcoming', label: 'MAÑANA' },
+  { id: 'all', label: 'TODOS LOS SECTORES' },
+  { id: 'work', label: 'TRABAJO' },
   { id: 'personal', label: 'PERSONAL' },
-  { id: 'health', label: 'HEALTH' },
+  { id: 'health', label: 'SALUD' },
 ];
 
 export const TasksScreen = () => {
@@ -106,73 +106,67 @@ export const TasksScreen = () => {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <View style={{ paddingHorizontal: theme.metrics.marginHorizontal }}>
-        <Header title="Focus & Execution" />
-      </View>
+      <View style={styles.container}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <Header title="Tareas & Habitos" />
 
-      {isLoading ? (
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <Skeleton height={80} borderRadius={16} style={{ marginBottom: 16 }} />
-          <View style={styles.listHeader}>
-            <Skeleton width={100} height={14} borderRadius={4} />
-          </View>
-          <View style={styles.listContainer}>
-            {[1, 2, 3, 4].map((key) => (
-              <Skeleton key={key} height={70} borderRadius={0} style={{ marginBottom: 2 }} />
-            ))}
-          </View>
-        </ScrollView>
-      ) : (
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <ProgressTelemetry 
-            completed={completedCount}
-            total={totalCount}
-            urgent={urgentCount}
-            activeHabits={activeHabitsCount}
-          />
-
-          <FilterPills 
-            options={FILTERS}
-            selectedId={filter}
-            onSelect={setFilter}
-          />
-
-          <View style={styles.listHeader}>
-            <Text style={styles.listHeaderText}>IN EXECUTION • {totalCount - completedCount}</Text>
-            <TouchableOpacity>
-              <Text style={styles.filterIcon}>☷</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.listContainer}>
-            {sortedItems.map(item => (
-              <TaskHabitCard 
-                key={item.id}
-                item={item}
-                onToggle={handleToggle}
+          {isLoading ? (
+            <>
+              <Skeleton height={80} borderRadius={16} style={{ marginBottom: 16 }} />
+              <View style={styles.listHeader}>
+                <Skeleton width={100} height={14} borderRadius={4} />
+              </View>
+              <View style={styles.listContainer}>
+                {[1, 2, 3, 4].map((key) => (
+                  <Skeleton key={key} height={70} borderRadius={0} style={{ marginBottom: 2 }} />
+                ))}
+              </View>
+            </>
+          ) : (
+            <>
+              <ProgressTelemetry 
+                completed={completedCount}
+                total={totalCount}
+                urgent={urgentCount}
+                activeHabits={activeHabitsCount}
               />
-            ))}
-          </View>
-          <View style={styles.bottomPadding} />
-        </ScrollView>
-      )}
 
-      {/* Rapid Add Bar */}
-      <View style={styles.rapidAddContainer}>
-        <TouchableOpacity 
-          style={styles.rapidAddInput}
-          onPress={() => setIsModalVisible(true)}
-        >
-          <View style={styles.rapidAddCircle} />
-          <Text style={styles.rapidAddPlaceholder}>Add rapid task or habit...</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.rapidAddButton}
-          onPress={() => setIsModalVisible(true)}
-        >
-          <Text style={styles.rapidAddButtonIcon}>↑</Text>
-        </TouchableOpacity>
+              <FilterPills 
+                options={FILTERS}
+                selectedId={filter}
+                onSelect={setFilter}
+              />
+
+              <View style={styles.listHeader}>
+                <Text style={styles.listHeaderText}>IN EXECUTION • {totalCount - completedCount}</Text>
+                <TouchableOpacity>
+                  <Text style={styles.filterIcon}>☷</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.listContainer}>
+                {sortedItems.map(item => (
+                  <TaskHabitCard 
+                    key={item.id}
+                    item={item}
+                    onToggle={handleToggle}
+                  />
+                ))}
+              </View>
+              <View style={styles.bottomPadding} />
+            </>
+          )}
+        </ScrollView>
       </View>
+
+      {/* Floating Action Button */}
+      <TouchableOpacity 
+        style={styles.fab} 
+        activeOpacity={0.8} 
+        onPress={() => setIsModalVisible(true)}
+      >
+        <Text style={styles.fabIcon}>+</Text>
+      </TouchableOpacity>
 
       <CreateTaskModal 
         visible={isModalVisible}
@@ -189,15 +183,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.obsidian,
   },
-
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.obsidian,
+  },
+  scrollContent: {
+    paddingHorizontal: theme.metrics.marginHorizontal,
+    paddingTop: Platform.OS === 'android' ? 24 : 12,
+    paddingBottom: 20,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: theme.metrics.marginHorizontal,
   },
   listHeader: {
     flexDirection: 'row',
@@ -223,49 +221,23 @@ const styles = StyleSheet.create({
   bottomPadding: {
     height: 100, // Space for rapid add bar
   },
-  rapidAddContainer: {
+  fab: {
     position: 'absolute',
-    bottom: 24,
-    left: theme.metrics.marginHorizontal,
-    right: theme.metrics.marginHorizontal,
-    flexDirection: 'row',
+    bottom: 100, // Above bottom nav
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: theme.colors.neonCyan,
     alignItems: 'center',
-    backgroundColor: theme.colors.surfaceLight,
-    borderRadius: 30,
-    padding: 8,
-    paddingLeft: 16,
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: theme.colors.borderGlow,
   },
-  rapidAddInput: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  rapidAddCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: theme.colors.neonCyan,
-    marginRight: 12,
-  },
-  rapidAddPlaceholder: {
-    color: theme.colors.slate400,
-    fontFamily: theme.typography.fontFamily,
-    fontSize: 16,
-  },
-  rapidAddButton: {
-    backgroundColor: theme.colors.neonCyan,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rapidAddButtonIcon: {
-    color: theme.colors.obsidian,
-    fontSize: 20,
-    fontWeight: 'bold',
+  fabIcon: {
+    fontSize: 28,
+    fontWeight: '300',
+    color: '#000000', // Assuming black for contrast against neon cyan
+    lineHeight: 32, // to vertically center the + symbol properly
   },
 });
