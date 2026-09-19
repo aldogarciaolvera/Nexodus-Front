@@ -84,41 +84,9 @@ export const SettingsScreen = () => {
     });
   };
 
-  const handleTestRefreshToken = async () => {
-    if (!accessToken || !refreshToken) {
-      showAlert('Error', 'No hay sesión activa para probar el token.');
-      return;
-    }
-    
-    try {
-      // Usamos el endpoint directamente usando la URL actual
-      const apiUrl = getApiUrl();
-      const response = await fetch(`${apiUrl}/api/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: accessToken, refreshToken })
-      });
-      
-      const text = await response.text();
-      if (!response.ok) {
-        showAlert('Error (Status: ' + response.status + ')', text);
-      } else {
-        const data = JSON.parse(text);
-        const newToken = data.content?.token || data.token || data.content?.accessToken || data.accessToken;
-        const newRefreshToken = data.content?.refreshToken || data.refreshToken;
-        
-        if (newToken && newRefreshToken) {
-          await updateTokens(newToken, newRefreshToken);
-        } else if (newToken) {
-          await updateAccessToken(newToken);
-        }
-        
-        showAlert('¡Éxito!', 'El token se refrescó y guardó correctamente.\nNuevo token:\n' + (newToken ? newToken.substring(0, 20) + '...' : 'n/a'), 'success');
-      }
-    } catch (err: any) {
-      showAlert('Error de red', err.message);
-    }
-  };
+
+
+  const isTester = Array.isArray(user?.role) ? user.role.includes('Tester') : user?.role === 'Tester';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -169,24 +137,38 @@ export const SettingsScreen = () => {
           </View>
         </View>
         
-        <View style={[styles.card, { marginTop: 16 }]}>
-          <View style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle}>Entorno Producción</Text>
-              <Text style={styles.rowSubtitle}>Actual: {getApiUrl()}</Text>
+        {isTester && (
+          <View style={[styles.card, { marginTop: 16 }]}>
+            <View style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowTitle}>Entorno Producción</Text>
+                <Text style={styles.rowSubtitle}>Actual: {getApiUrl()}</Text>
+              </View>
+              <Switch
+                value={apiEnv === 'production'}
+                onValueChange={async (val) => {
+                  const newEnv = val ? 'production' : 'local';
+                  setApiEnv(newEnv);
+                  
+                  const url = newEnv === 'production' 
+                    ? 'https://nexodusback.atomsystems.org/health'
+                    : `${process.env.EXPO_PUBLIC_API_URL}/health`;
+                    
+                  console.log(`[Env Switch] Cambiando a ${newEnv}. Fetching: ${url}`);
+                  try {
+                    const response = await fetch(url);
+                    const text = await response.text();
+                    console.log(`[Env Switch] Respuesta exitosa de ${url}:`, text);
+                  } catch (e) {
+                    console.error(`[Env Switch] Falló la conexión a ${url}:`, e);
+                  }
+                }}
+                trackColor={{ false: theme.colors.slate600, true: theme.colors.neonCyan }}
+                thumbColor={theme.colors.white}
+              />
             </View>
-            <Switch
-              value={apiEnv === 'production'}
-              onValueChange={(val) => setApiEnv(val ? 'production' : 'local')}
-              trackColor={{ false: theme.colors.slate600, true: theme.colors.neonCyan }}
-              thumbColor={theme.colors.white}
-            />
           </View>
-          
-          <TouchableOpacity style={[styles.testButton, { marginTop: 16 }]} onPress={handleTestRefreshToken} activeOpacity={0.7}>
-            <Text style={styles.testButtonText}>PROBAR REFRESH TOKEN (DEBUG)</Text>
-          </TouchableOpacity>
-        </View>
+        )}
 
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={logout} activeOpacity={0.8}>
@@ -319,19 +301,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: 'JetBrainsMono_400Regular',
     fontSize: 11,
     color: colors.slate400,
-  },
-  testButton: {
-    backgroundColor: 'rgba(0, 240, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: colors.neonCyan,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  testButtonText: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 10,
-    color: colors.neonCyan,
   },
   profileSection: {
     flexDirection: 'row',

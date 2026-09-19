@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, Text, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { theme } from '../../utils/theme';
@@ -8,6 +8,8 @@ import { FilterPills } from './components/FilterPills';
 import { TaskHabitCard, TaskHabitItem } from './components/TaskHabitCard';
 import { CreateTaskModal } from './components/CreateTaskModal';
 import { TodoService, CreateTodoDto, TodoDto } from '../../services/todo.service';
+import { Header } from '../../components/Header';
+import { Skeleton } from '../../components/Skeleton';
 
 const FILTERS = [
   { id: 'today', label: 'TODAY' },
@@ -104,24 +106,22 @@ export const TasksScreen = () => {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.dateText}>TUESDAY, SEPT 10</Text>
-          <Text style={styles.title}>Focus & Execution</Text>
-        </View>
-        <TouchableOpacity 
-          style={styles.newButton}
-          onPress={() => setIsModalVisible(true)}
-        >
-          <Text style={styles.newButtonIcon}>+</Text>
-          <Text style={styles.newButtonText}>NEW</Text>
-        </TouchableOpacity>
+      <View style={{ paddingHorizontal: theme.metrics.marginHorizontal }}>
+        <Header title="Focus & Execution" />
       </View>
 
       {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator color={theme.colors.neonCyan} size="large" />
-        </View>
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <Skeleton height={80} borderRadius={16} style={{ marginBottom: 16 }} />
+          <View style={styles.listHeader}>
+            <Skeleton width={100} height={14} borderRadius={4} />
+          </View>
+          <View style={styles.listContainer}>
+            {[1, 2, 3, 4].map((key) => (
+              <Skeleton key={key} height={70} borderRadius={0} style={{ marginBottom: 2 }} />
+            ))}
+          </View>
+        </ScrollView>
       ) : (
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           <ProgressTelemetry 
@@ -189,47 +189,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.obsidian,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: theme.metrics.marginHorizontal,
-    paddingTop: 16,
-    paddingBottom: 24,
-  },
-  dateText: {
-    color: theme.colors.slate400,
-    fontFamily: theme.typography.fontMono,
-    fontSize: 11,
-    letterSpacing: 1.5,
-    marginBottom: 4,
-    textTransform: 'uppercase',
-  },
-  title: {
-    color: theme.colors.white,
-    fontFamily: theme.typography.fontFamilyBold,
-    fontSize: 28,
-  },
-  newButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.neonCyan,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 4,
-  },
-  newButtonIcon: {
-    color: theme.colors.obsidian,
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  newButtonText: {
-    color: theme.colors.obsidian,
-    fontFamily: theme.typography.fontFamilyBold,
-    fontSize: 12,
-    letterSpacing: 1,
-  },
+
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -270,12 +230,12 @@ const styles = StyleSheet.create({
     right: theme.metrics.marginHorizontal,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.surfaceElevated,
+    backgroundColor: theme.colors.surfaceLight,
     borderRadius: 30,
     padding: 8,
     paddingLeft: 16,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: theme.colors.borderGlow,
   },
   rapidAddInput: {
     flex: 1,

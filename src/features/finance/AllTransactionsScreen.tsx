@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
@@ -9,6 +9,7 @@ import { FinanceService, FinanceTransaction } from '../../services/finance.servi
 import { CategoryService, Category } from '../../services/category.service';
 import { ActionSheet } from '../../components/ActionSheet';
 import { TransactionModal } from './components/TransactionModal';
+import { Skeleton } from '../../components/Skeleton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 export const AllTransactionsScreen = () => {
@@ -87,7 +88,20 @@ export const AllTransactionsScreen = () => {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {loading ? (
-          <ActivityIndicator size="large" color={theme.colors.neonCyan} style={{ marginTop: 40 }} />
+          <View style={styles.list}>
+            {[1, 2, 3, 4, 5].map((key) => (
+              <View key={key} style={styles.transactionItem}>
+                <Skeleton width={40} height={40} borderRadius={12} style={{ marginRight: 16 }} />
+                <View style={styles.detailsContainer}>
+                  <Skeleton width={120} height={14} borderRadius={4} style={{ marginBottom: 4 }} />
+                  <Skeleton width={80} height={10} borderRadius={2} />
+                </View>
+                <View style={styles.amountContainer}>
+                  <Skeleton width={60} height={14} borderRadius={4} />
+                </View>
+              </View>
+            ))}
+          </View>
         ) : transactions.length === 0 ? (
           <Text style={styles.emptyText}>No hay movimientos registrados.</Text>
         ) : (

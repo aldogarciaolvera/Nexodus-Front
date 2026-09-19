@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
 import { FinanceTransaction } from '../../../services/finance.service';
+import { Skeleton } from '../../../components/Skeleton';
 
 interface WeeklyOutflowCardProps {
   transactions?: FinanceTransaction[];
@@ -71,7 +72,14 @@ export const WeeklyOutflowCard = ({ transactions = [], loading = false }: Weekly
 
       <View style={styles.chartContainer}>
         {loading ? (
-          <ActivityIndicator color={theme.colors.neonCyan} style={{ alignSelf: 'center', flex: 1 }} />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', flex: 1, width: '100%' }}>
+            {[60, 40, 70, 30, 50, 80, 45].map((h, i) => (
+              <View key={i} style={styles.barCol}>
+                <Skeleton width={24} height={h} borderRadius={4} style={{ marginBottom: 8 }} />
+                <Skeleton width={16} height={10} borderRadius={2} />
+              </View>
+            ))}
+          </View>
         ) : (
           days.map((day, index) => {
             const heightPercent = day.value > 0 ? (day.value / maxVal) * 100 : 4;
