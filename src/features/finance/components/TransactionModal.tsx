@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, Alert, Animated } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, Animated, KeyboardAvoidingView, Platform } from 'react-native';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
 import { FinanceService, FinanceTransaction } from '../../../services/finance.service';
@@ -7,6 +7,7 @@ import { ActionSheet } from '../../../components/ActionSheet';
 import { Category, CategoryService } from '../../../services/category.service';
 import { CategoryModal } from './CategoryModal';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAlertStore } from '../../../store/alertStore';
 
 interface TransactionModalProps {
   visible: boolean;
@@ -41,14 +42,7 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
   const [showModal, setShowModal] = useState(visible);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // Error Alert State
-  const [errorVisible, setErrorVisible] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
-
-  const showError = (msg: string) => {
-    setErrorMsg(msg);
-    setErrorVisible(true);
-  };
+  const { showAlert } = useAlertStore();
 
   useEffect(() => {
     if (visible) {
@@ -113,7 +107,7 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
     onError: (err: any, newTx, context) => {
       queryClient.setQueryData(['financeTransactions'], context?.previousTransactions);
       queryClient.setQueryData(['financeSummary'], context?.previousSummary);
-      showError(err.message || (editingTransaction ? 'No se pudo actualizar la transacción' : 'No se pudo crear la transacción'));
+      showAlert('Error', err.message || (editingTransaction ? 'No se pudo actualizar la transacción' : 'No se pudo crear la transacción'));
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['financeTransactions'] });
@@ -126,11 +120,11 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
 
   const handleSubmit = () => {
     if (!amount || isNaN(Number(amount))) {
-      showError('Por favor ingresa un monto válido');
+      showAlert('Error', 'Por favor ingresa un monto válido');
       return;
     }
     if (!selectedCategory) {
-      showError('Por favor selecciona una categoría');
+      showAlert('Error', 'Por favor selecciona una categoría');
       return;
     }
 
@@ -183,7 +177,7 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
     onError: (err, variables, context) => {
       queryClient.setQueryData(['categories'], context?.previousCategories);
       queryClient.setQueryData(['financeTransactions'], context?.previousTransactions);
-      Alert.alert('Error', 'No se pudo eliminar la categoría o sus transacciones');
+      showAlert('Error', 'No se pudo eliminar la categoría o sus transacciones');
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
@@ -205,8 +199,11 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
     >
       <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
-        <View style={styles.content}>
-          <Text style={styles.title}>{editingTransaction ? 'Editar Transaccion' : 'Nueva Transaccion'}</Text>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardView}>
+          <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <TouchableOpacity style={styles.flexArea} activeOpacity={1} onPress={onClose} />
+            <View style={styles.content}>
+              <Text style={styles.title}>{editingTransaction ? 'Editar Transaccion' : 'Nueva Transaccion'}</Text>
           
           <View style={styles.typeSelector}>
             <TouchableOpacity 
@@ -284,7 +281,9 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
               <Text style={styles.submitText}>CONFIRMAR</Text>
             )}
           </TouchableOpacity>
-        </View>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </Animated.View>
 
       {/* Modal para Crear/Editar Categoría */}
@@ -294,6 +293,7 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
         editingCategory={editingCategory}
         onSuccess={(savedCat) => {
           setSelectedCategory(savedCat.id!);
+          queryClient.invalidateQueries({ queryKey: ['categories'] });
           if (onSuccess) onSuccess();
         }}
       />
@@ -341,21 +341,6 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
           }
         ]}
       />
-
-      {/* Action Sheet para errores */}
-      <ActionSheet
-        visible={errorVisible}
-        onClose={() => setErrorVisible(false)}
-        title="Error"
-        subtitle={errorMsg}
-        isError={true}
-        options={[
-          {
-            label: 'OK',
-            onPress: () => setErrorVisible(false)
-          }
-        ]}
-      />
     </Modal>
   );
 };
@@ -372,6 +357,18 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+  },
+  keyboardView: {
+    width: '100%',
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'flex-end',
+  },
+  flexArea: {
+    flex: 1,
   },
   content: {
     backgroundColor: colors.surfaceLight,

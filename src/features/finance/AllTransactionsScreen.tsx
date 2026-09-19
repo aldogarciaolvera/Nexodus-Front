@@ -9,7 +9,7 @@ import { FinanceService, FinanceTransaction } from '../../services/finance.servi
 import { CategoryService, Category } from '../../services/category.service';
 import { ActionSheet } from '../../components/ActionSheet';
 import { TransactionModal } from './components/TransactionModal';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 export const AllTransactionsScreen = () => {
   const theme = useTheme();
@@ -34,7 +34,17 @@ export const AllTransactionsScreen = () => {
   const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
   const [actionTransaction, setActionTransaction] = useState<FinanceTransaction | null>(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
-  const [txLoading, setTxLoading] = useState(false);
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => FinanceService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['financeTransactions'] });
+      queryClient.invalidateQueries({ queryKey: ['financeSummary'] });
+    },
+    onError: (err) => {
+      console.error(err);
+    }
+  });
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -152,18 +162,9 @@ export const AllTransactionsScreen = () => {
           {
             label: 'Sí, Eliminar',
             destructive: true,
-            onPress: async () => {
+            onPress: () => {
               if (!actionTransaction) return;
-              try {
-                setTxLoading(true);
-                await FinanceService.delete(actionTransaction.id);
-                queryClient.invalidateQueries({ queryKey: ['financeTransactions'] });
-                queryClient.invalidateQueries({ queryKey: ['financeSummary'] });
-              } catch (e) {
-                console.error(e);
-              } finally {
-                setTxLoading(false);
-              }
+              deleteMutation.mutate(actionTransaction.id);
             }
           }
         ]}

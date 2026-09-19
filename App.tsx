@@ -20,6 +20,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './src/store/authStore';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ThemeProvider, useTheme } from './src/utils/ThemeContext';
+import { GlobalAlert } from './src/components/GlobalAlert';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -114,6 +115,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AppInner />
+        <GlobalAlert />
       </ThemeProvider>
     </QueryClientProvider>
   );

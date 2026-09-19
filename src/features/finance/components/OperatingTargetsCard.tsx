@@ -172,7 +172,10 @@ export const OperatingTargetsCard = ({ transactions = [], categories = [], loadi
         visible={categoryModalVisible}
         onClose={() => setCategoryModalVisible(false)}
         editingCategory={editingCategory}
-        onSuccess={() => {}}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['categories'] });
+          queryClient.invalidateQueries({ queryKey: ['financeSummary'] });
+        }}
       />
 
       <CategoryDetailsModal

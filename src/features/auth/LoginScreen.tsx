@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Constants from 'expo-constants';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
 import { theme } from '../../utils/theme';
@@ -42,48 +43,54 @@ export const LoginScreen = () => {
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView 
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.header}>
-          <Text style={styles.title}>Nexodus</Text>
-          <Text style={styles.subtitle}>Centro de control</Text>
-        </View>
-
-        <View style={styles.form}>
-          <Input 
-            label="EMAIL" 
-            placeholder="Ingresa tu correo electrónico" 
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-          <Input 
-            label="PASSWORD" 
-            placeholder="Ingresa tu contraseña" 
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
-          
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-          
-          <Button 
-            title="Iniciar Sesión" 
-            onPress={handleLogin} 
-            loading={loading}
-            style={styles.submitButton}
-          />
-          
-          <View style={styles.registerContainer}>
-            <Text style={styles.registerText}>¿No tienes cuenta? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-              <Text style={styles.registerLink}>Regístrate</Text>
-            </TouchableOpacity>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent} 
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <Text style={styles.title}>Nexodus</Text>
+            <Text style={styles.subtitle}>Centro de control</Text>
           </View>
-        </View>
+
+          <View style={styles.form}>
+            <Input 
+              label="EMAIL" 
+              placeholder="Ingresa tu correo electrónico" 
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+            <Input 
+              label="PASSWORD" 
+              placeholder="Ingresa tu contraseña" 
+              value={password}
+              onChangeText={setPassword}
+              isPassword
+            />
+            
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            
+            <Button 
+              title="Iniciar Sesión" 
+              onPress={handleLogin} 
+              loading={loading}
+              style={styles.submitButton}
+            />
+            
+            <View style={styles.registerContainer}>
+              <Text style={styles.registerText}>¿No tienes cuenta? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+                <Text style={styles.registerLink}>Regístrate</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
-      <Text style={styles.versionText}>v0.0.2</Text>
+      <Text style={styles.versionText}>v{Constants.expoConfig?.version || '0.0.3'}</Text>
     </SafeAreaView>
   );
 };
@@ -95,8 +102,12 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: theme.metrics.marginHorizontal,
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
+    paddingHorizontal: theme.metrics.marginHorizontal,
+    paddingBottom: 40,
   },
   header: {
     marginBottom: 48,

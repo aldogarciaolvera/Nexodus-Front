@@ -34,6 +34,8 @@ description: Reglas críticas del sistema, restricciones y directrices de compor
 * Badges & Pills: Use `rounded-full` capsule geometry.
 * Bottom Navigation: Floating detached, 24px border radius, translucent glass backdrop (`#12141A` at 80% opacity, 24px blur).
 * Progress Bars: Solid `#00F0FF` fill, `4px` or `6px` track height.
+* **Custom Alert Rule:** All errors, warnings, or notifications MUST use the custom `GlobalAlert` component via `useAlertStore.getState().showAlert(...)`. NEVER use the native `Alert.alert()` or local state text to ensure visual consistency across the app.
+* **Keyboard Handling Rule:** Every screen or modal with text inputs MUST wrap its form content with a combination of `KeyboardAvoidingView` (with `behavior="padding"` on iOS) and `ScrollView` (with `keyboardShouldPersistTaps="handled"`) to prevent the software keyboard from covering the inputs.
 
 ## 4. Coding Standards
 * Do not mix domains across the `src/features/` folders.

@@ -68,19 +68,25 @@ export const RegisterScreen = () => {
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent} 
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.header}>
-            <Text style={styles.title}>Nexodus</Text>
-            <Text style={styles.subtitle}>Crear nueva cuenta</Text>
+            <Text style={styles.title}>Crear Cuenta</Text>
+            <Text style={styles.subtitle}>Únete a Nexodus</Text>
           </View>
 
           <View style={styles.form}>
             <Input 
-              label="NOMBRE DE USUARIO" 
-              placeholder="Ingresa tu nombre" 
+              label="USUARIO" 
+              placeholder="Ingresa tu nombre de usuario" 
               value={username}
               onChangeText={setUsername}
+              autoCapitalize="none"
             />
+            
             <Input 
               label="EMAIL" 
               placeholder="Ingresa tu correo electrónico" 
@@ -89,6 +95,7 @@ export const RegisterScreen = () => {
               autoCapitalize="none"
               keyboardType="email-address"
             />
+            
             <Input 
               label="TELÉFONO" 
               placeholder="Ingresa tu número de teléfono" 
@@ -96,19 +103,21 @@ export const RegisterScreen = () => {
               onChangeText={setPhoneNumber}
               keyboardType="phone-pad"
             />
+            
             <Input 
               label="CONTRASEÑA" 
-              placeholder="Ingresa tu contraseña" 
+              placeholder="Crea una contraseña" 
               value={password}
               onChangeText={setPassword}
-              secureTextEntry
+              isPassword
             />
+
             <Input 
               label="CONFIRMAR CONTRASEÑA" 
               placeholder="Confirma tu contraseña" 
               value={confirmPassword}
               onChangeText={setConfirmPassword}
-              secureTextEntry
+              isPassword
             />
             
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -122,14 +131,14 @@ export const RegisterScreen = () => {
             
             <View style={styles.loginContainer}>
               <Text style={styles.loginText}>¿Ya tienes cuenta? </Text>
-              <TouchableOpacity onPress={() => navigation.goBack()}>
-                <Text style={styles.loginLink}>Iniciar Sesión</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Login' as never)}>
+                <Text style={styles.loginLink}>Inicia Sesión</Text>
               </TouchableOpacity>
             </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-      <Text style={styles.versionText}>v{Constants.expoConfig?.version || '0.0.2'}</Text>
+      <Text style={styles.versionText}>v{Constants.expoConfig?.version || '0.0.3'}</Text>
     </SafeAreaView>
   );
 };
@@ -144,8 +153,8 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: theme.metrics.marginHorizontal,
     justifyContent: 'center',
+    paddingHorizontal: theme.metrics.marginHorizontal,
     paddingVertical: 40,
   },
   header: {

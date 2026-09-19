@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
 import { Category, CategoryService } from '../../../services/category.service';
 import { ActionSheet } from '../../../components/ActionSheet';
+import { useMutation } from '@tanstack/react-query';
+import { useAlertStore } from '../../../store/alertStore';
 
 interface CategoryModalProps {
   visible: boolean;
@@ -19,16 +21,8 @@ export const CategoryModal = ({ visible, onClose, editingCategory, onSuccess }: 
   const [categoryName, setCategoryName] = useState('');
   const [categoryDesc, setCategoryDesc] = useState('');
   const [monthlyLimit, setMonthlyLimit] = useState('');
-  const [loading, setLoading] = useState(false);
 
-  // Error State
-  const [errorVisible, setErrorVisible] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
-
-  const showError = (msg: string) => {
-    setErrorMsg(msg);
-    setErrorVisible(true);
-  };
+  const { showAlert } = useAlertStore();
 
   useEffect(() => {
     if (visible) {
@@ -44,39 +38,37 @@ export const CategoryModal = ({ visible, onClose, editingCategory, onSuccess }: 
     }
   }, [visible, editingCategory]);
 
-  const handleSave = async () => {
+  const mutation = useMutation({
+    mutationFn: async (data: any) => {
+      if (editingCategory) {
+        return CategoryService.update(editingCategory.id!, data);
+      } else {
+        return CategoryService.create(data);
+      }
+    },
+    onSuccess: (savedCat) => {
+      if (onSuccess) onSuccess(savedCat);
+      onClose();
+    },
+    onError: (error) => {
+      console.error(error);
+      showAlert('Error', 'Fallo al guardar categoría');
+    }
+  });
+
+  const handleSave = () => {
     if (!categoryName.trim()) {
-      showError('Ingresa un nombre para la categoría');
+      showAlert('Error', 'Ingresa un nombre para la categoría');
       return;
     }
 
-    try {
-      setLoading(true);
-      
-      const parsedLimit = parseFloat(monthlyLimit) || 0.0;
-
-      if (editingCategory) {
-        const updated = await CategoryService.update(editingCategory.id!, {
-          name: categoryName,
-          description: categoryDesc,
-          monthlyLimit: parsedLimit,
-        });
-        if (onSuccess) onSuccess(updated);
-      } else {
-        const newCat = await CategoryService.create({
-          name: categoryName,
-          description: categoryDesc,
-          monthlyLimit: parsedLimit,
-        });
-        if (onSuccess) onSuccess(newCat);
-      }
-      onClose();
-    } catch (error) {
-      console.error(error);
-      showError('Fallo al guardar categoría');
-    } finally {
-      setLoading(false);
-    }
+    const parsedLimit = parseFloat(monthlyLimit) || 0.0;
+    
+    mutation.mutate({
+      name: categoryName,
+      description: categoryDesc,
+      monthlyLimit: parsedLimit,
+    });
   };
 
   return (
@@ -88,8 +80,11 @@ export const CategoryModal = ({ visible, onClose, editingCategory, onSuccess }: 
     >
       <View style={styles.overlay}>
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
-        <View style={styles.content}>
-          <Text style={styles.title}>{editingCategory ? 'Editar Categoría' : 'Nueva Categoría'}</Text>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardView}>
+          <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <TouchableOpacity style={styles.flexArea} activeOpacity={1} onPress={onClose} />
+            <View style={styles.content}>
+              <Text style={styles.title}>{editingCategory ? 'Editar Categoría' : 'Nueva Categoría'}</Text>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Nombre</Text>
@@ -130,7 +125,7 @@ export const CategoryModal = ({ visible, onClose, editingCategory, onSuccess }: 
               style={[styles.submitBtn, { flex: 1, backgroundColor: 'transparent', borderColor: theme.colors.borderGlow, borderWidth: 1 }]} 
               activeOpacity={0.8} 
               onPress={onClose} 
-              disabled={loading}
+              disabled={mutation.isPending}
             >
               <Text style={[styles.submitText, { color: theme.colors.slate300 }]}>CANCELAR</Text>
             </TouchableOpacity>
@@ -141,9 +136,9 @@ export const CategoryModal = ({ visible, onClose, editingCategory, onSuccess }: 
               style={[styles.submitBtn, { flex: 1 }]} 
               activeOpacity={0.8} 
               onPress={handleSave} 
-              disabled={loading}
+              disabled={mutation.isPending}
             >
-              {loading ? (
+              {mutation.isPending ? (
                 <ActivityIndicator color={theme.colors.obsidian} />
               ) : (
                 <Text style={styles.submitText}>GUARDAR</Text>
@@ -151,22 +146,9 @@ export const CategoryModal = ({ visible, onClose, editingCategory, onSuccess }: 
             </TouchableOpacity>
           </View>
         </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </View>
-      
-      {/* Action Sheet para errores */}
-      <ActionSheet
-        visible={errorVisible}
-        onClose={() => setErrorVisible(false)}
-        title="Error"
-        subtitle={errorMsg}
-        isError={true}
-        options={[
-          {
-            label: 'OK',
-            onPress: () => setErrorVisible(false)
-          }
-        ]}
-      />
     </Modal>
   );
 };
@@ -183,6 +165,18 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+  },
+  keyboardView: {
+    width: '100%',
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'flex-end',
+  },
+  flexArea: {
+    flex: 1,
   },
   content: {
     backgroundColor: colors.surfaceLight,

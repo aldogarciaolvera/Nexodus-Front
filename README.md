@@ -42,7 +42,9 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
 - **Módulo de Configuración:** Creación de `SettingsScreen` conectada al backend (`/api/user/me`) permitiendo actualización del perfil y toggle de tema dinámico (claro/oscuro).
 - **Dashboard de Finanzas Avanzado:** La tarjeta de Patrimonio Neto (`NetWorthCard`) divide automáticamente el saldo restante según el método de pago ("En Efectivo" vs "En Tarjetas"), calculado de forma reactiva con React Query en base al historial de transacciones (ingresos y gastos).
 - **Correcciones de UI/UX:** Mitigación de "destellos blancos" en la navegación configurando el color de fondo raíz en el `SafeAreaProvider`, `NavigationContainer` y `app.json` alineados a la filosofía *Obsidian Cyan*.
-- **Navegación**: Migración de Native Stack a `@react-navigation/bottom-tabs` con una barra inferior personalizada (`BottomNav`).
+- **Navegación:** Migración de Native Stack a `@react-navigation/bottom-tabs` con una barra inferior personalizada (`BottomNav`).
+- **Sistema de Alertas Global:** Reemplazo total de la API nativa `Alert.alert` por un componente `<GlobalAlert />` gestionado de manera reactiva por `alertStore.ts` (Zustand), alineado con el diseño visual del proyecto.
+- **Gestión Estándar del Teclado:** Implementación global del patrón de envolver modales y pantallas con entradas de texto en `<KeyboardAvoidingView>` y `<ScrollView>` para prevenir solapamiento con el teclado de software en iOS y Android.
 
 ## 🚀 Instalación y Uso
 

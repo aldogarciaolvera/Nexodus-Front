@@ -1,6 +1,7 @@
 import { useAuthStore } from '../store/authStore';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+// Dynamic API URL is now fetched via useAuthStore
+// const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
 export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
   const { accessToken } = useAuthStore.getState();
@@ -13,8 +14,10 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
     headers.Authorization = `Bearer ${accessToken}`;
   }
 
+  const API_URL = useAuthStore.getState().getApiUrl();
+
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
 
   try {
     const response = await fetch(`${API_URL}${endpoint}`, {
@@ -78,10 +81,10 @@ export const handleResponse = async (response: Response) => {
           if (firstErrorKey) {
             errorMessage = errorData.errors[firstErrorKey][0];
           } else {
-            errorMessage = errorData.message || errorData.title || JSON.stringify(errorData);
+            errorMessage = errorData.content?.message || errorData.message || errorData.title || JSON.stringify(errorData);
           }
         } else {
-          errorMessage = errorData.message || errorData.title || JSON.stringify(errorData);
+          errorMessage = errorData.content?.message || errorData.message || errorData.title || JSON.stringify(errorData);
         }
       } catch (e) {
         errorMessage = text;
