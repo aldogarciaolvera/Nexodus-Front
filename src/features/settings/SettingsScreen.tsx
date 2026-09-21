@@ -187,10 +187,10 @@ export const SettingsScreen = () => {
                     
                     if (newToken && newRefreshToken) {
                       await updateTokens(newToken, newRefreshToken);
-                      showAlert('Éxito', 'Token refrescado correctamente');
+                      showAlert('Éxito', 'Token refrescado correctamente', 'success');
                     } else if (newToken) {
                       await updateAccessToken(newToken);
-                      showAlert('Éxito', 'Access token refrescado correctamente');
+                      showAlert('Éxito', 'Access token refrescado correctamente', 'success');
                     } else {
                       showAlert('Error', 'No se encontraron tokens en la respuesta: ' + text);
                     }

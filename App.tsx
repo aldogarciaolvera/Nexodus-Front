@@ -14,6 +14,7 @@ import { SettingsScreen } from './src/features/settings/SettingsScreen';
 import { LoginScreen } from './src/features/auth/LoginScreen';
 import { RegisterScreen } from './src/features/auth/RegisterScreen';
 import { TasksScreen } from './src/features/tasks/TasksScreen';
+import { AllTasksScreen } from './src/features/tasks/AllTasksScreen';
 import { BottomNav } from './src/components/BottomNav';
 import { View, ActivityIndicator, AppState, AppStateStatus } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -96,6 +97,7 @@ function AppInner() {
             <>
               <Stack.Screen name="MainTabs" component={MainTabs} />
               <Stack.Screen name="AllTransactions" component={AllTransactionsScreen} />
+              <Stack.Screen name="AllTasks" component={AllTasksScreen} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
             </>
           ) : (

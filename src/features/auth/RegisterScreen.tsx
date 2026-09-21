@@ -66,7 +66,7 @@ export const RegisterScreen = () => {
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView 
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView 
           contentContainerStyle={styles.scrollContent} 
@@ -156,6 +156,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: theme.metrics.marginHorizontal,
     paddingVertical: 40,
+    paddingBottom: 80, // added extra bottom padding
   },
   header: {
     marginBottom: 40,

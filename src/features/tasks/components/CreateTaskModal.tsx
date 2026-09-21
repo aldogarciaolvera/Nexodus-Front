@@ -4,13 +4,15 @@ import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
 import { Input } from '../../../components/Input';
 import { Button } from '../../../components/Button';
-import { CreateTodoDto } from '../../../services/todo.service';
+import { CreateTodoDto, TodoDto } from '../../../services/todo.service';
 
 interface CreateTaskModalProps {
   visible: boolean;
   onClose: () => void;
   onAdd: (item: CreateTodoDto) => void;
+  onEdit?: (id: string, item: CreateTodoDto) => void;
   isLoading?: boolean;
+  editingItem?: TodoDto | null;
 }
 
 const TAGS = ['TRABAJO', 'PERSONAL', 'SALUD'];
@@ -20,7 +22,7 @@ const FREQUENCIES = [
   { id: 'Monthly', label: 'Mensual' },
 ];
 
-export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClose, onAdd, isLoading }) => {
+export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClose, onAdd, onEdit, isLoading, editingItem }) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
   
@@ -34,6 +36,44 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
   const [selectedWeeklyDays, setSelectedWeeklyDays] = useState<number[]>([]);
   const [selectedMonthlyDays, setSelectedMonthlyDays] = useState<number[]>([]);
 
+  React.useEffect(() => {
+    if (visible) {
+      if (editingItem) {
+        setIsHabit(editingItem.isHabit);
+        setTitle(editingItem.task);
+        setSubtitle(editingItem.subtitle || '');
+        setTag(editingItem.tag || null);
+        setUrgent(editingItem.urgent);
+        
+        if (editingItem.frequency) {
+          setIsRepeating(true);
+          setFrequency(editingItem.frequency);
+          if (editingItem.frequency === 'Weekly' && editingItem.customDays) {
+            setSelectedWeeklyDays(editingItem.customDays.split(',').map(Number));
+          } else if (editingItem.frequency === 'Monthly' && editingItem.customDays) {
+            setSelectedMonthlyDays(editingItem.customDays.split(',').map(Number));
+          }
+        } else {
+          setIsRepeating(false);
+          setFrequency('Daily');
+          setSelectedWeeklyDays([]);
+          setSelectedMonthlyDays([]);
+        }
+      } else {
+        // Reset form
+        setTitle('');
+        setSubtitle('');
+        setTag(null);
+        setUrgent(false);
+        setIsHabit(false);
+        setFrequency('Daily');
+        setIsRepeating(false);
+        setSelectedWeeklyDays([]);
+        setSelectedMonthlyDays([]);
+      }
+    }
+  }, [visible, editingItem]);
+
   const handleAdd = () => {
     if (!title.trim()) return;
 
@@ -45,7 +85,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
       finalCustomDays = selectedMonthlyDays.sort((a,b) => a-b).join(',');
     }
 
-    onAdd({
+    const payload = {
       isHabit,
       task: title.trim(),
       subtitle: subtitle.trim() || undefined,
@@ -53,18 +93,13 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
       urgent: urgent,
       frequency: finalFrequency,
       customDays: finalCustomDays,
-    });
-    
-    // Reset form
-    setTitle('');
-    setSubtitle('');
-    setTag(null);
-    setUrgent(false);
-    setIsHabit(false);
-    setFrequency('Daily');
-    setIsRepeating(false);
-    setSelectedWeeklyDays([]);
-    setSelectedMonthlyDays([]);
+    };
+
+    if (editingItem && onEdit) {
+      onEdit(editingItem.id, payload);
+    } else {
+      onAdd(payload);
+    }
   };
 
   return (
@@ -81,7 +116,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
         <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={Keyboard.dismiss}>
           <TouchableOpacity activeOpacity={1} style={[styles.modalContent, { maxHeight: '90%', flexShrink: 1 }]} onPress={() => {}}>
             <View style={styles.header}>
-              <Text style={styles.title}>Nueva Task</Text>
+              <Text style={styles.title}>{editingItem ? (isHabit ? 'Editar Hábito' : 'Editar Tarea') : 'Nueva Task'}</Text>
               <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
                 <Text style={styles.closeText}>✕</Text>
               </TouchableOpacity>
@@ -229,7 +264,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
                 )}
 
                 <Button 
-                  title={!isHabit ? 'Añadir Tarea' : 'Crear Hábito'} 
+                  title={editingItem ? 'Guardar Cambios' : (!isHabit ? 'Añadir Tarea' : 'Crear Hábito')} 
                   onPress={handleAdd} 
                   loading={isLoading}
                   style={styles.submitBtn}

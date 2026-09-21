@@ -1,20 +1,26 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Text, TouchableOpacity, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, Text, TouchableOpacity, Platform, Modal, TouchableWithoutFeedback } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { theme } from '../../utils/theme';
 import { ProgressTelemetry } from './components/ProgressTelemetry';
 import { FilterPills } from './components/FilterPills';
 import { TaskHabitCard, TaskHabitItem } from './components/TaskHabitCard';
 import { CreateTaskModal } from './components/CreateTaskModal';
+import { ActionSheet } from '../../components/ActionSheet';
 import { TodoService, CreateTodoDto, TodoDto } from '../../services/todo.service';
+import { isItemActiveForDate } from '../../utils/todoHelpers';
 import { Header } from '../../components/Header';
 import { Skeleton } from '../../components/Skeleton';
+import { useAlertStore } from '../../store/alertStore';
 
 const FILTERS = [
   { id: 'today', label: 'HOY' },
   { id: 'upcoming', label: 'MAÑANA' },
   { id: 'all', label: 'TODOS LOS SECTORES' },
+  { id: 'tasks', label: 'SOLO TAREAS' },
+  { id: 'habits', label: 'SOLO HÁBITOS' },
   { id: 'work', label: 'TRABAJO' },
   { id: 'personal', label: 'PERSONAL' },
   { id: 'health', label: 'SALUD' },
@@ -22,8 +28,13 @@ const FILTERS = [
 
 export const TasksScreen = () => {
   const queryClient = useQueryClient();
+  const navigation = useNavigation();
+  const alertStore = useAlertStore();
   const [filter, setFilter] = useState('today');
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<TaskHabitItem | null>(null);
+  const [isActionModalVisible, setActionModalVisible] = useState(false);
+  const [editingItemDto, setEditingItemDto] = useState<TodoDto | null>(null);
 
   const { data: todos = [], isLoading } = useQuery({
     queryKey: ['todos'],
@@ -45,6 +56,22 @@ export const TasksScreen = () => {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => TodoService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+      setActionModalVisible(false);
+      setSelectedItem(null);
+    },
+  });
+
+  const uncompleteMutation = useMutation({
+    mutationFn: (id: string) => TodoService.uncomplete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+    },
+  });
+
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: TodoDto }) => 
       TodoService.update(id, {
@@ -58,6 +85,8 @@ export const TasksScreen = () => {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
+      setIsModalVisible(false);
+      setEditingItemDto(null);
     },
   });
 
@@ -71,7 +100,11 @@ export const TasksScreen = () => {
     streak: t.currentStreak,
     isCompleted: t.isCompleted,
     urgent: t.urgent,
-    // Add time formatting here if needed, e.g. using t.dueDate
+    frequency: t.frequency,
+    customDays: t.customDays,
+    lastCompletedAt: t.lastCompletedAt,
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt,
   }));
 
   const completedCount = items.filter(i => i.isCompleted).length;
@@ -84,24 +117,84 @@ export const TasksScreen = () => {
     if (!item) return;
 
     if (!item.isCompleted) {
-      // Both tasks and habits use /complete to finish
       completeMutation.mutate(id);
     } else {
-      // If it's already completed and it's a task, we might want to un-complete it via PUT
-      if (!item.isHabit) {
-        updateMutation.mutate({ id, data: item });
-      }
-      // If it's a habit, we do nothing to prevent breaking streak logic as requested
+      uncompleteMutation.mutate(id);
     }
+  };
+
+  const handleLongPress = (item: TaskHabitItem) => {
+    setSelectedItem(item);
+    setActionModalVisible(true);
+  };
+
+  const handleEdit = () => {
+    if (!selectedItem) return;
+    const dto = todos.find(t => t.id === selectedItem.id);
+    if (dto) {
+      setEditingItemDto(dto);
+      setActionModalVisible(false);
+      setIsModalVisible(true);
+    }
+  };
+
+  const handleDelete = () => {
+    if (!selectedItem) return;
+    setActionModalVisible(false);
+    alertStore.showAlert({
+      title: 'Eliminar',
+      message: '¿Estás seguro que deseas eliminar esto permanentemente?',
+      type: 'error',
+      buttons: [
+        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: 'Eliminar', 
+          style: 'destructive',
+          onPress: () => deleteMutation.mutate(selectedItem.id)
+        }
+      ]
+    });
   };
 
   const handleAddItem = (newItemData: CreateTodoDto) => {
     createMutation.mutate(newItemData);
   };
 
-  const sortedItems = [...items].sort((a, b) => {
-    if (a.isCompleted === b.isCompleted) return 0;
-    return a.isCompleted ? 1 : -1;
+  const handleEditItem = (id: string, updatedData: CreateTodoDto) => {
+    const original = todos.find(t => t.id === id);
+    if (original) {
+      updateMutation.mutate({ 
+        id, 
+        data: { ...original, ...updatedData } 
+      });
+    }
+  };
+
+  let filteredItems = items;
+  if (filter === 'today') {
+    const today = new Date();
+    filteredItems = items.filter(i => isItemActiveForDate(i, today, false));
+  }
+  else if (filter === 'upcoming') {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    filteredItems = items.filter(i => isItemActiveForDate(i, tomorrow, true));
+  }
+  else if (filter === 'work') filteredItems = items.filter(i => i.tag === 'TRABAJO');
+  else if (filter === 'personal') filteredItems = items.filter(i => i.tag === 'PERSONAL');
+  else if (filter === 'health') filteredItems = items.filter(i => i.tag === 'SALUD');
+  else if (filter === 'tasks') filteredItems = items.filter(i => i.type === 'task');
+  else if (filter === 'habits') filteredItems = items.filter(i => i.type === 'habit');
+  // 'all' shows all items
+
+  const sortedItems = [...filteredItems].sort((a, b) => {
+    if (a.isCompleted !== b.isCompleted) {
+      return a.isCompleted ? 1 : -1;
+    }
+    if (a.urgent !== b.urgent) {
+      return a.urgent ? -1 : 1;
+    }
+    return 0;
   });
 
   return (
@@ -138,9 +231,11 @@ export const TasksScreen = () => {
               />
 
               <View style={styles.listHeader}>
-                <Text style={styles.listHeaderText}>IN EXECUTION • {totalCount - completedCount}</Text>
-                <TouchableOpacity>
-                  <Text style={styles.filterIcon}>☷</Text>
+                <Text style={styles.listHeaderText}>
+                  EN EJECUCION • {filteredItems.length - filteredItems.filter(i => i.isCompleted).length}
+                </Text>
+                <TouchableOpacity onPress={() => navigation.navigate('AllTasks' as never)}>
+                  <Text style={styles.viewAllText}>VER TODO</Text>
                 </TouchableOpacity>
               </View>
 
@@ -150,6 +245,7 @@ export const TasksScreen = () => {
                     key={item.id}
                     item={item}
                     onToggle={handleToggle}
+                    onLongPress={handleLongPress}
                   />
                 ))}
               </View>
@@ -163,16 +259,42 @@ export const TasksScreen = () => {
       <TouchableOpacity 
         style={styles.fab} 
         activeOpacity={0.8} 
-        onPress={() => setIsModalVisible(true)}
+        onPress={() => {
+          setEditingItemDto(null);
+          setIsModalVisible(true);
+        }}
       >
         <Text style={styles.fabIcon}>+</Text>
       </TouchableOpacity>
 
       <CreateTaskModal 
         visible={isModalVisible}
-        onClose={() => setIsModalVisible(false)}
+        onClose={() => {
+          setIsModalVisible(false);
+          setEditingItemDto(null);
+        }}
         onAdd={handleAddItem}
-        isLoading={createMutation.isPending}
+        onEdit={handleEditItem}
+        isLoading={createMutation.isPending || updateMutation.isPending}
+        editingItem={editingItemDto}
+      />
+
+      <ActionSheet
+        visible={isActionModalVisible}
+        onClose={() => setActionModalVisible(false)}
+        title={selectedItem?.title}
+        subtitle={selectedItem?.subtitle}
+        options={[
+          {
+            label: 'Editar',
+            onPress: handleEdit
+          },
+          {
+            label: 'Eliminar',
+            destructive: true,
+            onPress: handleDelete
+          }
+        ]}
       />
     </SafeAreaView>
   );
@@ -211,9 +333,12 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
     textTransform: 'uppercase',
   },
-  filterIcon: {
-    color: theme.colors.slate500,
-    fontSize: 16,
+  viewAllText: {
+    color: theme.colors.neonCyan,
+    fontFamily: theme.typography.fontMono,
+    fontSize: 11,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   listContainer: {
     gap: 0,

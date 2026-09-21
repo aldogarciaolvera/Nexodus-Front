@@ -73,6 +73,13 @@ export const TodoService = {
     return handleResponse(response);
   },
 
+  uncomplete: async (id: string): Promise<void> => {
+    const response = await apiFetch(`/api/todos/${id}/uncompleted`, {
+      method: 'POST',
+    });
+    return handleResponse(response);
+  },
+
   delete: async (id: string): Promise<void> => {
     const response = await apiFetch(`/api/todos/${id}`, {
       method: 'DELETE',

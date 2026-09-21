@@ -22,7 +22,7 @@ export const ProgressTelemetry: React.FC<ProgressTelemetryProps> = ({
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <View style={styles.dot} />
-          <Text style={styles.title}>VELOCITY TRACKING</Text>
+          <Text style={styles.title}>PROGRESO</Text>
         </View>
         <Text style={styles.progressText}>
           <Text style={styles.progressFraction}>{completed} of {total} Done</Text>
@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
   },
   progressBarContainer: {
     height: 6,
-    backgroundColor: theme.colors.surfaceElevated,
+    backgroundColor: theme.colors.surfaceLight,
     borderRadius: 3,
     marginBottom: 24,
     overflow: 'hidden',

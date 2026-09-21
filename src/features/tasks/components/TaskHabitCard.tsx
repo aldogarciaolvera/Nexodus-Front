@@ -12,16 +12,27 @@ export interface TaskHabitItem {
   streak?: number;
   isCompleted: boolean;
   urgent?: boolean;
+  frequency?: string;
+  customDays?: string;
+  lastCompletedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface TaskHabitCardProps {
   item: TaskHabitItem;
   onToggle: (id: string) => void;
+  onLongPress?: (item: TaskHabitItem) => void;
 }
 
-export const TaskHabitCard: React.FC<TaskHabitCardProps> = ({ item, onToggle }) => {
+export const TaskHabitCard: React.FC<TaskHabitCardProps> = ({ item, onToggle, onLongPress }) => {
   return (
-    <View style={[styles.container, item.isCompleted && styles.containerCompleted]}>
+    <TouchableOpacity 
+      style={[styles.container, item.isCompleted && styles.containerCompleted]}
+      onLongPress={() => onLongPress?.(item)}
+      activeOpacity={0.8}
+      delayLongPress={400}
+    >
       <TouchableOpacity 
         style={styles.checkboxContainer} 
         onPress={() => onToggle(item.id)}
@@ -76,7 +87,7 @@ export const TaskHabitCard: React.FC<TaskHabitCardProps> = ({ item, onToggle }) 
           )}
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 

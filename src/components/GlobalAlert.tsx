@@ -29,7 +29,7 @@ const InfoIcon = () => (
 );
 
 export const GlobalAlert = () => {
-  const { visible, title, message, type, hideAlert } = useAlertStore();
+  const { visible, title, message, type, buttons, hideAlert } = useAlertStore();
 
   if (!visible) return null;
 
@@ -62,9 +62,36 @@ export const GlobalAlert = () => {
               <Text style={styles.title}>{title}</Text>
               <Text style={styles.message}>{message}</Text>
               
-              <TouchableOpacity style={styles.button} onPress={hideAlert} activeOpacity={0.8}>
-                <Text style={styles.buttonText}>Aceptar</Text>
-              </TouchableOpacity>
+              {buttons && buttons.length > 0 ? (
+                <View style={styles.buttonsContainer}>
+                  {buttons.map((btn, idx) => (
+                    <TouchableOpacity 
+                      key={idx} 
+                      style={[
+                        styles.button, 
+                        buttons.length > 1 && { flex: 1, marginHorizontal: 4 },
+                        btn.style === 'cancel' && { backgroundColor: theme.colors.surfaceLight },
+                        btn.style === 'destructive' && { backgroundColor: theme.colors.error }
+                      ]} 
+                      onPress={() => {
+                        hideAlert();
+                        if (btn.onPress) btn.onPress();
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[
+                        styles.buttonText,
+                        btn.style === 'cancel' && { color: theme.colors.slate300 },
+                        btn.style === 'destructive' && { color: theme.colors.white }
+                      ]}>{btn.text}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : (
+                <TouchableOpacity style={styles.button} onPress={hideAlert} activeOpacity={0.8}>
+                  <Text style={styles.buttonText}>Aceptar</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </TouchableWithoutFeedback>
         </View>
@@ -120,10 +147,16 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     lineHeight: 22,
   },
+  buttonsContainer: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'center',
+    gap: 8,
+  },
   button: {
     backgroundColor: theme.colors.neonCyan,
     paddingVertical: 14,
-    paddingHorizontal: 32,
+    paddingHorizontal: 16,
     borderRadius: 12,
     width: '100%',
     alignItems: 'center',
