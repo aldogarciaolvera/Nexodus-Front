@@ -1,3 +1,14 @@
+## [0.0.4] - 2026-09-21
+
+### Features
+
+- feat: Ejemplo del .env
+- feat: Adicion al dashboard
+- feat: cambios en mabas pantallas
+- feat: Modales de Creacionde Tareas/Habitos
+- feat: cambio de Skeleton
+- feat: Pagina de registro
+
 ## [0.0.3] - 2026-09-18
 
 ### Features
