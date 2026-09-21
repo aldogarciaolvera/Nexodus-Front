@@ -22,6 +22,7 @@ import { useAuthStore } from './src/store/authStore';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ThemeProvider, useTheme } from './src/utils/ThemeContext';
 import { GlobalAlert } from './src/components/GlobalAlert';
+import { useOTAUpdates } from './src/hooks/useOTAUpdates';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -47,6 +48,9 @@ function AppInner() {
   const [isReady, setIsReady] = useState(false);
   const theme = useTheme();
   const { isDarkMode } = theme;
+  
+  // Hook for OTA updates
+  useOTAUpdates();
 
   useEffect(() => {
     initialize().finally(() => setIsReady(true));
