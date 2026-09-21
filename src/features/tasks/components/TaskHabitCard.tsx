@@ -12,16 +12,27 @@ export interface TaskHabitItem {
   streak?: number;
   isCompleted: boolean;
   urgent?: boolean;
+  frequency?: string;
+  customDays?: string;
+  lastCompletedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface TaskHabitCardProps {
   item: TaskHabitItem;
   onToggle: (id: string) => void;
+  onLongPress?: (item: TaskHabitItem) => void;
 }
 
-export const TaskHabitCard: React.FC<TaskHabitCardProps> = ({ item, onToggle }) => {
+export const TaskHabitCard: React.FC<TaskHabitCardProps> = ({ item, onToggle, onLongPress }) => {
   return (
-    <View style={[styles.container, item.isCompleted && styles.containerCompleted]}>
+    <TouchableOpacity 
+      style={[styles.container, item.isCompleted && styles.containerCompleted]}
+      onLongPress={() => onLongPress?.(item)}
+      activeOpacity={0.8}
+      delayLongPress={400}
+    >
       <TouchableOpacity 
         style={styles.checkboxContainer} 
         onPress={() => onToggle(item.id)}
@@ -76,7 +87,7 @@ export const TaskHabitCard: React.FC<TaskHabitCardProps> = ({ item, onToggle }) 
           )}
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 
@@ -88,7 +99,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: theme.colors.borderGlow,
   },
   containerCompleted: {
     opacity: 0.6,
@@ -145,7 +156,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: theme.colors.warning,
+    backgroundColor: theme.colors.error,
   },
   subtitle: {
     color: theme.colors.slate400,
@@ -174,7 +185,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   categoryTag: {
-    backgroundColor: theme.colors.surfaceElevated,
+    backgroundColor: theme.colors.surfaceLight,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,

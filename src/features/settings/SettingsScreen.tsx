@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Switch, TouchableOpacity, TextInput, Modal, TouchableWithoutFeedback, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, Switch, TouchableOpacity, TextInput, Modal, TouchableWithoutFeedback, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
@@ -8,52 +8,85 @@ import { ThemeColors } from '../../utils/theme';
 import { useAuthStore } from '../../store/authStore';
 import { UserService, UserProfile } from '../../services/user.service';
 import Constants from 'expo-constants';
+import { AuthService } from '../../services/auth.service';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAlertStore } from '../../store/alertStore';
 
 export const SettingsScreen = () => {
   const theme = useTheme();
   const { isDarkMode, toggleTheme } = theme;
   const styles = createStyles(theme.colors);
   const navigation = useNavigation();
-  const { logout, user, accessToken, refreshToken, updateAccessToken, updateTokens } = useAuthStore();
+  const { logout, user, accessToken, refreshToken, updateTokens, updateAccessToken, apiEnv, setApiEnv, getApiUrl } = useAuthStore();
   const [isProfileModalVisible, setProfileModalVisible] = useState(false);
-  
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const queryClient = useQueryClient();
+  const { showAlert } = useAlertStore();
+
+  const { data: profile, isLoading: isProfileLoading } = useQuery({
+    queryKey: ['profile'],
+    queryFn: UserService.getProfile,
+  });
+
   const [editUsername, setEditUsername] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editPhone, setEditPhone] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const data = await UserService.getProfile();
-        setProfile(data);
-        setEditUsername(data.username);
-        setEditEmail(data.email);
-        setEditPhone(data.phoneNumber);
-      } catch (e) {
-        console.error('Error fetching profile:', e);
-      }
-    };
-    fetchProfile();
-  }, []);
-
-  const handleSave = async () => {
-    try {
-      setIsSaving(true);
-      const updatedProfile = await UserService.updateProfile({
-        username: editUsername,
-        email: editEmail,
-        phoneNumber: editPhone,
-      });
-      setProfile(updatedProfile);
-      setProfileModalVisible(false);
-    } catch (e) {
-      console.error('Error updating profile:', e);
-    } finally {
-      setIsSaving(false);
+    if (profile) {
+      setEditUsername(profile.username);
+      setEditEmail(profile.email);
+      setEditPhone(profile.phoneNumber);
     }
+  }, [profile]);
+
+  const mutation = useMutation({
+    mutationFn: UserService.updateProfile,
+    onSuccess: async () => {
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+      
+      if (accessToken && refreshToken) {
+        try {
+          const apiUrl = getApiUrl();
+          const response = await fetch(`${apiUrl}/api/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: accessToken, refreshToken })
+          });
+          if (response.ok) {
+            const data = await response.json();
+            const newToken = data.content?.token || data.token || data.content?.accessToken || data.accessToken;
+            const newRefreshToken = data.content?.refreshToken || data.refreshToken;
+            
+            if (newToken && newRefreshToken) {
+              await updateTokens(newToken, newRefreshToken);
+            } else if (newToken) {
+              await updateAccessToken(newToken);
+            }
+          }
+        } catch (e) {
+          console.error('Error refreshing token after profile update', e);
+        }
+      }
+      
+      setProfileModalVisible(false);
+    },
+    onError: (e) => {
+      console.error('Error updating profile:', e);
+      showAlert('Error', 'No se pudo guardar el perfil');
+    }
+  });
+
+  const handleSave = () => {
+    mutation.mutate({
+      username: editUsername,
+      email: editEmail,
+      phoneNumber: editPhone,
+    });
   };
+
+
+
+  const isTester = Array.isArray(user?.role) ? user.role.includes('Tester') : user?.role === 'Tester';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -103,6 +136,76 @@ export const SettingsScreen = () => {
             />
           </View>
         </View>
+        
+        {isTester && (
+          <View style={[styles.card, { marginTop: 16 }]}>
+            <View style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowTitle}>Entorno Producción</Text>
+                <Text style={styles.rowSubtitle}>Actual: {getApiUrl()}</Text>
+              </View>
+              <Switch
+                value={apiEnv === 'production'}
+                onValueChange={async (val) => {
+                  const newEnv = val ? 'production' : 'local';
+                  setApiEnv(newEnv);
+                  
+                  const url = newEnv === 'production' 
+                    ? 'https://nexodusback.atomsystems.org/health'
+                    : `${process.env.EXPO_PUBLIC_API_URL}/health`;
+                    
+                  console.log(`[Env Switch] Cambiando a ${newEnv}. Fetching: ${url}`);
+                  try {
+                    const response = await fetch(url);
+                    const text = await response.text();
+                    console.log(`[Env Switch] Respuesta exitosa de ${url}:`, text);
+                  } catch (e) {
+                    console.error(`[Env Switch] Falló la conexión a ${url}:`, e);
+                  }
+                }}
+                trackColor={{ false: theme.colors.slate600, true: theme.colors.neonCyan }}
+                thumbColor={theme.colors.white}
+              />
+            </View>
+
+            <TouchableOpacity 
+              style={[styles.logoutButton, { backgroundColor: theme.colors.surfaceLight, marginTop: 16, borderColor: theme.colors.neonCyan, borderWidth: 1 }]} 
+              activeOpacity={0.8}
+              onPress={async () => {
+                try {
+                  const apiUrl = getApiUrl();
+                  const response = await fetch(`${apiUrl}/api/auth/refresh`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: accessToken, refreshToken })
+                  });
+                  const text = await response.text();
+                  if (response.ok) {
+                    const data = JSON.parse(text);
+                    const newToken = data.content?.token || data.token || data.content?.accessToken || data.accessToken;
+                    const newRefreshToken = data.content?.refreshToken || data.refreshToken;
+                    
+                    if (newToken && newRefreshToken) {
+                      await updateTokens(newToken, newRefreshToken);
+                      showAlert('Éxito', 'Token refrescado correctamente', 'success');
+                    } else if (newToken) {
+                      await updateAccessToken(newToken);
+                      showAlert('Éxito', 'Access token refrescado correctamente', 'success');
+                    } else {
+                      showAlert('Error', 'No se encontraron tokens en la respuesta: ' + text);
+                    }
+                  } else {
+                    showAlert('Error Refresh', `Status: ${response.status} Body: ${text}`);
+                  }
+                } catch (e: any) {
+                  showAlert('Error Refresh', e.message || 'Error desconocido');
+                }
+              }}
+            >
+              <Text style={[styles.logoutText, { color: theme.colors.neonCyan }]}>Test Refresh Token</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={logout} activeOpacity={0.8}>
@@ -126,7 +229,12 @@ export const SettingsScreen = () => {
           <TouchableWithoutFeedback onPress={() => setProfileModalVisible(false)}>
             <View style={styles.modalOverlayBackground} />
           </TouchableWithoutFeedback>
-          <View style={styles.modalContent}>
+          <ScrollView 
+            contentContainerStyle={styles.scrollContainer}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Editar Perfil</Text>
             
             <View style={styles.modalAvatarContainer}>
@@ -168,14 +276,15 @@ export const SettingsScreen = () => {
             />
             
             <TouchableOpacity 
-              style={[styles.saveButton, isSaving && styles.saveButtonDisabled]} 
+              style={[styles.saveButton, mutation.isPending && styles.saveButtonDisabled]} 
               onPress={handleSave}
               activeOpacity={0.8}
-              disabled={isSaving}
+              disabled={mutation.isPending}
             >
-              <Text style={styles.saveButtonText}>{isSaving ? 'Guardando...' : 'Guardar'}</Text>
+              <Text style={styles.saveButtonText}>{mutation.isPending ? 'Guardando...' : 'Guardar'}</Text>
             </TouchableOpacity>
           </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
@@ -229,19 +338,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: 'JetBrainsMono_400Regular',
     fontSize: 11,
     color: colors.slate400,
-  },
-  testButton: {
-    backgroundColor: 'rgba(0, 240, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: colors.neonCyan,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  testButtonText: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 10,
-    color: colors.neonCyan,
   },
   profileSection: {
     flexDirection: 'row',
@@ -309,8 +405,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
+  },
+  scrollContainer: {
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: 40,
   },
   modalOverlayBackground: {
     position: 'absolute',

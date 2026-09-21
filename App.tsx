@@ -12,13 +12,16 @@ import { FinanceScreen } from './src/features/finance/FinanceScreen';
 import { AllTransactionsScreen } from './src/features/finance/AllTransactionsScreen';
 import { SettingsScreen } from './src/features/settings/SettingsScreen';
 import { LoginScreen } from './src/features/auth/LoginScreen';
+import { RegisterScreen } from './src/features/auth/RegisterScreen';
 import { TasksScreen } from './src/features/tasks/TasksScreen';
+import { AllTasksScreen } from './src/features/tasks/AllTasksScreen';
 import { BottomNav } from './src/components/BottomNav';
 import { View, ActivityIndicator, AppState, AppStateStatus } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './src/store/authStore';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ThemeProvider, useTheme } from './src/utils/ThemeContext';
+import { GlobalAlert } from './src/components/GlobalAlert';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -94,10 +97,14 @@ function AppInner() {
             <>
               <Stack.Screen name="MainTabs" component={MainTabs} />
               <Stack.Screen name="AllTransactions" component={AllTransactionsScreen} />
+              <Stack.Screen name="AllTasks" component={AllTasksScreen} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
             </>
           ) : (
-            <Stack.Screen name="Login" component={LoginScreen} />
+            <>
+              <Stack.Screen name="Login" component={LoginScreen} />
+              <Stack.Screen name="Register" component={RegisterScreen} />
+            </>
           )}
         </Stack.Navigator>
       </NavigationContainer>
@@ -110,6 +117,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AppInner />
+        <GlobalAlert />
       </ThemeProvider>
     </QueryClientProvider>
   );

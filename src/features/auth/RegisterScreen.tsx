@@ -1,39 +1,62 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Constants from 'expo-constants';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
 import { theme } from '../../utils/theme';
 import { AuthService } from '../../services/auth.service';
 import { useAuthStore } from '../../store/authStore';
 import { useNavigation } from '@react-navigation/native';
+import Constants from 'expo-constants';
 
-export const LoginScreen = () => {
+export const RegisterScreen = () => {
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
   const login = useAuthStore(state => state.login);
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation();
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      setError('Please enter email and password');
+  const handleRegister = async () => {
+    // Validations
+    if (!username || !email || !password || !confirmPassword || !phoneNumber) {
+      setError('Por favor completa todos los campos requeridos');
       return;
     }
-    
+
+    if (password !== confirmPassword) {
+      setError('Las contraseñas no coinciden');
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+
     setError('');
     setLoading(true);
     
     try {
-      const data = await AuthService.login({ email, password });
-      const token = data.token || data.accessToken;
-      if (!token) throw new Error('Token is missing from server response');
-      await login(token, data.refreshToken);
+      const response = await AuthService.register({
+        username,
+        email,
+        password,
+        phoneNumber
+      });
+
+      // Based on feedback, backend returns { token, refreshToken, username, ... }
+      const token = response.token || response.accessToken;
+      if (!token) throw new Error('No se recibió el token de acceso');
+      
+      await login(token, response.refreshToken);
     } catch (err: any) {
-      setError(err.message || 'Login failed');
+      setError(err.message || 'Error al registrarse');
     } finally {
       setLoading(false);
     }
@@ -51,11 +74,19 @@ export const LoginScreen = () => {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <Text style={styles.title}>Nexodus</Text>
-            <Text style={styles.subtitle}>Centro de control</Text>
+            <Text style={styles.title}>Crear Cuenta</Text>
+            <Text style={styles.subtitle}>Únete a Nexodus</Text>
           </View>
 
           <View style={styles.form}>
+            <Input 
+              label="USUARIO" 
+              placeholder="Ingresa tu nombre de usuario" 
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+            />
+            
             <Input 
               label="EMAIL" 
               placeholder="Ingresa tu correo electrónico" 
@@ -64,27 +95,44 @@ export const LoginScreen = () => {
               autoCapitalize="none"
               keyboardType="email-address"
             />
+            
             <Input 
-              label="PASSWORD" 
-              placeholder="Ingresa tu contraseña" 
+              label="TELÉFONO" 
+              placeholder="Ingresa tu número de teléfono" 
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+              keyboardType="phone-pad"
+            />
+            
+            <Input 
+              label="CONTRASEÑA" 
+              placeholder="Crea una contraseña" 
               value={password}
               onChangeText={setPassword}
+              isPassword
+            />
+
+            <Input 
+              label="CONFIRMAR CONTRASEÑA" 
+              placeholder="Confirma tu contraseña" 
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
               isPassword
             />
             
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
             
             <Button 
-              title="Iniciar Sesión" 
-              onPress={handleLogin} 
+              title="Registrarse" 
+              onPress={handleRegister} 
               loading={loading}
               style={styles.submitButton}
             />
             
-            <View style={styles.registerContainer}>
-              <Text style={styles.registerText}>¿No tienes cuenta? </Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-                <Text style={styles.registerLink}>Regístrate</Text>
+            <View style={styles.loginContainer}>
+              <Text style={styles.loginText}>¿Ya tienes cuenta? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Login' as never)}>
+                <Text style={styles.loginLink}>Inicia Sesión</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -107,10 +155,11 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: theme.metrics.marginHorizontal,
-    paddingBottom: 80, // added extra padding bottom
+    paddingVertical: 40,
+    paddingBottom: 80, // added extra bottom padding
   },
   header: {
-    marginBottom: 48,
+    marginBottom: 40,
     alignItems: 'center',
   },
   title: {
@@ -139,6 +188,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     marginTop: 8,
+    marginBottom: 8,
   },
   versionText: {
     position: 'absolute',
@@ -150,17 +200,18 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 1,
   },
-  registerContainer: {
+  loginContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: 24,
+    paddingBottom: 24,
   },
-  registerText: {
+  loginText: {
     color: theme.colors.slate400,
     fontFamily: theme.typography.fontFamily,
     fontSize: 14,
   },
-  registerLink: {
+  loginLink: {
     color: theme.colors.neonCyan,
     fontFamily: theme.typography.fontFamilyBold,
     fontSize: 14,

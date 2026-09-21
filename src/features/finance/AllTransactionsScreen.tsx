@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
@@ -9,7 +9,9 @@ import { FinanceService, FinanceTransaction } from '../../services/finance.servi
 import { CategoryService, Category } from '../../services/category.service';
 import { ActionSheet } from '../../components/ActionSheet';
 import { TransactionModal } from './components/TransactionModal';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { TransactionDetailsModal } from './components/TransactionDetailsModal';
+import { Skeleton } from '../../components/Skeleton';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 export const AllTransactionsScreen = () => {
   const theme = useTheme();
@@ -34,7 +36,19 @@ export const AllTransactionsScreen = () => {
   const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
   const [actionTransaction, setActionTransaction] = useState<FinanceTransaction | null>(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
-  const [txLoading, setTxLoading] = useState(false);
+  const [detailsModalVisible, setDetailsModalVisible] = useState(false);
+  const [filter, setFilter] = useState<string>('all');
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => FinanceService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['financeTransactions'] });
+      queryClient.invalidateQueries({ queryKey: ['financeSummary'] });
+    },
+    onError: (err) => {
+      console.error(err);
+    }
+  });
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -63,6 +77,12 @@ export const AllTransactionsScreen = () => {
     </Svg>
   );
 
+  const filteredTransactions = transactions.filter(t => {
+    if (filter === 'all') return true;
+    if (filter === 'Tarjeta' || filter === 'Efectivo') return t.paymentMethod === filter;
+    return t.categoryId === filter;
+  });
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
@@ -75,14 +95,59 @@ export const AllTransactionsScreen = () => {
         <View style={{ width: 24 }} />
       </View>
 
+      <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+          <TouchableOpacity 
+            style={[styles.filterPill, filter === 'all' && styles.filterPillActive]} 
+            onPress={() => setFilter('all')}
+          >
+            <Text style={[styles.filterPillText, filter === 'all' && styles.filterPillTextActive]}>Todas</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.filterPill, filter === 'Tarjeta' && styles.filterPillActive]} 
+            onPress={() => setFilter('Tarjeta')}
+          >
+            <Text style={[styles.filterPillText, filter === 'Tarjeta' && styles.filterPillTextActive]}>Tarjeta</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.filterPill, filter === 'Efectivo' && styles.filterPillActive]} 
+            onPress={() => setFilter('Efectivo')}
+          >
+            <Text style={[styles.filterPillText, filter === 'Efectivo' && styles.filterPillTextActive]}>Efectivo</Text>
+          </TouchableOpacity>
+          {categories.map(c => (
+            <TouchableOpacity 
+              key={c.id}
+              style={[styles.filterPill, filter === c.id && styles.filterPillActive]} 
+              onPress={() => setFilter(c.id!)}
+            >
+              <Text style={[styles.filterPillText, filter === c.id && styles.filterPillTextActive]}>{c.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {loading ? (
-          <ActivityIndicator size="large" color={theme.colors.neonCyan} style={{ marginTop: 40 }} />
-        ) : transactions.length === 0 ? (
+          <View style={styles.list}>
+            {[1, 2, 3, 4, 5].map((key) => (
+              <View key={key} style={styles.transactionItem}>
+                <Skeleton width={40} height={40} borderRadius={12} style={{ marginRight: 16 }} />
+                <View style={styles.detailsContainer}>
+                  <Skeleton width={120} height={14} borderRadius={4} style={{ marginBottom: 4 }} />
+                  <Skeleton width={80} height={10} borderRadius={2} />
+                </View>
+                <View style={styles.amountContainer}>
+                  <Skeleton width={60} height={14} borderRadius={4} />
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : filteredTransactions.length === 0 ? (
           <Text style={styles.emptyText}>No hay movimientos registrados.</Text>
         ) : (
           <View style={styles.list}>
-            {transactions.map(item => {
+            {filteredTransactions.map(item => {
               const isIncome = item.transactionType === 'Ingreso' || item.transactionType === 'Income';
               const categoryName = item.category || categories.find(c => c.id === item.categoryId)?.name || 'Sin Categoría';
               
@@ -90,6 +155,10 @@ export const AllTransactionsScreen = () => {
                 <TouchableOpacity 
                   key={item.id} 
                   style={styles.transactionItem}
+                  onPress={() => {
+                    setActionTransaction(item);
+                    setDetailsModalVisible(true);
+                  }}
                   onLongPress={() => {
                     setActionTransaction(item);
                     setActionSheetVisible(true);
@@ -152,18 +221,9 @@ export const AllTransactionsScreen = () => {
           {
             label: 'Sí, Eliminar',
             destructive: true,
-            onPress: async () => {
+            onPress: () => {
               if (!actionTransaction) return;
-              try {
-                setTxLoading(true);
-                await FinanceService.delete(actionTransaction.id);
-                queryClient.invalidateQueries({ queryKey: ['financeTransactions'] });
-                queryClient.invalidateQueries({ queryKey: ['financeSummary'] });
-              } catch (e) {
-                console.error(e);
-              } finally {
-                setTxLoading(false);
-              }
+              deleteMutation.mutate(actionTransaction.id);
             }
           }
         ]}
@@ -175,6 +235,13 @@ export const AllTransactionsScreen = () => {
         categories={categories}
         transactions={transactions}
         editingTransaction={actionTransaction}
+      />
+
+      <TransactionDetailsModal
+        visible={detailsModalVisible}
+        onClose={() => setDetailsModalVisible(false)}
+        transaction={actionTransaction}
+        categories={categories}
       />
     </SafeAreaView>
   );
@@ -204,8 +271,32 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingTop: 8,
     paddingBottom: 40,
+  },
+  filterScroll: {
+    gap: 8,
+    paddingBottom: 8,
+  },
+  filterPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: colors.surfaceLight,
+    borderWidth: 1,
+    borderColor: colors.borderGlow,
+  },
+  filterPillActive: {
+    borderColor: colors.neonCyan,
+    backgroundColor: 'rgba(0, 240, 255, 0.1)',
+  },
+  filterPillText: {
+    fontFamily: 'JetBrainsMono_400Regular',
+    fontSize: 11,
+    color: colors.slate400,
+  },
+  filterPillTextActive: {
+    color: colors.neonCyan,
   },
   list: {
     gap: 16,

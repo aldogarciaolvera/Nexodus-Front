@@ -45,7 +45,9 @@ export const NetWorthCard = ({ summary, transactions = [], loading }: NetWorthCa
 
       {/* Main Balance */}
       <View style={styles.balanceRow}>
-        <Text style={[styles.balance, netBalance < 0 && { color: theme.colors.error }]}>{loading ? '...' : formatCurrency(netBalance)}</Text>
+        <Text style={[styles.balance, netBalance < 0 && { color: theme.colors.error }]}>
+          {loading ? '...' : formatCurrency(netBalance)}
+        </Text>
         <Text style={styles.currency}>MXN</Text>
       </View>
 
@@ -60,7 +62,9 @@ export const NetWorthCard = ({ summary, transactions = [], loading }: NetWorthCa
             <Text style={styles.velocityLabel}>EN EFECTIVO</Text>
           </View>
           <View style={styles.velocityAmountContainer}>
-            <Text style={[styles.velocityAmount, { color: '#00E676' }]}>{loading ? '...' : formatCurrency(totalEfectivo)}</Text>
+            <Text style={[styles.velocityAmount, { color: totalEfectivo < 0 ? theme.colors.error : '#00E676' }]}>
+              {loading ? '...' : formatCurrency(totalEfectivo)}
+            </Text>
           </View>
         </View>
         
@@ -70,7 +74,9 @@ export const NetWorthCard = ({ summary, transactions = [], loading }: NetWorthCa
             <Text style={styles.velocityLabel}>EN TARJETAS</Text>
           </View>
           <View style={styles.velocityAmountContainer}>
-            <Text style={[styles.velocityAmount, { color: theme.colors.neonCyan }]}>{loading ? '...' : formatCurrency(totalTarjeta)}</Text>
+            <Text style={[styles.velocityAmount, { color: totalTarjeta < 0 ? theme.colors.error : theme.colors.neonCyan }]}>
+              {loading ? '...' : formatCurrency(totalTarjeta)}
+            </Text>
           </View>
         </View>
       </View>

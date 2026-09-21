@@ -1,6 +1,7 @@
 import { useAuthStore } from '../store/authStore';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
 
 export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
   const { accessToken } = useAuthStore.getState();
@@ -13,8 +14,10 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
     headers.Authorization = `Bearer ${accessToken}`;
   }
 
+  const API_URL = useAuthStore.getState().getApiUrl();
+
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
 
   try {
     const response = await fetch(`${API_URL}${endpoint}`, {
@@ -28,30 +31,50 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
     if (response.status === 401 && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/refresh')) {
       const { refreshToken, updateAccessToken, updateTokens, logout } = useAuthStore.getState();
       if (refreshToken) {
-        try {
-          const refreshResponse = await fetch(`${API_URL}/api/auth/refresh`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token: accessToken, refreshToken })
-          });
-          if (refreshResponse.ok) {
-            const data = await refreshResponse.json();
-            const newToken = data.content?.token || data.token || data.content?.accessToken || data.accessToken;
-            const newRefreshToken = data.content?.refreshToken || data.refreshToken;
-            
-            if (newToken && newRefreshToken) {
-              await updateTokens(newToken, newRefreshToken);
-            } else if (newToken) {
-              await updateAccessToken(newToken);
+        if (!isRefreshing) {
+          isRefreshing = true;
+          refreshPromise = new Promise(async (resolve) => {
+            try {
+              // ALWAYS GET THE FRESH ACCESS TOKEN HERE to ensure we're sending the latest one
+              const currentAccessToken = useAuthStore.getState().accessToken;
+              const refreshResponse = await fetch(`${API_URL}/api/auth/refresh`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: currentAccessToken, refreshToken })
+              });
+              
+              if (refreshResponse.ok) {
+                const data = await refreshResponse.json();
+                const newToken = data.content?.token || data.token || data.content?.accessToken || data.accessToken;
+                const newRefreshToken = data.content?.refreshToken || data.refreshToken;
+                
+                if (newToken && newRefreshToken) {
+                  await updateTokens(newToken, newRefreshToken);
+                } else if (newToken) {
+                  await updateAccessToken(newToken);
+                }
+                resolve(true);
+              } else {
+                await logout();
+                resolve(false);
+              }
+            } catch (error) {
+              await logout();
+              resolve(false);
+            } finally {
+              isRefreshing = false;
+              refreshPromise = null;
             }
-            
-            headers.Authorization = `Bearer ${newToken}`;
-            return fetch(`${API_URL}${endpoint}`, { ...options, headers });
-          } else {
-            await logout();
-          }
-        } catch (error) {
-          await logout();
+          });
+        }
+
+        const refreshSuccess = await refreshPromise;
+        
+        if (refreshSuccess) {
+          // Retry original request with new token
+          const freshAccessToken = useAuthStore.getState().accessToken;
+          headers.Authorization = `Bearer ${freshAccessToken}`;
+          return fetch(`${API_URL}${endpoint}`, { ...options, headers });
         }
       } else {
         await logout();
@@ -78,10 +101,10 @@ export const handleResponse = async (response: Response) => {
           if (firstErrorKey) {
             errorMessage = errorData.errors[firstErrorKey][0];
           } else {
-            errorMessage = errorData.message || errorData.title || JSON.stringify(errorData);
+            errorMessage = errorData.content?.message || errorData.message || errorData.title || JSON.stringify(errorData);
           }
         } else {
-          errorMessage = errorData.message || errorData.title || JSON.stringify(errorData);
+          errorMessage = errorData.content?.message || errorData.message || errorData.title || JSON.stringify(errorData);
         }
       } catch (e) {
         errorMessage = text;

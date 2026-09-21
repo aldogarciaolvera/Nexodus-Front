@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
 import { useTheme } from '../../../utils/ThemeContext';
@@ -8,6 +8,7 @@ import { FinanceTransaction, FinanceService } from '../../../services/finance.se
 import { Category } from '../../../services/category.service';
 import { ActionSheet } from '../../../components/ActionSheet';
 import { TransactionModal } from './TransactionModal';
+import { TransactionDetailsModal } from './TransactionDetailsModal';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface TransactionsCardProps {
@@ -25,6 +26,7 @@ export const TransactionsCard = ({ transactions, categories = [], loading }: Tra
   const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
   const [actionTransaction, setActionTransaction] = useState<FinanceTransaction | null>(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   
   const queryClient = useQueryClient();
 
@@ -63,6 +65,8 @@ export const TransactionsCard = ({ transactions, categories = [], loading }: Tra
     </Svg>
   );
 
+  const displayTransactions = transactions.slice(0, 3);
+
   return (
     <View style={styles.card}>
       <View style={styles.header}>
@@ -70,10 +74,10 @@ export const TransactionsCard = ({ transactions, categories = [], loading }: Tra
       </View>
 
       <View style={styles.list}>
-        {transactions.length === 0 && !loading && (
+        {displayTransactions.length === 0 && !loading && (
           <Text style={styles.subText}>No se encontraron transacciones.</Text>
         )}
-        {transactions.slice(0, 3).map(item => {
+        {displayTransactions.map(item => {
           const isIncome = item.transactionType === 'Ingreso' || item.transactionType === 'Income';
           const categoryName = item.category || categories.find(c => c.id === item.categoryId)?.name || 'Sin Categoría';
           
@@ -81,6 +85,10 @@ export const TransactionsCard = ({ transactions, categories = [], loading }: Tra
             <TouchableOpacity 
               key={item.id} 
               style={styles.transactionItem}
+              onPress={() => {
+                setActionTransaction(item);
+                setDetailsModalVisible(true);
+              }}
               onLongPress={() => {
                 setActionTransaction(item);
                 setActionSheetVisible(true);
@@ -164,6 +172,13 @@ export const TransactionsCard = ({ transactions, categories = [], loading }: Tra
         categories={categories}
         transactions={transactions}
         editingTransaction={actionTransaction}
+      />
+
+      <TransactionDetailsModal
+        visible={detailsModalVisible}
+        onClose={() => setDetailsModalVisible(false)}
+        transaction={actionTransaction}
+        categories={categories}
       />
     </View>
   );

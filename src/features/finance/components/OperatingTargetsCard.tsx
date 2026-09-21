@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
@@ -8,6 +8,7 @@ import { Category, CategoryService } from '../../../services/category.service';
 import { ActionSheet } from '../../../components/ActionSheet';
 import { CategoryModal } from './CategoryModal';
 import { CategoryDetailsModal } from './CategoryDetailsModal';
+import { Skeleton } from '../../../components/Skeleton';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -113,7 +114,17 @@ export const OperatingTargetsCard = ({ transactions = [], categories = [], loadi
 
       <View style={styles.list}>
         {loading ? (
-          <ActivityIndicator color={theme.colors.neonCyan} style={{ alignSelf: 'center', marginVertical: 20 }} />
+          <View style={{ gap: 20 }}>
+            {[1, 2, 3].map((key) => (
+              <View key={key}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Skeleton width={120} height={14} borderRadius={4} />
+                  <Skeleton width={80} height={14} borderRadius={4} />
+                </View>
+                <Skeleton width={'100%'} height={6} borderRadius={3} />
+              </View>
+            ))}
+          </View>
         ) : targets.length === 0 ? (
           <Text style={{ color: theme.colors.slate400, fontFamily: 'JetBrainsMono_400Regular', textAlign: 'center' }}>No targets found</Text>
         ) : (
@@ -172,7 +183,10 @@ export const OperatingTargetsCard = ({ transactions = [], categories = [], loadi
         visible={categoryModalVisible}
         onClose={() => setCategoryModalVisible(false)}
         editingCategory={editingCategory}
-        onSuccess={() => {}}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['categories'] });
+          queryClient.invalidateQueries({ queryKey: ['financeSummary'] });
+        }}
       />
 
       <CategoryDetailsModal

@@ -5,7 +5,7 @@ import { theme } from '../../utils/theme';
 import { useQuery } from '@tanstack/react-query';
 import { FinanceService } from '../../services/finance.service';
 import { CategoryService } from '../../services/category.service';
-import { ActivityIndicator } from 'react-native';
+import { Skeleton } from '../Skeleton';
 
 export const FinanceCard = () => {
   const { data: summary, isLoading: loadingSummary } = useQuery({
@@ -64,7 +64,19 @@ export const FinanceCard = () => {
         </View>
         
         {isLoading ? (
-          <ActivityIndicator color={theme.colors.neonCyan} style={{ marginTop: 20 }} />
+          <View style={{ marginTop: 20, gap: 12 }}>
+            <Skeleton width={100} height={14} />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 4 }}>
+              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
+                <Skeleton width={16} height={28} />
+                <Skeleton width={16} height={44} />
+              </View>
+              <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                <Skeleton width={50} height={16} />
+                <Skeleton width={40} height={10} />
+              </View>
+            </View>
+          </View>
         ) : (
           <>
             <Text style={styles.spentText}>

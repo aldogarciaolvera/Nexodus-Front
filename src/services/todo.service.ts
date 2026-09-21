@@ -1,4 +1,4 @@
-import { api } from './api';
+import { apiFetch, handleResponse } from './api';
 
 export interface TodoDto {
   id: string;
@@ -25,6 +25,7 @@ export interface CreateTodoDto {
   urgent: boolean;
   isHabit: boolean;
   frequency?: string;
+  customDays?: string;
 }
 
 export interface UpdateTodoDto {
@@ -34,37 +35,55 @@ export interface UpdateTodoDto {
   urgent: boolean;
   isHabit: boolean;
   frequency?: string;
+  customDays?: string;
   isCompleted: boolean;
 }
 
 export const TodoService = {
   getAll: async (): Promise<TodoDto[]> => {
-    const { data } = await api.get('/todos');
-    return data;
+    const response = await apiFetch('/api/todos');
+    return handleResponse(response);
   },
 
   getById: async (id: string): Promise<TodoDto> => {
-    const { data } = await api.get(`/todos/${id}`);
-    return data;
+    const response = await apiFetch(`/api/todos/${id}`);
+    return handleResponse(response);
   },
 
   create: async (payload: CreateTodoDto): Promise<TodoDto> => {
-    const { data } = await api.post('/todos', payload);
-    return data;
+    const response = await apiFetch('/api/todos', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return handleResponse(response);
   },
 
   update: async (id: string, payload: UpdateTodoDto): Promise<TodoDto> => {
-    const { data } = await api.put(`/todos/${id}`, payload);
-    return data;
+    const response = await apiFetch(`/api/todos/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+    return handleResponse(response);
   },
 
   complete: async (id: string): Promise<void> => {
-    const { data } = await api.post(`/todos/${id}/complete`);
-    return data;
+    const response = await apiFetch(`/api/todos/${id}/complete`, {
+      method: 'POST',
+    });
+    return handleResponse(response);
+  },
+
+  uncomplete: async (id: string): Promise<void> => {
+    const response = await apiFetch(`/api/todos/${id}/uncompleted`, {
+      method: 'POST',
+    });
+    return handleResponse(response);
   },
 
   delete: async (id: string): Promise<void> => {
-    const { data } = await api.delete(`/todos/${id}`);
-    return data;
+    const response = await apiFetch(`/api/todos/${id}`, {
+      method: 'DELETE',
+    });
+    return handleResponse(response);
   }
 };

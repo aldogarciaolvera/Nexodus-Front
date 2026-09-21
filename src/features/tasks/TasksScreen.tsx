@@ -1,27 +1,40 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, Text, TouchableOpacity, Platform, Modal, TouchableWithoutFeedback } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { theme } from '../../utils/theme';
 import { ProgressTelemetry } from './components/ProgressTelemetry';
 import { FilterPills } from './components/FilterPills';
 import { TaskHabitCard, TaskHabitItem } from './components/TaskHabitCard';
 import { CreateTaskModal } from './components/CreateTaskModal';
+import { ActionSheet } from '../../components/ActionSheet';
 import { TodoService, CreateTodoDto, TodoDto } from '../../services/todo.service';
+import { isItemActiveForDate } from '../../utils/todoHelpers';
+import { Header } from '../../components/Header';
+import { Skeleton } from '../../components/Skeleton';
+import { useAlertStore } from '../../store/alertStore';
 
 const FILTERS = [
-  { id: 'today', label: 'TODAY' },
-  { id: 'upcoming', label: 'UPCOMING' },
-  { id: 'all', label: 'ALL SECTORS' },
-  { id: 'work', label: 'WORK' },
+  { id: 'today', label: 'HOY' },
+  { id: 'upcoming', label: 'MAÑANA' },
+  { id: 'all', label: 'TODOS LOS SECTORES' },
+  { id: 'tasks', label: 'SOLO TAREAS' },
+  { id: 'habits', label: 'SOLO HÁBITOS' },
+  { id: 'work', label: 'TRABAJO' },
   { id: 'personal', label: 'PERSONAL' },
-  { id: 'health', label: 'HEALTH' },
+  { id: 'health', label: 'SALUD' },
 ];
 
 export const TasksScreen = () => {
   const queryClient = useQueryClient();
+  const navigation = useNavigation();
+  const alertStore = useAlertStore();
   const [filter, setFilter] = useState('today');
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<TaskHabitItem | null>(null);
+  const [isActionModalVisible, setActionModalVisible] = useState(false);
+  const [editingItemDto, setEditingItemDto] = useState<TodoDto | null>(null);
 
   const { data: todos = [], isLoading } = useQuery({
     queryKey: ['todos'],
@@ -43,6 +56,22 @@ export const TasksScreen = () => {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => TodoService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+      setActionModalVisible(false);
+      setSelectedItem(null);
+    },
+  });
+
+  const uncompleteMutation = useMutation({
+    mutationFn: (id: string) => TodoService.uncomplete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+    },
+  });
+
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: TodoDto }) => 
       TodoService.update(id, {
@@ -56,6 +85,8 @@ export const TasksScreen = () => {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
+      setIsModalVisible(false);
+      setEditingItemDto(null);
     },
   });
 
@@ -69,7 +100,11 @@ export const TasksScreen = () => {
     streak: t.currentStreak,
     isCompleted: t.isCompleted,
     urgent: t.urgent,
-    // Add time formatting here if needed, e.g. using t.dueDate
+    frequency: t.frequency,
+    customDays: t.customDays,
+    lastCompletedAt: t.lastCompletedAt,
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt,
   }));
 
   const completedCount = items.filter(i => i.isCompleted).length;
@@ -82,103 +117,184 @@ export const TasksScreen = () => {
     if (!item) return;
 
     if (!item.isCompleted) {
-      // Both tasks and habits use /complete to finish
       completeMutation.mutate(id);
     } else {
-      // If it's already completed and it's a task, we might want to un-complete it via PUT
-      if (!item.isHabit) {
-        updateMutation.mutate({ id, data: item });
-      }
-      // If it's a habit, we do nothing to prevent breaking streak logic as requested
+      uncompleteMutation.mutate(id);
     }
+  };
+
+  const handleLongPress = (item: TaskHabitItem) => {
+    setSelectedItem(item);
+    setActionModalVisible(true);
+  };
+
+  const handleEdit = () => {
+    if (!selectedItem) return;
+    const dto = todos.find(t => t.id === selectedItem.id);
+    if (dto) {
+      setEditingItemDto(dto);
+      setActionModalVisible(false);
+      setIsModalVisible(true);
+    }
+  };
+
+  const handleDelete = () => {
+    if (!selectedItem) return;
+    setActionModalVisible(false);
+    alertStore.showAlert({
+      title: 'Eliminar',
+      message: '¿Estás seguro que deseas eliminar esto permanentemente?',
+      type: 'error',
+      buttons: [
+        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: 'Eliminar', 
+          style: 'destructive',
+          onPress: () => deleteMutation.mutate(selectedItem.id)
+        }
+      ]
+    });
   };
 
   const handleAddItem = (newItemData: CreateTodoDto) => {
     createMutation.mutate(newItemData);
   };
 
-  const sortedItems = [...items].sort((a, b) => {
-    if (a.isCompleted === b.isCompleted) return 0;
-    return a.isCompleted ? 1 : -1;
+  const handleEditItem = (id: string, updatedData: CreateTodoDto) => {
+    const original = todos.find(t => t.id === id);
+    if (original) {
+      updateMutation.mutate({ 
+        id, 
+        data: { ...original, ...updatedData } 
+      });
+    }
+  };
+
+  let filteredItems = items;
+  if (filter === 'today') {
+    const today = new Date();
+    filteredItems = items.filter(i => isItemActiveForDate(i, today, false));
+  }
+  else if (filter === 'upcoming') {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    filteredItems = items.filter(i => isItemActiveForDate(i, tomorrow, true));
+  }
+  else if (filter === 'work') filteredItems = items.filter(i => i.tag === 'TRABAJO');
+  else if (filter === 'personal') filteredItems = items.filter(i => i.tag === 'PERSONAL');
+  else if (filter === 'health') filteredItems = items.filter(i => i.tag === 'SALUD');
+  else if (filter === 'tasks') filteredItems = items.filter(i => i.type === 'task');
+  else if (filter === 'habits') filteredItems = items.filter(i => i.type === 'habit');
+  // 'all' shows all items
+
+  const sortedItems = [...filteredItems].sort((a, b) => {
+    if (a.isCompleted !== b.isCompleted) {
+      return a.isCompleted ? 1 : -1;
+    }
+    if (a.urgent !== b.urgent) {
+      return a.urgent ? -1 : 1;
+    }
+    return 0;
   });
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.dateText}>TUESDAY, SEPT 10</Text>
-          <Text style={styles.title}>Focus & Execution</Text>
-        </View>
-        <TouchableOpacity 
-          style={styles.newButton}
-          onPress={() => setIsModalVisible(true)}
-        >
-          <Text style={styles.newButtonIcon}>+</Text>
-          <Text style={styles.newButtonText}>NEW</Text>
-        </TouchableOpacity>
-      </View>
+      <View style={styles.container}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <Header title="Tareas & Habitos" />
 
-      {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator color={theme.colors.neonCyan} size="large" />
-        </View>
-      ) : (
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <ProgressTelemetry 
-            completed={completedCount}
-            total={totalCount}
-            urgent={urgentCount}
-            activeHabits={activeHabitsCount}
-          />
-
-          <FilterPills 
-            options={FILTERS}
-            selectedId={filter}
-            onSelect={setFilter}
-          />
-
-          <View style={styles.listHeader}>
-            <Text style={styles.listHeaderText}>IN EXECUTION • {totalCount - completedCount}</Text>
-            <TouchableOpacity>
-              <Text style={styles.filterIcon}>☷</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.listContainer}>
-            {sortedItems.map(item => (
-              <TaskHabitCard 
-                key={item.id}
-                item={item}
-                onToggle={handleToggle}
+          {isLoading ? (
+            <>
+              <Skeleton height={80} borderRadius={16} style={{ marginBottom: 16 }} />
+              <View style={styles.listHeader}>
+                <Skeleton width={100} height={14} borderRadius={4} />
+              </View>
+              <View style={styles.listContainer}>
+                {[1, 2, 3, 4].map((key) => (
+                  <Skeleton key={key} height={70} borderRadius={0} style={{ marginBottom: 2 }} />
+                ))}
+              </View>
+            </>
+          ) : (
+            <>
+              <ProgressTelemetry 
+                completed={completedCount}
+                total={totalCount}
+                urgent={urgentCount}
+                activeHabits={activeHabitsCount}
               />
-            ))}
-          </View>
-          <View style={styles.bottomPadding} />
-        </ScrollView>
-      )}
 
-      {/* Rapid Add Bar */}
-      <View style={styles.rapidAddContainer}>
-        <TouchableOpacity 
-          style={styles.rapidAddInput}
-          onPress={() => setIsModalVisible(true)}
-        >
-          <View style={styles.rapidAddCircle} />
-          <Text style={styles.rapidAddPlaceholder}>Add rapid task or habit...</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.rapidAddButton}
-          onPress={() => setIsModalVisible(true)}
-        >
-          <Text style={styles.rapidAddButtonIcon}>↑</Text>
-        </TouchableOpacity>
+              <FilterPills 
+                options={FILTERS}
+                selectedId={filter}
+                onSelect={setFilter}
+              />
+
+              <View style={styles.listHeader}>
+                <Text style={styles.listHeaderText}>
+                  EN EJECUCION • {filteredItems.length - filteredItems.filter(i => i.isCompleted).length}
+                </Text>
+                <TouchableOpacity onPress={() => navigation.navigate('AllTasks' as never)}>
+                  <Text style={styles.viewAllText}>VER TODO</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.listContainer}>
+                {sortedItems.map(item => (
+                  <TaskHabitCard 
+                    key={item.id}
+                    item={item}
+                    onToggle={handleToggle}
+                    onLongPress={handleLongPress}
+                  />
+                ))}
+              </View>
+              <View style={styles.bottomPadding} />
+            </>
+          )}
+        </ScrollView>
       </View>
+
+      {/* Floating Action Button */}
+      <TouchableOpacity 
+        style={styles.fab} 
+        activeOpacity={0.8} 
+        onPress={() => {
+          setEditingItemDto(null);
+          setIsModalVisible(true);
+        }}
+      >
+        <Text style={styles.fabIcon}>+</Text>
+      </TouchableOpacity>
 
       <CreateTaskModal 
         visible={isModalVisible}
-        onClose={() => setIsModalVisible(false)}
+        onClose={() => {
+          setIsModalVisible(false);
+          setEditingItemDto(null);
+        }}
         onAdd={handleAddItem}
-        isLoading={createMutation.isPending}
+        onEdit={handleEditItem}
+        isLoading={createMutation.isPending || updateMutation.isPending}
+        editingItem={editingItemDto}
+      />
+
+      <ActionSheet
+        visible={isActionModalVisible}
+        onClose={() => setActionModalVisible(false)}
+        title={selectedItem?.title}
+        subtitle={selectedItem?.subtitle}
+        options={[
+          {
+            label: 'Editar',
+            onPress: handleEdit
+          },
+          {
+            label: 'Eliminar',
+            destructive: true,
+            onPress: handleDelete
+          }
+        ]}
       />
     </SafeAreaView>
   );
@@ -189,55 +305,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.obsidian,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.obsidian,
+  },
+  scrollContent: {
     paddingHorizontal: theme.metrics.marginHorizontal,
-    paddingTop: 16,
-    paddingBottom: 24,
-  },
-  dateText: {
-    color: theme.colors.slate400,
-    fontFamily: theme.typography.fontMono,
-    fontSize: 11,
-    letterSpacing: 1.5,
-    marginBottom: 4,
-    textTransform: 'uppercase',
-  },
-  title: {
-    color: theme.colors.white,
-    fontFamily: theme.typography.fontFamilyBold,
-    fontSize: 28,
-  },
-  newButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.neonCyan,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 4,
-  },
-  newButtonIcon: {
-    color: theme.colors.obsidian,
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  newButtonText: {
-    color: theme.colors.obsidian,
-    fontFamily: theme.typography.fontFamilyBold,
-    fontSize: 12,
-    letterSpacing: 1,
+    paddingTop: Platform.OS === 'android' ? 24 : 12,
+    paddingBottom: 20,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: theme.metrics.marginHorizontal,
   },
   listHeader: {
     flexDirection: 'row',
@@ -253,9 +333,12 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
     textTransform: 'uppercase',
   },
-  filterIcon: {
-    color: theme.colors.slate500,
-    fontSize: 16,
+  viewAllText: {
+    color: theme.colors.neonCyan,
+    fontFamily: theme.typography.fontMono,
+    fontSize: 11,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   listContainer: {
     gap: 0,
@@ -263,49 +346,23 @@ const styles = StyleSheet.create({
   bottomPadding: {
     height: 100, // Space for rapid add bar
   },
-  rapidAddContainer: {
+  fab: {
     position: 'absolute',
-    bottom: 24,
-    left: theme.metrics.marginHorizontal,
-    right: theme.metrics.marginHorizontal,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.surfaceElevated,
-    borderRadius: 30,
-    padding: 8,
-    paddingLeft: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  rapidAddInput: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  rapidAddCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: theme.colors.neonCyan,
-    marginRight: 12,
-  },
-  rapidAddPlaceholder: {
-    color: theme.colors.slate400,
-    fontFamily: theme.typography.fontFamily,
-    fontSize: 16,
-  },
-  rapidAddButton: {
+    bottom: 100, // Above bottom nav
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: theme.colors.neonCyan,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.borderGlow,
   },
-  rapidAddButtonIcon: {
-    color: theme.colors.obsidian,
-    fontSize: 20,
-    fontWeight: 'bold',
+  fabIcon: {
+    fontSize: 28,
+    fontWeight: '300',
+    color: '#000000', // Assuming black for contrast against neon cyan
+    lineHeight: 32, // to vertically center the + symbol properly
   },
 });
