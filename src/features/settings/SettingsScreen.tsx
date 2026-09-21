@@ -137,7 +137,7 @@ export const SettingsScreen = () => {
           </View>
         </View>
         
-        {isTester && (
+        {__DEV__ && isTester && (
           <View style={[styles.card, { marginTop: 16 }]}>
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
