@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: theme.colors.borderGlow,
   },
   containerCompleted: {
     opacity: 0.6,
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: theme.colors.warning,
+    backgroundColor: theme.colors.error,
   },
   subtitle: {
     color: theme.colors.slate400,
@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   categoryTag: {
-    backgroundColor: theme.colors.surfaceElevated,
+    backgroundColor: theme.colors.surfaceLight,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,

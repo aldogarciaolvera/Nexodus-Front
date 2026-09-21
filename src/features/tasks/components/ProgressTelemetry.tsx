@@ -37,22 +37,22 @@ export const ProgressTelemetry: React.FC<ProgressTelemetryProps> = ({
 
       <View style={styles.statsContainer}>
         <View style={styles.statBox}>
-          <Text style={styles.statLabel}>COMPLETED</Text>
+          <Text style={styles.statLabel}>COMPLETOS</Text>
           <Text style={styles.statValue}>{completed}</Text>
         </View>
         
         <View style={styles.statBox}>
-          <Text style={styles.statLabel}>PENDING</Text>
+          <Text style={styles.statLabel}>PENDIENTE</Text>
           <Text style={styles.statValue}>{total - completed}</Text>
         </View>
 
         <View style={styles.statBox}>
-          <Text style={[styles.statLabel, { color: theme.colors.warning }]}>URGENT</Text>
-          <Text style={[styles.statValue, { color: theme.colors.warning }]}>{urgent}</Text>
+          <Text style={[styles.statLabel, { color: theme.colors.error }]}>URGENTES</Text>
+          <Text style={[styles.statValue, { color: theme.colors.error }]}>{urgent}</Text>
         </View>
 
         <View style={styles.statBox}>
-          <Text style={styles.statLabel}>HABITS</Text>
+          <Text style={styles.statLabel}>HABITOS</Text>
           <Text style={styles.statValue}>{activeHabits}</Text>
         </View>
       </View>
@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: theme.colors.borderGlow,
   },
   header: {
     flexDirection: 'row',
@@ -130,10 +130,12 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 1,
     marginBottom: 4,
+    textAlign: "center",
   },
   statValue: {
     color: theme.colors.white,
     fontFamily: theme.typography.fontFamilyBold,
     fontSize: 24,
+    textAlign: "center",
   },
 });

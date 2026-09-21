@@ -78,13 +78,21 @@ export const CategoryModal = ({ visible, onClose, editingCategory, onSuccess }: 
       animationType="fade"
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
-        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardView}>
-          <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            <TouchableOpacity style={styles.flexArea} activeOpacity={1} onPress={onClose} />
-            <View style={styles.content}>
-              <Text style={styles.title}>{editingCategory ? 'Editar Categoría' : 'Nueva Categoría'}</Text>
+      <View style={[styles.overlay]}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
+        >
+          <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose}>
+            <TouchableOpacity activeOpacity={1} style={[styles.content, { maxHeight: '90%', flexShrink: 1 }]} onPress={() => {}}>
+              <View style={styles.header}>
+                <Text style={styles.title}>{editingCategory ? 'Editar Categoría' : 'Nueva Categoría'}</Text>
+                <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                  <Text style={styles.closeText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Nombre</Text>
@@ -145,8 +153,9 @@ export const CategoryModal = ({ visible, onClose, editingCategory, onSuccess }: 
               )}
             </TouchableOpacity>
           </View>
-        </View>
-          </ScrollView>
+              </ScrollView>
+            </TouchableOpacity>
+          </TouchableOpacity>
         </KeyboardAvoidingView>
       </View>
     </Modal>
@@ -156,24 +165,18 @@ export const CategoryModal = ({ visible, onClose, editingCategory, onSuccess }: 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   overlay: {
     flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(13, 14, 17, 0.85)',
   },
   backdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
+    justifyContent: 'center',
+    padding: 20,
   },
   keyboardView: {
-    width: '100%',
     flex: 1,
-    justifyContent: 'flex-end',
   },
   scrollContainer: {
-    flexGrow: 1,
-    justifyContent: 'flex-end',
+    paddingBottom: 16,
   },
   flexArea: {
     flex: 1,
@@ -182,18 +185,27 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.surfaceLight,
     borderRadius: 24,
     padding: 24,
-    marginHorizontal: 20,
-    marginBottom: 40,
     borderWidth: 1,
     borderColor: colors.borderGlow,
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  closeBtn: {
+    padding: 8,
+  },
+  closeText: {
+    color: colors.slate400,
+    fontSize: 20,
+  },
   title: {
+    color: colors.white,
     fontFamily: 'Geist_500Medium',
     fontSize: 20,
-    color: colors.text,
-    marginBottom: 24,
     textTransform: 'uppercase',
-    textAlign: 'center',
   },
   inputGroup: {
     marginBottom: 20,

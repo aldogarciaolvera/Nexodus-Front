@@ -74,20 +74,24 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
       animationType="fade"
       onRequestClose={onClose}
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={styles.overlay}>
-          <KeyboardAvoidingView 
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.keyboardView}
-          >
-            <View style={styles.modalContent}>
-              <View style={styles.header}>
-                <Text style={styles.title}>Nueva Task</Text>
-                <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                  <Text style={styles.closeText}>✕</Text>
-                </TouchableOpacity>
-              </View>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={Keyboard.dismiss}>
+          <TouchableOpacity activeOpacity={1} style={[styles.modalContent, { maxHeight: '90%', flexShrink: 1 }]} onPress={() => {}}>
+            <View style={styles.header}>
+              <Text style={styles.title}>Nueva Task</Text>
+              <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                <Text style={styles.closeText}>✕</Text>
+              </TouchableOpacity>
+            </View>
 
+            <ScrollView 
+              showsVerticalScrollIndicator={false} 
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: 16 }}
+            >
               <View style={styles.typeSelector}>
                 <TouchableOpacity 
                   style={[styles.typeBtn, !isHabit && styles.typeBtnActive]}
@@ -231,10 +235,10 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
                   style={styles.submitBtn}
                 />
               </View>
-            </View>
-          </KeyboardAvoidingView>
-        </View>
-      </TouchableWithoutFeedback>
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };

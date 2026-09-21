@@ -7,6 +7,7 @@ export interface FinancePayload {
   categoryId?: string;
   paymentMethod?: string;
   transactionDate?: string;
+  description?: string;
 }
 
 export interface FinanceTransaction extends FinancePayload {

@@ -77,7 +77,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   getApiUrl: () => {
     const env = get().apiEnv;
     // For local dev server (default for expo usually)
-    const localUrl = 'http://192.168.1.144:5079';
+    const localUrl = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.33:5079';
     // The production url
     const prodUrl = 'https://nexodusback.atomsystems.org';
     return env === 'production' ? prodUrl : localUrl;

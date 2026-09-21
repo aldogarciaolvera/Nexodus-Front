@@ -167,6 +167,43 @@ export const SettingsScreen = () => {
                 thumbColor={theme.colors.white}
               />
             </View>
+
+            <TouchableOpacity 
+              style={[styles.logoutButton, { backgroundColor: theme.colors.surfaceLight, marginTop: 16, borderColor: theme.colors.neonCyan, borderWidth: 1 }]} 
+              activeOpacity={0.8}
+              onPress={async () => {
+                try {
+                  const apiUrl = getApiUrl();
+                  const response = await fetch(`${apiUrl}/api/auth/refresh`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: accessToken, refreshToken })
+                  });
+                  const text = await response.text();
+                  if (response.ok) {
+                    const data = JSON.parse(text);
+                    const newToken = data.content?.token || data.token || data.content?.accessToken || data.accessToken;
+                    const newRefreshToken = data.content?.refreshToken || data.refreshToken;
+                    
+                    if (newToken && newRefreshToken) {
+                      await updateTokens(newToken, newRefreshToken);
+                      showAlert('Éxito', 'Token refrescado correctamente');
+                    } else if (newToken) {
+                      await updateAccessToken(newToken);
+                      showAlert('Éxito', 'Access token refrescado correctamente');
+                    } else {
+                      showAlert('Error', 'No se encontraron tokens en la respuesta: ' + text);
+                    }
+                  } else {
+                    showAlert('Error Refresh', `Status: ${response.status} Body: ${text}`);
+                  }
+                } catch (e: any) {
+                  showAlert('Error Refresh', e.message || 'Error desconocido');
+                }
+              }}
+            >
+              <Text style={[styles.logoutText, { color: theme.colors.neonCyan }]}>Test Refresh Token</Text>
+            </TouchableOpacity>
           </View>
         )}
 
