@@ -128,8 +128,8 @@ export const JournalScreen = () => {
         <View style={styles.card}>
           <View style={styles.cardTop}>
             <View style={styles.cardTags}>
-              <Mic color={theme.colors.warningYellow} size={12} />
-              <Text style={[styles.cardTagText, { color: theme.colors.warningYellow }]}>VOICE MEMO TRANSCRIPT</Text>
+              <Mic color={theme.colors.warning} size={12} />
+              <Text style={[styles.cardTagText, { color: theme.colors.warning }]}>VOICE MEMO TRANSCRIPT</Text>
             </View>
             <Text style={styles.cardTime}>Yesterday • 12:45 min</Text>
           </View>
@@ -193,12 +193,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: 13,
   },
   captureCard: {
-    backgroundColor: colors.surfaceCard,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderGlow,
   },
   captureInputRow: {
     flexDirection: 'row',
@@ -222,7 +222,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   micButton: {
     padding: 8,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surfaceLight,
     borderRadius: 12,
   },
   captureMeta: {
@@ -233,7 +233,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   clarityBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surfaceLight,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -262,12 +262,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginRight: 4,
   },
   tag: {
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surfaceLight,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderGlow,
   },
   tagText: {
     fontFamily: 'JetBrainsMono_400Regular',
@@ -284,9 +284,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: colors.surfaceCard,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderGlow,
   },
   tabActive: {
     backgroundColor: colors.neonCyan,
@@ -328,12 +328,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     letterSpacing: 1,
   },
   draftCard: {
-    backgroundColor: colors.surfaceCard,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 20,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderGlow,
   },
   draftHeader: {
     flexDirection: 'row',
@@ -377,7 +377,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   blockTitleYellow: {
     fontFamily: 'JetBrainsMono_500Medium',
     fontSize: 10,
-    color: colors.warningYellow,
+    color: colors.warning,
     letterSpacing: 0.5,
     marginBottom: 8,
   },
@@ -393,7 +393,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginTop: 12,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.borderGlow,
   },
   progressLabel: {
     fontFamily: 'JetBrainsMono_400Regular',
@@ -404,7 +404,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   progressBarBg: {
     flex: 1,
     height: 4,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surfaceLight,
     borderRadius: 2,
   },
   progressBarFill: {
@@ -413,12 +413,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderRadius: 2,
   },
   card: {
-    backgroundColor: colors.surfaceCard,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderGlow,
   },
   cardTop: {
     flexDirection: 'row',
@@ -462,7 +462,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   audioPlayer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surfaceLight,
     padding: 12,
     borderRadius: 12,
     marginBottom: 12,

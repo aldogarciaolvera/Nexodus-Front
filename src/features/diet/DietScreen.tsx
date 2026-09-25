@@ -56,10 +56,10 @@ export const DietScreen = () => {
             <View style={styles.macroCol}>
               <View style={styles.macroTopRow}>
                 <Text style={styles.macroLabel}>CARBS</Text>
-                <Text style={[styles.macroPct, {color: theme.colors.warningYellow}]}>78%</Text>
+                <Text style={[styles.macroPct, {color: theme.colors.warning}]}>78%</Text>
               </View>
               <Text style={styles.macroValues}>220<Text style={styles.macroTarget}>/280g</Text></Text>
-              <View style={styles.macroBarBg}><View style={[styles.macroBarFill, {width: '78%', backgroundColor: theme.colors.warningYellow}]}/></View>
+              <View style={styles.macroBarBg}><View style={[styles.macroBarFill, {width: '78%', backgroundColor: theme.colors.warning}]}/></View>
               <Text style={styles.macroDesc}>Glycogen Replen.</Text>
             </View>
             <View style={styles.macroCol}>
@@ -279,12 +279,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: 13,
   },
   macrosCard: {
-    backgroundColor: colors.surfaceCard,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderGlow,
   },
   caloriesRow: {
     flexDirection: 'row',
@@ -388,7 +388,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   macroBarBg: {
     height: 4,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surfaceLight,
     borderRadius: 2,
     marginBottom: 6,
   },
@@ -408,7 +408,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.borderGlow,
   },
   hydrationLeft: {
     flexDirection: 'row',
@@ -444,12 +444,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceCard,
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 12,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderGlow,
   },
   searchInput: {
     flex: 1,
@@ -483,7 +483,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.mutedText,
   },
   mealCard: {
-    backgroundColor: colors.surfaceCard,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
@@ -509,7 +509,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: colors.warningYellow,
+    backgroundColor: colors.warning,
     marginRight: 8,
   },
   mealTime: {
@@ -532,7 +532,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 8,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surfaceLight,
     marginRight: 12,
   },
   mealInfo: {
@@ -555,7 +555,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.borderGlow,
   },
   mealCals: {
     fontFamily: 'JetBrainsMono_600SemiBold',
@@ -574,15 +574,15 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     letterSpacing: 1,
   },
   mealCardPlanned: {
-    backgroundColor: colors.surfaceCard,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderGlow,
   },
   plannedBadge: {
-    backgroundColor: colors.warningYellow,
+    backgroundColor: colors.warning,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,
@@ -604,7 +604,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   mealCalsYellow: {
     fontFamily: 'JetBrainsMono_600SemiBold',
     fontSize: 13,
-    color: colors.warningYellow,
+    color: colors.warning,
   },
   plannedActions: {
     flexDirection: 'row',
@@ -612,7 +612,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   confirmBtn: {
     flex: 1,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surfaceLight,
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
@@ -625,18 +625,18 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   editBtn: {
     width: 44,
     height: 44,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surfaceLight,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
   protocolCard: {
-    backgroundColor: colors.surfaceCard,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderGlow,
   },
   protocolTop: {
     flexDirection: 'row',
@@ -677,7 +677,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   protocolBarBg: {
     height: 4,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surfaceLight,
     borderRadius: 2,
     marginBottom: 16,
   },
@@ -691,7 +691,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.borderGlow,
   },
   microItem: {
     alignItems: 'center',

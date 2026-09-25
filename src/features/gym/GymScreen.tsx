@@ -75,9 +75,9 @@ export const GymScreen = () => {
             <Text style={styles.volumeBalanced}>Volume Balanced</Text>
           </View>
           <View style={styles.strainTags}>
-            <View style={styles.strainTag}><View style={[styles.dot, {backgroundColor: theme.colors.errorRed}]}/><Text style={styles.strainText}>Quads: High</Text></View>
-            <View style={styles.strainTag}><View style={[styles.dot, {backgroundColor: theme.colors.warningYellow}]}/><Text style={styles.strainText}>Hamstrings: Mod</Text></View>
-            <View style={styles.strainTag}><View style={[styles.dot, {backgroundColor: theme.colors.errorRed}]}/><Text style={styles.strainText}>Core: High</Text></View>
+            <View style={styles.strainTag}><View style={[styles.dot, {backgroundColor: theme.colors.error}]}/><Text style={styles.strainText}>Quads: High</Text></View>
+            <View style={styles.strainTag}><View style={[styles.dot, {backgroundColor: theme.colors.warning}]}/><Text style={styles.strainText}>Hamstrings: Mod</Text></View>
+            <View style={styles.strainTag}><View style={[styles.dot, {backgroundColor: theme.colors.error}]}/><Text style={styles.strainText}>Core: High</Text></View>
             <View style={styles.strainTag}><View style={[styles.dot, {backgroundColor: theme.colors.mutedText}]}/><Text style={styles.strainText}>Calves: Base</Text></View>
           </View>
           <View style={styles.streakRow}>
@@ -192,7 +192,7 @@ export const GymScreen = () => {
             <View style={styles.rMetric}>
               <Text style={styles.rLabel}>CNS FATIGUE</Text>
               <Text style={styles.rValue}>Mild • <Text style={{color: theme.colors.mutedText}}>Recovered</Text></Text>
-              <View style={[styles.rBar, { backgroundColor: theme.colors.surfaceElevated }]} />
+              <View style={[styles.rBar, { backgroundColor: theme.colors.surfaceLight }]} />
             </View>
           </View>
           <Text style={styles.rNotice}>ⓘ Next scheduled lower-body strain: 48 hr window recommended before Heavy Compound Hinges.</Text>
@@ -256,12 +256,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: 13,
   },
   sessionCard: {
-    backgroundColor: colors.surfaceCard,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 20,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderGlow,
   },
   sessionTop: {
     flexDirection: 'row',
@@ -330,7 +330,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   resumeButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surfaceLight,
     padding: 12,
     borderRadius: 12,
   },
@@ -382,12 +382,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   strainTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceCard,
+    backgroundColor: colors.surface,
     paddingHorizontal: 8,
     paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderGlow,
   },
   dot: {
     width: 6,
@@ -418,7 +418,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surfaceLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -448,12 +448,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.mutedText,
   },
   exerciseCard: {
-    backgroundColor: colors.surfaceCard,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderGlow,
   },
   exerciseTop: {
     flexDirection: 'row',
@@ -493,7 +493,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   setBox: {
     flex: 1,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surfaceLight,
     padding: 8,
     borderRadius: 8,
     alignItems: 'center',
@@ -516,7 +516,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.neonCyan,
   },
   activeExerciseCard: {
-    backgroundColor: colors.surfaceCard,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
@@ -563,7 +563,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderRadius: 12,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderGlow,
   },
   restIcon: {
     width: 28,
@@ -586,7 +586,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.mutedText,
   },
   addTimeBtn: {
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surfaceLight,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
@@ -607,7 +607,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 8,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderGlow,
   },
   repsBtn: {
     fontFamily: 'Geist_400Regular',
@@ -647,7 +647,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   queuedCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceCard,
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
@@ -656,7 +656,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 4,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surfaceLight,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -690,13 +690,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.mutedText,
   },
   readinessCard: {
-    backgroundColor: colors.surfaceCard,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     marginTop: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderGlow,
   },
   readinessHeader: {
     flexDirection: 'row',
@@ -749,11 +749,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   appendInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceCard,
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderGlow,
   },
   appendInput: {
     flex: 1,
@@ -765,7 +765,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   addExerciseBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surfaceLight,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,

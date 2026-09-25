@@ -15,6 +15,7 @@ export type ThemeColors = {
   slate700: string;
   text: string;
   error: string;
+  warning: string;
 };
 
 export const darkColors: ThemeColors = {
@@ -34,6 +35,7 @@ export const darkColors: ThemeColors = {
   slate700: '#334155',
   text: '#FFFFFF',
   error: '#FF3366', // vivid coral/pink-red for dark mode
+  warning: '#FBBF24',
 };
 
 export const lightColors: ThemeColors = {
@@ -53,6 +55,7 @@ export const lightColors: ThemeColors = {
   slate700: '#E2E8F0',
   text: '#0B0D11',
   error: '#E11D48', // deep rose for light mode
+  warning: '#F59E0B',
 };
 
 export const typography = {
