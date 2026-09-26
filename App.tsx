@@ -38,11 +38,11 @@ function MainTabs() {
       screenOptions={{ headerShown: false }}
     >
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
+      <Tab.Screen name="Ideas" component={JournalScreen} />
       <Tab.Screen name="Tasks" component={TasksScreen} />
       <Tab.Screen name="Gym" component={GymScreen} />
-      <Tab.Screen name="Meals" component={DietScreen} />
+      <Tab.Screen name="Diet" component={DietScreen} />
       <Tab.Screen name="Money" component={FinanceScreen} />
-      <Tab.Screen name="Journal" component={JournalScreen} />
     </Tab.Navigator>
   );
 }
