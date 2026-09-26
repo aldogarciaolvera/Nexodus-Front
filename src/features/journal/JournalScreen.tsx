@@ -1,148 +1,199 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, TextInput } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
 import { useTheme } from '../../utils/ThemeContext';
 import { ThemeColors } from '../../utils/theme';
-import { Mic, PenTool, BookOpen, Clock, Activity, FileText } from 'lucide-react-native';
+import { Mic, Plus } from 'lucide-react-native';
+import { Header } from '../../components/Header';
+import { useNavigation } from '@react-navigation/native';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import journalService, { NoteDto } from '../../services/journal.service';
+import { ActionSheet } from '../../components/ActionSheet';
+import { useAlertStore } from '../../store/alertStore';
+import { Skeleton } from '../../components/Skeleton';
 
 export const JournalScreen = () => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
+  const navigation = useNavigation<any>();
+  const [activeTab, setActiveTab] = useState<'idea' | 'diario'>('idea');
+
+  const queryClient = useQueryClient();
+  const alertStore = useAlertStore();
+  const [selectedNote, setSelectedNote] = useState<NoteDto | null>(null);
+  const [isActionModalVisible, setActionModalVisible] = useState(false);
+
+  const { data: notes = [], isLoading } = useQuery({
+    queryKey: ['notes'],
+    queryFn: () => journalService.getAll(),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => journalService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notes'] });
+      setActionModalVisible(false);
+      setSelectedNote(null);
+    },
+  });
+
+  const handleLongPress = (note: NoteDto) => {
+    setSelectedNote(note);
+    setActionModalVisible(true);
+  };
+
+  const handleEdit = () => {
+    setActionModalVisible(false);
+    if (selectedNote) {
+      navigation.navigate('CreateJournalEntry', { editNote: selectedNote });
+    }
+  };
+
+  const handleDelete = () => {
+    if (!selectedNote) return;
+    setActionModalVisible(false);
+    alertStore.showAlert({
+      title: 'Eliminar',
+      message: '¿Estás seguro que deseas eliminar esta entrada permanentemente?',
+      type: 'error',
+      buttons: [
+        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: 'Eliminar', 
+          style: 'destructive',
+          onPress: () => deleteMutation.mutate(selectedNote.id)
+        }
+      ]
+    });
+  };
+
+  const ideas = notes.filter(n => n.type === 'idea');
+  const journalEntries = notes.filter(n => n.type === 'diario');
+
+  // Group journal entries by date string
+  const groupedJournal = journalEntries.reduce((acc, entry) => {
+    const dateKey = new Date(entry.createdAt).toLocaleDateString();
+    if (!acc[dateKey]) acc[dateKey] = [];
+    acc[dateKey].push(entry);
+    return acc;
+  }, {} as Record<string, NoteDto[]>);
+
+  // Sort dates descending
+  const sortedDates = Object.keys(groupedJournal).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.dateText}>TUESDAY, SEPT 10 • COGNITIVE LOG & ARCHIVE</Text>
-            <Text style={styles.title}>Notes & Journal</Text>
-            <Text style={styles.subtitle}>Executive cognitive index & logs</Text>
-          </View>
-          <TouchableOpacity style={styles.newEntryButton}>
-            <Text style={styles.newEntryText}>+ New Entry</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Quick Capture */}
-        <View style={styles.captureCard}>
-          <View style={styles.captureInputRow}>
-            <View style={styles.iconBox}>
-              <PenTool color={theme.colors.neonCyan} size={16} />
-            </View>
-            <TextInput 
-              placeholder="Capture insight, decision, or mental model..."
-              placeholderTextColor={theme.colors.mutedText}
-              style={styles.captureInput}
-            />
-            <TouchableOpacity style={styles.micButton}>
-              <Mic color={theme.colors.mutedText} size={18} />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.captureMeta}>
-            <View style={styles.clarityBadge}>
-              <View style={styles.dotCyan} />
-              <Text style={styles.clarityText}>CLARITY: 9.4</Text>
-            </View>
-            <View style={styles.tagsContainer}>
-              <Text style={styles.metaLabel}>STATE: HIGH FLOW</Text>
-              <View style={styles.tag}><Text style={styles.tagText}>#idea</Text></View>
-              <View style={styles.tag}><Text style={styles.tagText}>#decision</Text></View>
-              <View style={styles.tag}><Text style={styles.tagText}>#framework</Text></View>
-            </View>
-          </View>
-        </View>
-
-        {/* Tabs */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabsContainer}>
-          <TouchableOpacity style={[styles.tab, styles.tabActive]}>
-            <Text style={styles.tabTextActive}>All 14</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.tab}>
-            <Text style={styles.tabText}>Daily Journal</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.tab}>
-            <Text style={styles.tabText}>Ventures & Ideas</Text>
-          </TouchableOpacity>
-        </ScrollView>
-
-        {/* Draft in Progress */}
-        <View style={styles.sectionHeader}>
-          <BookOpen color={theme.colors.neonCyan} size={14} />
-          <Text style={styles.sectionTitle}>EVENING DEBRIEF • 08:45 PM</Text>
-          <Text style={styles.sectionTime}>SEPT 10</Text>
-        </View>
+      <View style={styles.headerContainer}>
+        <Header title="Notes & Journal" />
         
-        <View style={styles.draftCard}>
-          <View style={styles.draftHeader}>
-            <View style={styles.draftBadge}><Text style={styles.draftBadgeText}>DRAFT IN PROGRESS</Text></View>
-            <Text style={styles.draftWords}>420 words</Text>
-            <TouchableOpacity><Text style={styles.editText}>EDIT ↗</Text></TouchableOpacity>
-          </View>
-
-          <View style={styles.draftBlock}>
-            <Text style={styles.blockTitleCyan}>△ CORE WIN & KINETIC OUTPUT</Text>
-            <Text style={styles.blockText}>Closed Q3 enterprise retainer early. Hypertrophy volume hit with perfect RPE calibration, zero tendon friction.</Text>
-          </View>
-          
-          <View style={styles.draftBlock}>
-            <Text style={styles.blockTitleYellow}>○ COGNITIVE FRICTION & DETOURS</Text>
-            <Text style={styles.blockText}>Delegation bottleneck in sprint architecture. PR review pipeline needs async decoupling to avoid blocking engineers.</Text>
-          </View>
-
-          <View style={styles.draftBlock}>
-            <Text style={styles.blockTitleCyan}>⚑ PRIME DIRECTIVES (TOMORROW)</Text>
-            <Text style={styles.blockText}>3 consecutive deep-work cycles (08:00-11:30), fasting window sustained to 13:00, finalize Seed Series deck layout.</Text>
-          </View>
-
-          <View style={styles.progressRow}>
-            <Text style={styles.progressLabel}>Completion: 85%</Text>
-            <View style={styles.progressBarBg}>
-              <View style={[styles.progressBarFill, { width: '85%' }]} />
-            </View>
-          </View>
+        {/* Toggle Switch */}
+        <View style={styles.typeToggle}>
+          <TouchableOpacity 
+            style={[styles.toggleBtn, activeTab === 'idea' && styles.toggleBtnActive]}
+            onPress={() => setActiveTab('idea')}
+          >
+            <Text style={[styles.toggleText, activeTab === 'idea' && styles.toggleTextActive]}>Mis Ideas</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.toggleBtn, activeTab === 'diario' && styles.toggleBtnActive]}
+            onPress={() => setActiveTab('diario')}
+          >
+            <Text style={[styles.toggleText, activeTab === 'diario' && styles.toggleTextActive]}>Mi Diario</Text>
+          </TouchableOpacity>
         </View>
+      </View>
 
-        {/* Cognitive Vault */}
-        <View style={styles.sectionHeader}>
-          <Activity color={theme.colors.neonCyan} size={14} />
-          <Text style={styles.sectionTitle}>COGNITIVE VAULT & IDEAS</Text>
-          <Text style={styles.viewAll}>VIEW ALL</Text>
-        </View>
-
-        <View style={styles.card}>
-          <View style={styles.cardTop}>
-            <View style={styles.cardTags}>
-              <View style={styles.dotCyan} />
-              <Text style={styles.cardTagText}>#VENTURE #BIOHACKING</Text>
-            </View>
-            <Text style={styles.cardTime}>2h ago</Text>
+      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+        {isLoading ? (
+          <View style={{ padding: 20, gap: 16 }}>
+            <Skeleton width="100%" height={120} borderRadius={16} />
+            <Skeleton width="100%" height={120} borderRadius={16} />
+            <Skeleton width="100%" height={120} borderRadius={16} />
           </View>
-          <Text style={styles.cardTitle}>AI Copilot for Real-Time Executive Biometrics</Text>
-          <Text style={styles.cardDesc}>Continuous glucose + HRV cross-referenced with Google Calendar load. Intercepts afternoon cognitive slumps by preemptively adjusting hydration & micro-protocols.</Text>
-          <View style={styles.cardActions}>
-            <View style={styles.tag}><Text style={styles.tagText}>Validation: Stage 1</Text></View>
-            <View style={styles.tag}><Text style={styles.tagText}>ROI: High</Text></View>
+        ) : activeTab === 'idea' ? (
+          /* Ideas View */
+          <View style={styles.ideasContainer}>
+            {ideas.map(idea => (
+              <TouchableOpacity key={idea.id} style={styles.card} onLongPress={() => handleLongPress(idea)} delayLongPress={500}>
+                <View style={styles.cardTop}>
+                  <View style={styles.cardTags}>
+                    <View style={styles.dotCyan} />
+                    <Text style={styles.cardTagText}>IDEA</Text>
+                  </View>
+                  <Text style={styles.cardTime}>{new Date(idea.createdAt).toLocaleDateString()}</Text>
+                </View>
+                {idea.title ? <Text style={styles.cardTitle}>{idea.title}</Text> : null}
+                {idea.content ? <Text style={styles.cardDesc} numberOfLines={3}>{idea.content}</Text> : null}
+                
+                {idea.checklist && idea.checklist.length > 0 && (
+                  <View style={styles.checklistPreview}>
+                    {idea.checklist.slice(0, 3).map(item => (
+                      <View key={item.id} style={styles.checklistItem}>
+                        <View style={[styles.checkboxDot, item.isCompleted && styles.checkboxDotCompleted]} />
+                        <Text style={[styles.checklistText, item.isCompleted && styles.checklistTextCompleted]} numberOfLines={1}>
+                          {item.text}
+                        </Text>
+                      </View>
+                    ))}
+                    {idea.checklist.length > 3 && (
+                      <Text style={styles.moreItemsText}>+{idea.checklist.length - 3} más...</Text>
+                    )}
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+            {ideas.length === 0 && (
+              <Text style={styles.emptyText}>No tienes ideas todavía.</Text>
+            )}
           </View>
-        </View>
-
-        <View style={styles.card}>
-          <View style={styles.cardTop}>
-            <View style={styles.cardTags}>
-              <Mic color={theme.colors.warning} size={12} />
-              <Text style={[styles.cardTagText, { color: theme.colors.warning }]}>VOICE MEMO TRANSCRIPT</Text>
-            </View>
-            <Text style={styles.cardTime}>Yesterday • 12:45 min</Text>
+        ) : (
+          /* Journal View */
+          <View style={styles.journalContainer}>
+            <Text style={styles.journalMainTitle}>Diario</Text>
+            {sortedDates.map(date => (
+              <View key={date} style={styles.dateGroup}>
+                <Text style={styles.dateTitle}>{date}</Text>
+                {groupedJournal[date].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()).map(entry => (
+                  <TouchableOpacity key={entry.id} style={styles.journalEntryBlock} onLongPress={() => handleLongPress(entry)} delayLongPress={500}>
+                    {entry.title ? <Text style={styles.entryTitle}>{entry.title}</Text> : null}
+                    <Text style={styles.entryContent}>{entry.content}</Text>
+                    <Text style={styles.entryTime}>
+                      {new Date(entry.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ))}
+            {sortedDates.length === 0 && (
+              <Text style={styles.emptyText}>No tienes entradas de diario todavía.</Text>
+            )}
           </View>
-          <Text style={styles.cardTitle}>Cold Enterprise Outreach Architecture</Text>
-          <View style={styles.audioPlayer}>
-             <View style={styles.playButton}><Text style={{color: '#000', fontWeight: 'bold'}}>▶</Text></View>
-             <View style={styles.waveform}><View style={styles.waveBar}/><View style={styles.waveBar}/><View style={styles.waveBar}/></View>
-             <Text style={styles.audioTime}>0:42 / 2:45</Text>
-          </View>
-          <Text style={styles.cardDesc}>✨ AI Summary: Ditch transactional pitch decks; anchor outreach entirely on asymmetry of engineering talent in enterprise automation.</Text>
-        </View>
-
+        )}
       </ScrollView>
+
+      {/* Floating Action Button */}
+      <TouchableOpacity 
+        style={styles.fab} 
+        onPress={() => navigation.navigate('CreateJournalEntry')}
+      >
+        <Plus color={theme.colors.obsidian} size={28} />
+      </TouchableOpacity>
+
+      <ActionSheet
+        visible={isActionModalVisible}
+        onClose={() => setActionModalVisible(false)}
+        title={selectedNote?.title || (selectedNote?.type === 'idea' ? 'Idea' : 'Entrada de Diario')}
+        options={[
+          {
+            label: 'Editar',
+            onPress: handleEdit
+          },
+          {
+            label: 'Eliminar',
+            destructive: true,
+            onPress: handleDelete
+          }
+        ]}
+      />
     </SafeAreaView>
   );
 };
@@ -152,271 +203,108 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.obsidian,
   },
-  scrollContainer: {
-    padding: 20,
-    paddingBottom: 100,
+  headerContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    backgroundColor: colors.obsidian,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderGlow,
+    paddingBottom: 16,
   },
-  header: {
+  typeToggle: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 24,
-    marginTop: 20,
-  },
-  dateText: {
-    fontFamily: 'JetBrainsMono_400Regular',
-    fontSize: 10,
-    color: colors.mutedText,
-    letterSpacing: 1,
-    marginBottom: 8,
-  },
-  title: {
-    fontFamily: 'Geist_700Bold',
-    fontSize: 28,
-    color: colors.text,
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontFamily: 'Geist_400Regular',
-    fontSize: 14,
-    color: colors.mutedText,
-  },
-  newEntryButton: {
-    backgroundColor: colors.neonCyan,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  newEntryText: {
-    color: colors.obsidian,
-    fontFamily: 'Geist_700Bold',
-    fontSize: 13,
-  },
-  captureCard: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
+    borderRadius: 20,
+    padding: 4,
     borderWidth: 1,
     borderColor: colors.borderGlow,
+    marginTop: 16,
+    alignSelf: 'center',
+    width: '80%',
   },
-  captureInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  iconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: 'rgba(0, 240, 255, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  captureInput: {
+  toggleBtn: {
     flex: 1,
-    color: colors.text,
-    fontFamily: 'Geist_400Regular',
-    fontSize: 15,
-  },
-  micButton: {
-    padding: 8,
-    backgroundColor: colors.surfaceLight,
-    borderRadius: 12,
-  },
-  captureMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  clarityBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceLight,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  dotCyan: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.neonCyan,
-    marginRight: 6,
-  },
-  clarityText: {
-    fontFamily: 'JetBrainsMono_400Regular',
-    fontSize: 10,
-    color: colors.text,
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  metaLabel: {
-    fontFamily: 'JetBrainsMono_400Regular',
-    fontSize: 9,
-    color: colors.mutedText,
-    marginRight: 4,
-  },
-  tag: {
-    backgroundColor: colors.surfaceLight,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.borderGlow,
-  },
-  tagText: {
-    fontFamily: 'JetBrainsMono_400Regular',
-    fontSize: 10,
-    color: colors.mutedText,
-  },
-  tabsScroll: {
-    marginBottom: 24,
-  },
-  tabsContainer: {
-    gap: 12,
-  },
-  tab: {
-    paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.borderGlow,
+    borderRadius: 16,
+    alignItems: 'center',
   },
-  tabActive: {
+  toggleBtnActive: {
     backgroundColor: colors.neonCyan,
-    borderColor: colors.neonCyan,
   },
-  tabText: {
+  toggleText: {
     fontFamily: 'Geist_500Medium',
     fontSize: 13,
     color: colors.mutedText,
   },
-  tabTextActive: {
+  toggleTextActive: {
     fontFamily: 'Geist_700Bold',
-    fontSize: 13,
     color: colors.obsidian,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    marginTop: 8,
-  },
-  sectionTitle: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 11,
-    color: colors.text,
-    letterSpacing: 1,
-    marginLeft: 8,
-    flex: 1,
-  },
-  sectionTime: {
-    fontFamily: 'JetBrainsMono_400Regular',
-    fontSize: 10,
-    color: colors.mutedText,
-  },
-  viewAll: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 10,
-    color: colors.neonCyan,
-    letterSpacing: 1,
-  },
-  draftCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
+  scrollContainer: {
     padding: 20,
-    marginBottom: 24,
+    paddingBottom: 100,
+  },
+  ideasContainer: {
+    gap: 16,
+  },
+  journalContainer: {
+    gap: 24,
+  },
+  journalMainTitle: {
+    fontFamily: 'Geist_700Bold',
+    fontSize: 24,
+    color: colors.text,
+    marginBottom: 8,
+  },
+  dateGroup: {
+    gap: 12,
+    borderLeftWidth: 1,
+    borderLeftColor: colors.borderGlow,
+    paddingLeft: 16,
+    marginLeft: 8,
+  },
+  dateTitle: {
+    fontFamily: 'JetBrainsMono_500Medium',
+    fontSize: 14,
+    color: colors.neonCyan,
+    marginBottom: 8,
+    marginTop: 8,
+    position: 'relative',
+    left: -20,
+    backgroundColor: colors.obsidian,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 4,
+  },
+  journalEntryBlock: {
+    backgroundColor: colors.surface,
+    padding: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.borderGlow,
   },
-  draftHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  draftBadge: {
-    backgroundColor: 'rgba(0, 240, 255, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  draftBadgeText: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 10,
-    color: colors.neonCyan,
-  },
-  draftWords: {
-    fontFamily: 'JetBrainsMono_400Regular',
-    fontSize: 10,
-    color: colors.mutedText,
-    flex: 1,
-    marginLeft: 12,
-  },
-  editText: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 10,
-    color: colors.neonCyan,
-  },
-  draftBlock: {
-    marginBottom: 16,
-  },
-  blockTitleCyan: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 10,
-    color: colors.neonCyan,
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  blockTitleYellow: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 10,
-    color: colors.warning,
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  blockText: {
-    fontFamily: 'Geist_400Regular',
-    fontSize: 13,
+  entryTitle: {
+    fontFamily: 'Geist_700Bold',
+    fontSize: 16,
     color: colors.text,
-    lineHeight: 20,
+    marginBottom: 8,
   },
-  progressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderGlow,
+  entryContent: {
+    fontFamily: 'Geist_400Regular',
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 22,
   },
-  progressLabel: {
+  entryTime: {
     fontFamily: 'JetBrainsMono_400Regular',
     fontSize: 10,
     color: colors.mutedText,
-    marginRight: 12,
-  },
-  progressBarBg: {
-    flex: 1,
-    height: 4,
-    backgroundColor: colors.surfaceLight,
-    borderRadius: 2,
-  },
-  progressBarFill: {
-    height: 4,
-    backgroundColor: colors.neonCyan,
-    borderRadius: 2,
+    marginTop: 8,
+    alignSelf: 'flex-end',
   },
   card: {
     backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
-    marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.borderGlow,
   },
@@ -431,6 +319,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
+  dotCyan: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.neonCyan,
+  },
   cardTagText: {
     fontFamily: 'JetBrainsMono_500Medium',
     fontSize: 10,
@@ -444,7 +338,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   cardTitle: {
     fontFamily: 'Geist_700Bold',
-    fontSize: 15,
+    fontSize: 16,
     color: colors.text,
     marginBottom: 8,
   },
@@ -453,44 +347,62 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: 13,
     color: colors.mutedText,
     lineHeight: 20,
-    marginBottom: 16,
-  },
-  cardActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  audioPlayer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceLight,
-    padding: 12,
-    borderRadius: 12,
     marginBottom: 12,
   },
-  playButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  checklistPreview: {
+    gap: 6,
+    marginTop: 8,
+  },
+  checklistItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkboxDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.mutedText,
+    marginRight: 8,
+  },
+  checkboxDotCompleted: {
+    backgroundColor: colors.neonCyan,
+    borderColor: colors.neonCyan,
+  },
+  checklistText: {
+    fontFamily: 'Geist_400Regular',
+    fontSize: 13,
+    color: colors.text,
+    flex: 1,
+  },
+  checklistTextCompleted: {
+    textDecorationLine: 'line-through',
+    color: colors.mutedText,
+  },
+  moreItemsText: {
+    fontFamily: 'JetBrainsMono_400Regular',
+    fontSize: 11,
+    color: colors.mutedText,
+    marginTop: 4,
+    marginLeft: 20,
+  },
+  emptyText: {
+    fontFamily: 'Geist_400Regular',
+    fontSize: 14,
+    color: colors.mutedText,
+    textAlign: 'center',
+    marginTop: 40,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    left: 20, // requested floating button on the left
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: colors.neonCyan,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
-  },
-  waveform: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  waveBar: {
-    width: 3,
-    height: 12,
-    backgroundColor: colors.neonCyan,
-    borderRadius: 2,
-  },
-  audioTime: {
-    fontFamily: 'JetBrainsMono_400Regular',
-    fontSize: 10,
-    color: colors.mutedText,
+    elevation: 8,
   }
 });

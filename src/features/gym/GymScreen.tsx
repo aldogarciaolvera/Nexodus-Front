@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { useTheme } from '../../utils/ThemeContext';
 import { ThemeColors } from '../../utils/theme';
 import { Activity, Clock, Flame, Play, Search, Target, CheckCircle2, MoreHorizontal } from 'lucide-react-native';
+import { Header } from '../../components/Header';
 
 export const GymScreen = () => {
   const theme = useTheme();
@@ -10,17 +11,13 @@ export const GymScreen = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.dateText}>TUESDAY, SEPT 10 • SPLIT DAY 2</Text>
-            <Text style={styles.title}>Legs & Core Split</Text>
-          </View>
-          <TouchableOpacity style={styles.logButton}>
-            <Text style={styles.logText}>+ Log</Text>
-          </TouchableOpacity>
-        </View>
+        <Header title="Legs & Core Split" />
 
         {/* Session Execution Card */}
         <View style={styles.sessionCard}>
@@ -212,6 +209,7 @@ export const GymScreen = () => {
         </View>
 
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

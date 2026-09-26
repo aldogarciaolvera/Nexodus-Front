@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, TextInput, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, TextInput, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import { useTheme } from '../../utils/ThemeContext';
 import { ThemeColors } from '../../utils/theme';
 import { Search, Camera, ScanBarcode, Droplet, Clock } from 'lucide-react-native';
+import { Header } from '../../components/Header';
 
 export const DietScreen = () => {
   const theme = useTheme();
@@ -10,17 +11,13 @@ export const DietScreen = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.dateText}>TUESDAY, SEPT 10 • FUEL</Text>
-            <Text style={styles.title}>Diet & Macros</Text>
-          </View>
-          <TouchableOpacity style={styles.logButton}>
-            <Text style={styles.logText}>+ Log Meal</Text>
-          </TouchableOpacity>
-        </View>
+        <Header title="Diet & Macros" />
 
         {/* Macros Summary */}
         <View style={styles.macrosCard}>
@@ -233,8 +230,8 @@ export const DietScreen = () => {
             </View>
           </View>
         </View>
-
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

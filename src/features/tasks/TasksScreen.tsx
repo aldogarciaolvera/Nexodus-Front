@@ -82,6 +82,7 @@ export const TasksScreen = () => {
         isHabit: data.isHabit,
         frequency: data.frequency,
         isCompleted: false, // For un-completing tasks
+        notificationsEnabled: data.notificationsEnabled,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
@@ -105,6 +106,7 @@ export const TasksScreen = () => {
     lastCompletedAt: t.lastCompletedAt,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
+    notificationsEnabled: t.notificationsEnabled,
   }));
 
   const completedCount = items.filter(i => i.isCompleted).length;

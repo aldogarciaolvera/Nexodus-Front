@@ -35,6 +35,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
   const [isRepeating, setIsRepeating] = useState(false);
   const [selectedWeeklyDays, setSelectedWeeklyDays] = useState<number[]>([]);
   const [selectedMonthlyDays, setSelectedMonthlyDays] = useState<number[]>([]);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
   React.useEffect(() => {
     if (visible) {
@@ -59,6 +60,8 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
           setSelectedWeeklyDays([]);
           setSelectedMonthlyDays([]);
         }
+        
+        setNotificationsEnabled(!!editingItem.notificationsEnabled);
       } else {
         // Reset form
         setTitle('');
@@ -70,6 +73,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
         setIsRepeating(false);
         setSelectedWeeklyDays([]);
         setSelectedMonthlyDays([]);
+        setNotificationsEnabled(false);
       }
     }
   }, [visible, editingItem]);
@@ -93,6 +97,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
       urgent: urgent,
       frequency: finalFrequency,
       customDays: finalCustomDays,
+      notificationsEnabled,
     };
 
     if (editingItem && onEdit) {
@@ -263,6 +268,16 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
                   </View>
                 )}
 
+                <View style={styles.switchRow}>
+                  <Text style={styles.switchLabel}>¿Recibir notificaciones?</Text>
+                  <Switch 
+                    value={notificationsEnabled} 
+                    onValueChange={setNotificationsEnabled} 
+                    trackColor={{ false: theme.colors.slate600, true: theme.colors.neonCyan }}
+                    thumbColor={theme.colors.white}
+                  />
+                </View>
+
                 <Button 
                   title={editingItem ? 'Guardar Cambios' : (!isHabit ? 'Añadir Tarea' : 'Crear Hábito')} 
                   onPress={handleAdd} 
@@ -327,11 +342,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderRadius: 8,
   },
   typeBtnActive: {
-    backgroundColor: colors.borderGlow,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderGlow,
     elevation: 2,
   },
   typeBtnText: {

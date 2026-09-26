@@ -19,6 +19,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -252,15 +254,18 @@ export const SettingsScreen = () => {
               <Text style={[styles.logoutText, { color: theme.colors.neonCyan }]}>Test Refresh Token</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.logoutButton, { backgroundColor: theme.colors.surfaceLight, marginTop: 16, borderColor: theme.colors.neonCyan, borderWidth: 1 }]} 
-              activeOpacity={0.8}
-              onPress={testNotification}
-            >
-              <Text style={[styles.logoutText, { color: theme.colors.neonCyan }]}>Test Push Notification</Text>
-            </TouchableOpacity>
           </View>
         )}
+
+        <View style={[styles.card, { marginTop: 16 }]}>
+          <TouchableOpacity 
+            style={[styles.logoutButton, { backgroundColor: theme.colors.surfaceLight, marginTop: 0, borderColor: theme.colors.neonCyan, borderWidth: 1 }]} 
+            activeOpacity={0.8}
+            onPress={testNotification}
+          >
+            <Text style={[styles.logoutText, { color: theme.colors.neonCyan }]}>Probar Notificación Push</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={logout} activeOpacity={0.8}>

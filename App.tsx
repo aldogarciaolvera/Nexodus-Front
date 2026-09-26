@@ -26,6 +26,8 @@ import { useOTAUpdates } from './src/hooks/useOTAUpdates';
 import { GymScreen } from './src/features/gym/GymScreen';
 import { DietScreen } from './src/features/diet/DietScreen';
 import { JournalScreen } from './src/features/journal/JournalScreen';
+import { CreateJournalEntryScreen } from './src/features/journal/CreateJournalEntryScreen';
+import * as Notifications from 'expo-notifications';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -57,6 +59,14 @@ function AppInner() {
   useOTAUpdates();
 
   useEffect(() => {
+    const requestNotificationPermission = async () => {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      if (existingStatus !== 'granted') {
+        await Notifications.requestPermissionsAsync();
+      }
+    };
+    
+    requestNotificationPermission();
     initialize().finally(() => setIsReady(true));
   }, []);
 
@@ -104,6 +114,7 @@ function AppInner() {
           {isAuthenticated ? (
             <>
               <Stack.Screen name="MainTabs" component={MainTabs} />
+              <Stack.Screen name="CreateJournalEntry" component={CreateJournalEntryScreen} />
               <Stack.Screen name="AllTransactions" component={AllTransactionsScreen} />
               <Stack.Screen name="AllTasks" component={AllTasksScreen} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
