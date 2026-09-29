@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../utils/ThemeContext';
 import { ThemeColors } from '../../utils/theme';
 import { Mic, Plus } from 'lucide-react-native';
@@ -82,42 +83,38 @@ export const JournalScreen = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.headerContainer}>
-        <Header title="Notes & Journal" />
-        
-        {/* Toggle Switch */}
-        <View style={styles.typeToggle}>
-          <TouchableOpacity 
-            style={[styles.toggleBtn, activeTab === 'idea' && styles.toggleBtnActive]}
-            onPress={() => setActiveTab('idea')}
-          >
-            <Text style={[styles.toggleText, activeTab === 'idea' && styles.toggleTextActive]}>Mis Ideas</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.toggleBtn, activeTab === 'diario' && styles.toggleBtnActive]}
-            onPress={() => setActiveTab('diario')}
-          >
-            <Text style={[styles.toggleText, activeTab === 'diario' && styles.toggleTextActive]}>Mi Diario</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        {isLoading ? (
-          <View style={{ padding: 20, gap: 16 }}>
-            <Skeleton width="100%" height={120} borderRadius={16} />
-            <Skeleton width="100%" height={120} borderRadius={16} />
-            <Skeleton width="100%" height={120} borderRadius={16} />
+      <View style={styles.container}>
+        <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+          <Header title="Notes & Journal" />
+          
+          {/* Toggle Switch */}
+          <View style={styles.typeToggle}>
+            <TouchableOpacity 
+              style={[styles.toggleBtn, activeTab === 'idea' && styles.toggleBtnActive]}
+              onPress={() => setActiveTab('idea')}
+            >
+              <Text style={[styles.toggleText, activeTab === 'idea' && styles.toggleTextActive]}>Mis Ideas</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.toggleBtn, activeTab === 'diario' && styles.toggleBtnActive]}
+              onPress={() => setActiveTab('diario')}
+            >
+              <Text style={[styles.toggleText, activeTab === 'diario' && styles.toggleTextActive]}>Mi Diario</Text>
+            </TouchableOpacity>
           </View>
-        ) : activeTab === 'idea' ? (
-          /* Ideas View */
+
+          {isLoading ? (
+            <View style={{ gap: 16 }}>
+              <Skeleton width="100%" height={120} borderRadius={16} />
+              <Skeleton width="100%" height={120} borderRadius={16} />
+              <Skeleton width="100%" height={120} borderRadius={16} />
+            </View>
+          ) : activeTab === 'idea' ? (
           <View style={styles.ideasContainer}>
             {ideas.map(idea => (
               <TouchableOpacity key={idea.id} style={styles.card} onLongPress={() => handleLongPress(idea)} delayLongPress={500}>
                 <View style={styles.cardTop}>
                   <View style={styles.cardTags}>
-                    <View style={styles.dotCyan} />
-                    <Text style={styles.cardTagText}>IDEA</Text>
                   </View>
                   <Text style={styles.cardTime}>{new Date(idea.createdAt).toLocaleDateString()}</Text>
                 </View>
@@ -146,7 +143,6 @@ export const JournalScreen = () => {
             )}
           </View>
         ) : (
-          /* Journal View */
           <View style={styles.journalContainer}>
             <Text style={styles.journalMainTitle}>Diario</Text>
             {sortedDates.map(date => (
@@ -168,14 +164,19 @@ export const JournalScreen = () => {
             )}
           </View>
         )}
+        
+        {/* Spacer for bottom nav */}
+        <View style={{ height: 100 }} />
       </ScrollView>
+      </View>
 
       {/* Floating Action Button */}
       <TouchableOpacity 
         style={styles.fab} 
+        activeOpacity={0.8}
         onPress={() => navigation.navigate('CreateJournalEntry')}
       >
-        <Plus color={theme.colors.obsidian} size={28} />
+        <Plus color="#000000" size={28} />
       </TouchableOpacity>
 
       <ActionSheet
@@ -203,13 +204,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.obsidian,
   },
-  headerContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
+  container: {
+    flex: 1,
     backgroundColor: colors.obsidian,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderGlow,
-    paddingBottom: 16,
   },
   typeToggle: {
     flexDirection: 'row',
@@ -219,6 +216,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderGlow,
     marginTop: 16,
+    marginBottom: 24,
     alignSelf: 'center',
     width: '80%',
   },
@@ -241,8 +239,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.obsidian,
   },
   scrollContainer: {
-    padding: 20,
-    paddingBottom: 100,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'android' ? 24 : 12,
+    paddingBottom: 20,
   },
   ideasContainer: {
     gap: 16,
@@ -319,18 +318,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  dotCyan: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.neonCyan,
-  },
-  cardTagText: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 10,
-    color: colors.neonCyan,
-    letterSpacing: 0.5,
-  },
   cardTime: {
     fontFamily: 'JetBrainsMono_400Regular',
     fontSize: 10,
@@ -395,14 +382,15 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: 24,
-    left: 20, // requested floating button on the left
+    bottom: 100, // Above bottom nav
+    right: 20,
     width: 56,
     height: 56,
     borderRadius: 28,
     backgroundColor: colors.neonCyan,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 8,
+    borderWidth: 1,
+    borderColor: colors.borderGlow,
   }
 });
