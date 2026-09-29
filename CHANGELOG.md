@@ -1,3 +1,12 @@
+## [0.0.6] - 2026-09-28
+
+### Features
+
+- feat: App de desarrollo
+- feat: Pantalla de Notas y mejoras en Tasks
+- feat: mejoras en pantallas y updates
+- feat: Pantallas restantes
+
 ## [0.0.5] - 2026-09-21
 
 ### Features
