@@ -41,11 +41,13 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
 - **Gestión de Estado de Servidor:** Integración de `@tanstack/react-query` para manejo eficiente de caché, mutaciones optimistas y estado asíncrono.
 - **Autenticación y Persistencia:** Sistema de sesión utilizando Zustand y `SecureStore` (Expo), implementando rotación de Refresh Tokens transparente en el backend (interceptores) y un timeout de inactividad de 48 horas. Se solucionó el bug de expiración prematura usando un mutex-style `refreshPromise`.
 - **Arquitectura de Servicios:** Implementación de un patrón de API en `src/services/` que maneja tokens (JWT), interceptores globales para errores `401`, y abstracciones por dominio (`UserService`, `FinanceService`, `CategoryService`, `TodoService`, `JournalService`).
+- **Arquitectura de Entornos (Dual-App):** Configuración de variables dinámicas (`APP_VARIANT`) en `app.config.js` y `eas.json` para permitir la coexistencia de dos versiones independientes de la app en el mismo dispositivo ("Nexodus_Develop" y "Nexodus").
 - **Módulo de Configuración:** Creación de `SettingsScreen` conectada al backend (`/api/user/me`) permitiendo actualización del perfil y toggle de tema dinámico (claro/oscuro). Incluye pruebas para forzar el Refresco de Token en entorno de pruebas.
 - **Dashboard de Finanzas Avanzado:** La tarjeta de Patrimonio Neto (`NetWorthCard`) divide automáticamente el saldo restante según el método de pago ("En Efectivo" vs "En Tarjetas") y resalta en rojo los balances negativos, calculado de forma reactiva con React Query en base al historial de transacciones (ingresos y gastos).
 - **Dashboard de Tareas:** La tarjeta `DailyTodoCard` del dashboard ahora muestra datos reales de Tareas y Hábitos, integrando estados de carga dinámicos (Skeletons) e indicando la proporción de tareas completadas.
 - **Gestión de Tareas y Hábitos:** Lógica avanzada en la pantalla `TasksScreen` con desmarcado (uncomplete) de tareas, soporte estricto de filtros por frecuencias (Un solo día, Diario, Semanal y Mensual), renderización priorizada de "Urgentes" y menú contextual de borrado al mantener presionado.
 - **Componentes UI y UX (Obsidian Cyan):** 
+  - Refinamiento masivo de interfaces eliminando _drop shadows_ y aplicando bordes tonales sólidos estrictamente a través de variables de `theme.colors` (`GlobalAlert`, `DropdownMenu`, `CreateTaskModal`).
   - Mitigación de "destellos blancos" en la navegación configurando el color de fondo raíz en el `SafeAreaProvider`, `NavigationContainer` y `app.json` alineados a la filosofía *Obsidian Cyan*.
   - Navegación: Migración de Native Stack a `@react-navigation/bottom-tabs` con una barra inferior personalizada (`BottomNav`).
   - Reemplazo total de la API nativa `Alert.alert` por un componente `<GlobalAlert />` centralizado con Zustand.
@@ -53,9 +55,9 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
   - Implementación global del patrón de envolver modales y pantallas con entradas de texto en `<KeyboardAvoidingView>` y `<ScrollView>` para prevenir solapamiento con el teclado de software en iOS y Android.
   - Incorporación del componente contextual `<ActionSheet />` tipo menú inferior para acciones de edición o borrado rápido.
 
-## 🚀 Instalación y Uso
+## 🚀 Instalación y Uso Local
 
-Asegúrate de tener instalado [pnpm](https://pnpm.io/) y Node.js.
+Asegúrate de tener instalado [pnpm](https://pnpm.io/) y Node.js. Al ya no soportar Expo Go para notificaciones push, la aplicación requiere compilar un "Development Client".
 
 ```bash
 # 1. Instalar dependencias
@@ -63,45 +65,44 @@ pnpm install
 
 # 2. Iniciar el servidor de desarrollo de Expo
 pnpm start
-
-# Opciones adicionales:
-pnpm run android
-pnpm run ios
 ```
+*Una vez iniciado, abre la aplicación "Nexodus_Develop" instalada previamente en tu teléfono (ver sección Generar APK) para conectarla al servidor local.*
 
-## 📦 Generar APK (Android)
+## 📦 Generar APKs (Android)
 
-Para generar el archivo instalable `.apk` para Android utilizamos **EAS Build** (Expo Application Services). 
+La arquitectura de la aplicación permite tener **dos versiones instaladas simultáneamente** en tu teléfono sin que choquen:
+1. **Nexodus_Develop** (`com.garciaolveraaldo.Nexodus.dev`): Usada exclusivamente para desarrollo local con el bundler de Metro. Permite probar notificaciones push sin enviar a tiendas.
+2. **Nexodus** (`com.garciaolveraaldo.Nexodus`): Versión `preview` o `production` lista para demostraciones reales o entrega.
+
+Para compilar las APKs, utiliza **EAS Build**:
 
 ```bash
-# 1. Instalar la herramienta EAS CLI globalmente
-pnpm add -g eas-cli
+# Generar la APK de Desarrollo (Nexodus_Develop)
+eas build --profile development --platform android
 
-# 2. Iniciar sesión en tu cuenta de Expo
-eas login
-
-# 3. Mandar a compilar la aplicación a los servidores de Expo
-eas build -p android --profile preview
+# Generar la APK de Pruebas o Producción (Nexodus)
+eas build --profile preview --platform android
 ```
 
-> **Nota:** La configuración ya incluye un perfil `preview` en `eas.json` parametrizado con `"buildType": "apk"` para que Expo devuelva el binario directo (APK) en lugar de un Android App Bundle (AAB). Al finalizar la compilación, se proveerá un enlace de descarga en la terminal.
+> **Nota:** `eas.json` está preconfigurado para que ambas perfiles devuelvan un instalable `.apk` listo para arrastrar e instalar en tu celular.
 
 ## 📡 Actualizaciones OTA (Over-The-Air)
 
-La aplicación cuenta con el motor de actualizaciones rápidas OTA (`expo-updates`) mediante EAS Update, lo que permite inyectar nuevo código sin necesidad de generar o descargar un nuevo APK. Al abrir la app (o al regresar de segundo plano), se notificará automáticamente al usuario si existe una actualización disponible para reiniciar la aplicación.
+La aplicación cuenta con actualizaciones rápidas OTA (`expo-updates`) mediante EAS Update. Te permite inyectar cambios de Javascript y diseño al instante sin tener que reinstalar la APK. 
 
-### Enviar una Actualización
+### Comandos de Actualización (OTA)
 
-Para mandar un cambio en vivo a los usuarios, el comando debe coincidir con el perfil (`--profile`) que usaste para compilar el APK. 
+Si quieres mandar un cambio en vivo, ejecuta el comando hacia la "rama" deseada. Siempre recomendamos usar el flag `--clear-cache` si recientemente instalaste dependencias para evitar errores del empaquetador.
 
-Si generaste tu APK con `--profile preview` (como se muestra en el ejemplo anterior), envía la actualización a esa rama:
+**Para actualizar la app de Desarrollo (Nexodus_Develop):**
+*(Normalmente se prueba todo en local, pero si necesitas mandar OTA a un equipo remoto):*
 ```bash
-eas update --branch preview --message "Breve descripción del cambio"
+eas update --branch development --message "Actualización a rama dev" --clear-cache
 ```
 
-Si en el futuro generas tu APK final con `--profile production`, enviarás la actualización a esa rama:
+**Para actualizar la app de Pruebas (Nexodus):**
 ```bash
-eas update --branch production --message "Breve descripción del cambio"
+eas update --branch preview --message "Actualización a rama preview" --clear-cache
 ```
 
-> **Nota importante:** Las actualizaciones OTA solo funcionan para cambios en código Javascript/TypeScript (React Native) y assets (imágenes). Si en el futuro instalas una nueva librería que modifique código nativo (como acceso a cámara, notificaciones push, Bluetooth, etc.), entonces sí tendrás que generar un nuevo APK.
+> **Regla de oro:** Las actualizaciones OTA solo aplican para cambios en JS/TS o diseño. Si agregas una librería con dependencias nativas (ej. nuevo módulo de cámara o permisos del sistema), debes **forzosamente** volver a compilar una nueva APK.

@@ -14,15 +14,17 @@ import { useAlertStore } from '../../store/alertStore';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+if (Constants.appOwnership !== 'expo') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 export const SettingsScreen = () => {
   const theme = useTheme();
@@ -101,6 +103,11 @@ export const SettingsScreen = () => {
   const testNotification = async () => {
     if (!Device.isDevice) {
       showAlert('Error', 'Las notificaciones push requieren un dispositivo físico');
+      return;
+    }
+
+    if (Constants.appOwnership === 'expo') {
+      showAlert('Aviso', 'Las notificaciones no están disponibles en Expo Go en SDK 53+');
       return;
     }
 

@@ -28,6 +28,7 @@ import { DietScreen } from './src/features/diet/DietScreen';
 import { JournalScreen } from './src/features/journal/JournalScreen';
 import { CreateJournalEntryScreen } from './src/features/journal/CreateJournalEntryScreen';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -60,9 +61,14 @@ function AppInner() {
 
   useEffect(() => {
     const requestNotificationPermission = async () => {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      if (existingStatus !== 'granted') {
-        await Notifications.requestPermissionsAsync();
+      if (Constants.appOwnership === 'expo') return;
+      try {
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        if (existingStatus !== 'granted') {
+          await Notifications.requestPermissionsAsync();
+        }
+      } catch (e) {
+        console.warn('Notification permissions error:', e);
       }
     };
     
