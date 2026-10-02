@@ -15,7 +15,7 @@ export interface Category extends CategoryPayload {
 
 export const CategoryService = {
   getAll: async (): Promise<Category[]> => {
-    const response = await apiFetch('/api/categories/');
+    const response = await apiFetch('/api/categories');
     return handleResponse(response);
   },
   getById: async (id: string): Promise<Category> => {
@@ -23,7 +23,7 @@ export const CategoryService = {
     return handleResponse(response);
   },
   create: async (data: CategoryPayload): Promise<Category> => {
-    const response = await apiFetch('/api/categories/', {
+    const response = await apiFetch('/api/categories', {
       method: 'POST',
       body: JSON.stringify(data),
     });
