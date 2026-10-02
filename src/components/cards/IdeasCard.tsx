@@ -24,7 +24,7 @@ export const IdeasCard = () => {
     <TouchableOpacity 
       style={styles.card} 
       activeOpacity={0.8}
-      onPress={() => navigation.navigate('Journal')}
+      onPress={() => navigation.navigate('Ideas')}
     >
       <View style={styles.header}>
         <View style={styles.iconContainer}>

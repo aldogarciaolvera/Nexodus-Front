@@ -327,7 +327,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: 'JetBrainsMono_400Regular',
     fontSize: 10,
     color: colors.mutedText,
-    marginTop: 8,
+    marginTop: -4,
     alignSelf: 'flex-end',
   },
   card: {

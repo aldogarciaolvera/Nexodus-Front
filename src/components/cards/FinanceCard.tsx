@@ -68,58 +68,59 @@ export const FinanceCard = () => {
     <TouchableOpacity 
       style={styles.card}
       activeOpacity={0.8}
-      onPress={() => navigation.navigate('Finance')}
+      onPress={() => navigation.navigate('Money')}
     >
-      <View>
-        <View style={styles.header}>
-          <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={theme.colors.neonCyan} strokeWidth={1.8}>
-            <Path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </Svg>
-          <Text style={styles.headerTitle} numberOfLines={1}>Finanzas</Text>
-        </View>
-        
-        {isLoading ? (
-          <View style={{ marginTop: 20, gap: 12 }}>
-            <Skeleton width={100} height={14} />
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 4 }}>
-              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
-                <Skeleton width={16} height={28} />
-                <Skeleton width={16} height={44} />
-              </View>
-              <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                <Skeleton width={50} height={16} />
-                <Skeleton width={40} height={10} />
-              </View>
-            </View>
+      <>
+        <View>
+          <View style={styles.header}>
+            <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={theme.colors.neonCyan} strokeWidth={1.8}>
+              <Path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </Svg>
+            <Text style={styles.headerTitle} numberOfLines={1}>Finanzas</Text>
           </View>
-        ) : (
-          <>
+          
+          {isLoading ? (
+            <Skeleton width={100} height={14} style={{ marginTop: 20 }} />
+          ) : (
             <Text style={styles.spentText}>
               Gastado (Mes): <Text style={styles.spentValue}>${currentMonthSpent.toFixed(2)}</Text>
             </Text>
-            
-            <View style={styles.chartRow}>
-              <View style={styles.barsContainer}>
-                <View style={styles.barColumn}>
-                  <View style={[styles.bar, styles.barInactive, { height: Math.max((spentYesterday / maxDaily) * 44, 4) }]} />
-                  <Text style={styles.barLabel}>Ayer</Text>
-                </View>
-                <View style={styles.barColumn}>
-                  <View style={[styles.bar, styles.barActive, { height: Math.max((spentToday / maxDaily) * 44, 4) }]}>
-                    <View style={styles.barGlow} />
-                  </View>
-                  <Text style={styles.barLabel}>Hoy</Text>
-                </View>
+          )}
+        </View>
+
+        {isLoading ? (
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 4 }}>
+            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
+              <Skeleton width={16} height={28} />
+              <Skeleton width={16} height={44} />
+            </View>
+            <View style={{ alignItems: 'flex-end', gap: 4 }}>
+              <Skeleton width={50} height={16} />
+              <Skeleton width={40} height={10} />
+            </View>
+          </View>
+        ) : (
+          <View style={styles.chartRow}>
+            <View style={styles.barsContainer}>
+              <View style={styles.barColumn}>
+                <View style={[styles.bar, styles.barInactive, { height: Math.max((spentYesterday / maxDaily) * 44, 4) }]} />
+                <Text style={styles.barLabel}>Ayer</Text>
               </View>
-              
-              <View style={styles.remainingContainer}>
-                <Text style={[styles.remainingValue, isNegative && { color: theme.colors.error }]}>${remaining.toFixed(2)}</Text>
-                <Text style={[styles.remainingLabel, isNegative && { color: theme.colors.error }]}>(Restante)</Text>
+              <View style={styles.barColumn}>
+                <View style={[styles.bar, styles.barActive, { height: Math.max((spentToday / maxDaily) * 44, 4) }]}>
+                  <View style={styles.barGlow} />
+                </View>
+                <Text style={styles.barLabel}>Hoy</Text>
               </View>
             </View>
-          </>
+            
+            <View style={styles.remainingContainer}>
+              <Text style={[styles.remainingValue, isNegative && { color: theme.colors.error }]}>${remaining.toFixed(2)}</Text>
+              <Text style={[styles.remainingLabel, isNegative && { color: theme.colors.error }]}>(Restante)</Text>
+            </View>
+          </View>
         )}
-      </View>
+      </>
     </TouchableOpacity>
   );
 };
