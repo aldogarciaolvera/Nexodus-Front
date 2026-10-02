@@ -15,6 +15,7 @@ export interface TodoDto {
   highestStreak: number;
   lastCompletedAt?: string;
   notificationsEnabled?: boolean;
+  notificationTime?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -28,6 +29,7 @@ export interface CreateTodoDto {
   frequency?: string;
   customDays?: string;
   notificationsEnabled?: boolean;
+  notificationTime?: string;
 }
 
 export interface UpdateTodoDto {
@@ -40,6 +42,7 @@ export interface UpdateTodoDto {
   customDays?: string;
   isCompleted: boolean;
   notificationsEnabled?: boolean;
+  notificationTime?: string;
 }
 
 export const TodoService = {

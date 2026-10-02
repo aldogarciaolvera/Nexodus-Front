@@ -17,6 +17,14 @@ interface ChecklistItem {
   isCompleted: boolean;
 }
 
+const generateUUID = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
 export const CreateJournalEntryScreen = () => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
@@ -26,19 +34,20 @@ export const CreateJournalEntryScreen = () => {
   const queryClient = useQueryClient();
 
   const editNote = route.params?.editNote;
+  const initialType = route.params?.initialType || 'idea';
 
-  const [entryType, setEntryType] = useState<EntryType>(editNote?.type || 'idea');
+  const [entryType, setEntryType] = useState<EntryType>(editNote?.type || initialType);
   const [title, setTitle] = useState(editNote?.title || '');
   const [content, setContent] = useState(editNote?.content || '');
   
   const [checklist, setChecklist] = useState<ChecklistItem[]>(
     editNote?.checklist?.length 
-      ? editNote.checklist.map((item: any) => ({ ...item, id: item.id || Date.now().toString() + Math.random() }))
-      : [{ id: '1', text: '', isCompleted: false }]
+      ? editNote.checklist.map((item: any) => ({ ...item, id: item.id || generateUUID() }))
+      : [{ id: generateUUID(), text: '', isCompleted: false }]
   );
 
   const handleAddChecklistItem = () => {
-    setChecklist([...checklist, { id: Date.now().toString(), text: '', isCompleted: false }]);
+    setChecklist([...checklist, { id: generateUUID(), text: '', isCompleted: false }]);
   };
 
   const handleUpdateChecklistItem = (id: string, text: string) => {
@@ -77,12 +86,15 @@ export const CreateJournalEntryScreen = () => {
       return;
     }
 
-    const payload = {
-      type: entryType,
+    const payload: any = {
       title: entryType === 'idea' ? title : '',
       content: entryType === 'diario' ? content : '',
-      checklist: entryType === 'idea' ? checklist.filter(c => c.text.trim().length > 0).map(({ id, ...rest }) => rest) : [],
+      checklist: entryType === 'idea' ? checklist.filter(c => c.text.trim().length > 0) : [],
     };
+    
+    if (!editNote) {
+      payload.type = entryType;
+    }
     
     saveMutation.mutate(payload);
   };
@@ -115,17 +127,19 @@ export const CreateJournalEntryScreen = () => {
             </TouchableOpacity>
           </View>
           
-          <View style={{ width: 24 }} /> {/* Placeholder for balance */}
+          <View style={{ width: 24 }} />
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          <TextInput
-            style={styles.titleInput}
-            placeholder="Título..."
-            placeholderTextColor={theme.colors.mutedText}
-            value={title}
-            onChangeText={setTitle}
-          />
+          {entryType === 'idea' ? (
+            <TextInput
+              style={styles.titleInput}
+              placeholder="Título..."
+              placeholderTextColor={theme.colors.mutedText}
+              value={title}
+              onChangeText={setTitle}
+            />
+          ) : null}
 
           {entryType === 'idea' ? (
             <View style={styles.checklistContainer}>
@@ -195,7 +209,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: Platform.OS === 'android' ? 24 + 16 : 16 + 12,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderGlow,
   },

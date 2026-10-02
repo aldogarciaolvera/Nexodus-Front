@@ -12,6 +12,7 @@ export interface NoteDto {
   title?: string;
   content?: string;
   checklist?: ChecklistItemDto[];
+  isCompleted?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -21,12 +22,14 @@ export interface CreateNoteDto {
   title?: string;
   content?: string;
   checklist?: Omit<ChecklistItemDto, 'id'>[];
+  isCompleted?: boolean;
 }
 
 export interface UpdateNoteDto {
   title?: string;
   content?: string;
-  checklist?: Omit<ChecklistItemDto, 'id'>[];
+  checklist?: Partial<ChecklistItemDto>[];
+  isCompleted?: boolean;
 }
 
 class JournalService {

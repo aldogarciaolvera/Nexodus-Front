@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../utils/ThemeContext';
 import { ThemeColors } from '../../utils/theme';
-import { Mic, Plus } from 'lucide-react-native';
+import { Mic, Plus, CheckCircle2 } from 'lucide-react-native';
 import { Header } from '../../components/Header';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -11,6 +11,7 @@ import journalService, { NoteDto } from '../../services/journal.service';
 import { ActionSheet } from '../../components/ActionSheet';
 import { useAlertStore } from '../../store/alertStore';
 import { Skeleton } from '../../components/Skeleton';
+import { IdeaDetailsModal } from './components/IdeaDetailsModal';
 
 export const JournalScreen = () => {
   const theme = useTheme();
@@ -22,6 +23,7 @@ export const JournalScreen = () => {
   const alertStore = useAlertStore();
   const [selectedNote, setSelectedNote] = useState<NoteDto | null>(null);
   const [isActionModalVisible, setActionModalVisible] = useState(false);
+  const [selectedIdeaForModal, setSelectedIdeaForModal] = useState<NoteDto | null>(null);
 
   const { data: notes = [], isLoading } = useQuery({
     queryKey: ['notes'],
@@ -36,6 +38,22 @@ export const JournalScreen = () => {
       setSelectedNote(null);
     },
   });
+
+  const toggleCompletionMutation = useMutation({
+    mutationFn: (idea: NoteDto) => journalService.update(idea.id, { 
+      title: idea.title,
+      content: idea.content,
+      checklist: idea.checklist?.map(c => ({ id: c.id, text: c.text, isCompleted: c.isCompleted })) || [],
+      isCompleted: !idea.isCompleted 
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notes'] });
+    }
+  });
+
+  const handleToggleIdea = (idea: NoteDto) => {
+    toggleCompletionMutation.mutate(idea);
+  };
 
   const handleLongPress = (note: NoteDto) => {
     setSelectedNote(note);
@@ -85,9 +103,9 @@ export const JournalScreen = () => {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-          <Header title="Notes & Journal" />
+          <Header title="Ideas & Diario" />
           
-          {/* Toggle Switch */}
+          
           <View style={styles.typeToggle}>
             <TouchableOpacity 
               style={[styles.toggleBtn, activeTab === 'idea' && styles.toggleBtnActive]}
@@ -112,69 +130,73 @@ export const JournalScreen = () => {
           ) : activeTab === 'idea' ? (
           <View style={styles.ideasContainer}>
             {ideas.map(idea => (
-              <TouchableOpacity key={idea.id} style={styles.card} onLongPress={() => handleLongPress(idea)} delayLongPress={500}>
-                <View style={styles.cardTop}>
+              <TouchableOpacity key={idea.id} style={[styles.card, idea.isCompleted && { opacity: 0.6 }]} onPress={() => setSelectedIdeaForModal(idea)} onLongPress={() => handleLongPress(idea)} delayLongPress={500}>
+                <View style={[styles.cardTop, { marginBottom: idea.content || (idea.checklist && idea.checklist.length > 0) ? 12 : 0 }]}>
                   <View style={styles.cardTags}>
+                    {idea.title ? <Text style={[styles.cardTitle, { marginBottom: 0 }, idea.isCompleted && { textDecorationLine: 'line-through', color: theme.colors.mutedText }]}>{idea.title}</Text> : null}
                   </View>
-                  <Text style={styles.cardTime}>{new Date(idea.createdAt).toLocaleDateString()}</Text>
                 </View>
-                {idea.title ? <Text style={styles.cardTitle}>{idea.title}</Text> : null}
-                {idea.content ? <Text style={styles.cardDesc} numberOfLines={3}>{idea.content}</Text> : null}
+                {idea.content ? <Text style={[styles.cardDesc, idea.isCompleted && { textDecorationLine: 'line-through', color: theme.colors.mutedText }]} numberOfLines={3}>{idea.content}</Text> : null}
                 
-                {idea.checklist && idea.checklist.length > 0 && (
+                {idea.checklist && idea.checklist.length > 0 ? (
                   <View style={styles.checklistPreview}>
                     {idea.checklist.slice(0, 3).map(item => (
                       <View key={item.id} style={styles.checklistItem}>
-                        <View style={[styles.checkboxDot, item.isCompleted && styles.checkboxDotCompleted]} />
-                        <Text style={[styles.checklistText, item.isCompleted && styles.checklistTextCompleted]} numberOfLines={1}>
+                        {item.isCompleted ? (
+                          <CheckCircle2 color={theme.colors.neonCyan} size={14} style={{ marginRight: 8 }} />
+                        ) : (
+                          <View style={styles.checkboxDot} />
+                        )}
+                        <Text style={[styles.checklistText, item.isCompleted ? styles.checklistTextCompleted : null]} numberOfLines={1}>
                           {item.text}
                         </Text>
                       </View>
                     ))}
-                    {idea.checklist.length > 3 && (
+                    {idea.checklist.length > 3 ? (
                       <Text style={styles.moreItemsText}>+{idea.checklist.length - 3} más...</Text>
-                    )}
+                    ) : null}
                   </View>
-                )}
+                ) : null}
               </TouchableOpacity>
             ))}
-            {ideas.length === 0 && (
+            {ideas.length === 0 ? (
               <Text style={styles.emptyText}>No tienes ideas todavía.</Text>
-            )}
+            ) : null}
           </View>
         ) : (
           <View style={styles.journalContainer}>
-            <Text style={styles.journalMainTitle}>Diario</Text>
             {sortedDates.map(date => (
               <View key={date} style={styles.dateGroup}>
                 <Text style={styles.dateTitle}>{date}</Text>
-                {groupedJournal[date].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()).map(entry => (
-                  <TouchableOpacity key={entry.id} style={styles.journalEntryBlock} onLongPress={() => handleLongPress(entry)} delayLongPress={500}>
-                    {entry.title ? <Text style={styles.entryTitle}>{entry.title}</Text> : null}
-                    <Text style={styles.entryContent}>{entry.content}</Text>
-                    <Text style={styles.entryTime}>
-                      {new Date(entry.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                <View style={styles.journalEntryBlock}>
+                  {groupedJournal[date].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()).map((entry, index) => (
+                    <TouchableOpacity key={entry.id} style={[styles.innerEntry, index > 0 && styles.entryDivider]} onLongPress={() => handleLongPress(entry)} delayLongPress={500}>
+                      {entry.title ? <Text style={styles.entryTitle}>{entry.title}</Text> : null}
+                      <Text style={styles.entryContent}>{entry.content}</Text>
+                      <Text style={styles.entryTime}>
+                        {new Date(entry.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
             ))}
-            {sortedDates.length === 0 && (
+            {sortedDates.length === 0 ? (
               <Text style={styles.emptyText}>No tienes entradas de diario todavía.</Text>
-            )}
+            ) : null}
           </View>
         )}
         
-        {/* Spacer for bottom nav */}
+        
         <View style={{ height: 100 }} />
       </ScrollView>
       </View>
 
-      {/* Floating Action Button */}
+      
       <TouchableOpacity 
         style={styles.fab} 
         activeOpacity={0.8}
-        onPress={() => navigation.navigate('CreateJournalEntry')}
+        onPress={() => navigation.navigate('CreateJournalEntry', { initialType: activeTab })}
       >
         <Plus color="#000000" size={28} />
       </TouchableOpacity>
@@ -194,6 +216,12 @@ export const JournalScreen = () => {
             onPress: handleDelete
           }
         ]}
+      />
+
+      <IdeaDetailsModal 
+        visible={!!selectedIdeaForModal}
+        idea={selectedIdeaForModal}
+        onClose={() => setSelectedIdeaForModal(null)}
       />
     </SafeAreaView>
   );
@@ -249,12 +277,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   journalContainer: {
     gap: 24,
   },
-  journalMainTitle: {
-    fontFamily: 'Geist_700Bold',
-    fontSize: 24,
-    color: colors.text,
-    marginBottom: 8,
-  },
   dateGroup: {
     gap: 12,
     borderLeftWidth: 1,
@@ -280,6 +302,14 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.borderGlow,
+  },
+  innerEntry: {
+  },
+  entryDivider: {
+    borderTopWidth: 1,
+    borderTopColor: colors.borderGlow,
+    paddingTop: 16,
+    marginTop: 16,
   },
   entryTitle: {
     fontFamily: 'Geist_700Bold',

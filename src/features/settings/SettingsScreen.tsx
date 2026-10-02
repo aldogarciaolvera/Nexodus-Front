@@ -17,7 +17,6 @@ import * as Device from 'expo-device';
 if (Constants.appOwnership !== 'expo') {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
-      shouldShowAlert: true,
       shouldPlaySound: true,
       shouldSetBadge: false,
       shouldShowBanner: true,

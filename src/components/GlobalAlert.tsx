@@ -50,7 +50,6 @@ export const GlobalAlert = () => {
     >
       <TouchableWithoutFeedback onPress={hideAlert}>
         <View style={styles.overlay}>
-          {/* @ts-ignore */}
           <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
           
           <TouchableWithoutFeedback>
