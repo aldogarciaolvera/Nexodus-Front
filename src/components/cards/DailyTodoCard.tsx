@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
 import { theme } from '../../utils/theme';
 import { useQuery } from '@tanstack/react-query';
@@ -9,6 +10,8 @@ import { Skeleton } from '../Skeleton';
 import { TaskHabitItem } from '../../features/tasks/components/TaskHabitCard';
 
 export const DailyTodoCard = () => {
+  const navigation = useNavigation<any>();
+  
   const { data: todos = [], isLoading } = useQuery<TodoDto[]>({
     queryKey: ['todos'],
     queryFn: TodoService.getAll,
@@ -48,7 +51,11 @@ export const DailyTodoCard = () => {
   const displayTasks = sortedItems.slice(0, 3);
 
   return (
-    <View style={styles.card}>
+    <TouchableOpacity 
+      style={styles.card}
+      activeOpacity={0.8}
+      onPress={() => navigation.navigate('Tasks')}
+    >
       <View>
         <View style={styles.header}>
           <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={theme.colors.neonCyan} strokeWidth={1.8}>
@@ -110,7 +117,7 @@ export const DailyTodoCard = () => {
           )}
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 

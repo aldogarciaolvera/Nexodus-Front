@@ -5,6 +5,7 @@ import { ThemeColors } from '../../../utils/theme';
 import { Input } from '../../../components/Input';
 import { Button } from '../../../components/Button';
 import { CreateTodoDto, TodoDto } from '../../../services/todo.service';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 interface CreateTaskModalProps {
   visible: boolean;
@@ -35,6 +36,9 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
   const [isRepeating, setIsRepeating] = useState(false);
   const [selectedWeeklyDays, setSelectedWeeklyDays] = useState<number[]>([]);
   const [selectedMonthlyDays, setSelectedMonthlyDays] = useState<number[]>([]);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [notificationTime, setNotificationTime] = useState(new Date(new Date().setHours(9, 0, 0, 0)));
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
   React.useEffect(() => {
     if (visible) {
@@ -59,6 +63,16 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
           setSelectedWeeklyDays([]);
           setSelectedMonthlyDays([]);
         }
+        
+        setNotificationsEnabled(!!editingItem.notificationsEnabled);
+        if (editingItem.notificationTime) {
+          const [hours, minutes] = editingItem.notificationTime.split(':');
+          const t = new Date();
+          t.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+          setNotificationTime(t);
+        } else {
+          setNotificationTime(new Date(new Date().setHours(9, 0, 0, 0)));
+        }
       } else {
         // Reset form
         setTitle('');
@@ -70,6 +84,8 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
         setIsRepeating(false);
         setSelectedWeeklyDays([]);
         setSelectedMonthlyDays([]);
+        setNotificationsEnabled(false);
+        setNotificationTime(new Date(new Date().setHours(9, 0, 0, 0)));
       }
     }
   }, [visible, editingItem]);
@@ -93,6 +109,10 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
       urgent: urgent,
       frequency: finalFrequency,
       customDays: finalCustomDays,
+      notificationsEnabled,
+      notificationTime: notificationsEnabled 
+        ? `${notificationTime.getHours().toString().padStart(2, '0')}:${notificationTime.getMinutes().toString().padStart(2, '0')}` 
+        : undefined,
     };
 
     if (editingItem && onEdit) {
@@ -113,8 +133,10 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={Keyboard.dismiss}>
-          <TouchableOpacity activeOpacity={1} style={[styles.modalContent, { maxHeight: '90%', flexShrink: 1 }]} onPress={() => {}}>
+        <View style={styles.overlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={Keyboard.dismiss} />
+          
+          <View style={[styles.modalContent, { maxHeight: '90%', flexShrink: 1 }]}>
             <View style={styles.header}>
               <Text style={styles.title}>{editingItem ? (isHabit ? 'Editar Hábito' : 'Editar Tarea') : 'Nueva Task'}</Text>
               <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
@@ -263,6 +285,55 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
                   </View>
                 )}
 
+                <View style={styles.switchRow}>
+                  <Text style={styles.switchLabel}>¿Recibir notificaciones?</Text>
+                  <Switch 
+                    value={notificationsEnabled} 
+                    onValueChange={setNotificationsEnabled} 
+                    trackColor={{ false: theme.colors.slate600, true: theme.colors.neonCyan }}
+                    thumbColor={theme.colors.white}
+                  />
+                </View>
+
+                {notificationsEnabled && (
+                  <View style={styles.timePickerContainer}>
+                    <Text style={styles.label}>HORA DE NOTIFICACIÓN</Text>
+                    {Platform.OS === 'ios' ? (
+                      <DateTimePicker
+                        value={notificationTime}
+                        mode="time"
+                        display="default"
+                        onChange={(event, selectedDate) => {
+                          if (selectedDate) setNotificationTime(selectedDate);
+                        }}
+                        textColor={theme.colors.white}
+                      />
+                    ) : (
+                      <TouchableOpacity 
+                        style={styles.timeBtn} 
+                        onPress={() => setShowTimePicker(true)}
+                      >
+                        <Text style={styles.timeText}>
+                          {notificationTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {Platform.OS === 'android' && showTimePicker && (
+                      <DateTimePicker
+                        value={notificationTime}
+                        mode="time"
+                        is24Hour={true}
+                        display="default"
+                        onChange={(event, selectedDate) => {
+                          setShowTimePicker(false);
+                          if (selectedDate) setNotificationTime(selectedDate);
+                        }}
+                      />
+                    )}
+                  </View>
+                )}
+
                 <Button 
                   title={editingItem ? 'Guardar Cambios' : (!isHabit ? 'Añadir Tarea' : 'Crear Hábito')} 
                   onPress={handleAdd} 
@@ -271,8 +342,8 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
                 />
               </View>
             </ScrollView>
-          </TouchableOpacity>
-        </TouchableOpacity>
+          </View>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -327,11 +398,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderRadius: 8,
   },
   typeBtnActive: {
-    backgroundColor: colors.borderGlow,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderGlow,
     elevation: 2,
   },
   typeBtnText: {
@@ -454,4 +523,25 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.neonCyan,
     fontFamily: 'JetBrainsMono_500Medium',
   },
+  timePickerContainer: {
+    backgroundColor: colors.surface,
+    padding: 16,
+    borderRadius: 12,
+    marginTop: -8, // Pull closer to switch row
+  },
+  timeBtn: {
+    backgroundColor: colors.obsidian,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.borderGlow,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  timeText: {
+    fontFamily: 'JetBrainsMono_500Medium',
+    fontSize: 16,
+    color: colors.white,
+  }
 });

@@ -31,7 +31,7 @@ export const Input: React.FC<InputProps> = ({ label, error, style, isPassword, s
 
   return (
     <View style={styles.container}>
-      {label && <Text style={styles.label}>{label}</Text>}
+      {label ? <Text style={styles.label}>{label}</Text> : null}
       <View style={styles.inputContainer}>
         <TextInput
           style={[
@@ -67,7 +67,7 @@ export const Input: React.FC<InputProps> = ({ label, error, style, isPassword, s
           </TouchableOpacity>
         )}
       </View>
-      {error && <Text style={styles.errorText}>{error}</Text>}
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
     </View>
   );
 };

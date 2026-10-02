@@ -23,6 +23,12 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ThemeProvider, useTheme } from './src/utils/ThemeContext';
 import { GlobalAlert } from './src/components/GlobalAlert';
 import { useOTAUpdates } from './src/hooks/useOTAUpdates';
+import { GymScreen } from './src/features/gym/GymScreen';
+import { DietScreen } from './src/features/diet/DietScreen';
+import { JournalScreen } from './src/features/journal/JournalScreen';
+import { CreateJournalEntryScreen } from './src/features/journal/CreateJournalEntryScreen';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -35,9 +41,10 @@ function MainTabs() {
       screenOptions={{ headerShown: false }}
     >
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
+      <Tab.Screen name="Ideas" component={JournalScreen} />
       <Tab.Screen name="Tasks" component={TasksScreen} />
-      <Tab.Screen name="Gym" component={DashboardScreen} />
-      <Tab.Screen name="Meals" component={DashboardScreen} />
+      <Tab.Screen name="Gym" component={GymScreen} />
+      <Tab.Screen name="Diet" component={DietScreen} />
       <Tab.Screen name="Money" component={FinanceScreen} />
     </Tab.Navigator>
   );
@@ -53,6 +60,19 @@ function AppInner() {
   useOTAUpdates();
 
   useEffect(() => {
+    const requestNotificationPermission = async () => {
+      if (Constants.appOwnership === 'expo') return;
+      try {
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        if (existingStatus !== 'granted') {
+          await Notifications.requestPermissionsAsync();
+        }
+      } catch (e) {
+        console.warn('Notification permissions error:', e);
+      }
+    };
+    
+    requestNotificationPermission();
     initialize().finally(() => setIsReady(true));
   }, []);
 
@@ -100,6 +120,7 @@ function AppInner() {
           {isAuthenticated ? (
             <>
               <Stack.Screen name="MainTabs" component={MainTabs} />
+              <Stack.Screen name="CreateJournalEntry" component={CreateJournalEntryScreen} />
               <Stack.Screen name="AllTransactions" component={AllTransactionsScreen} />
               <Stack.Screen name="AllTasks" component={AllTasksScreen} />
               <Stack.Screen name="Settings" component={SettingsScreen} />

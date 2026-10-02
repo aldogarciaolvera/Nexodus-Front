@@ -34,8 +34,8 @@ export const ActionSheet = ({ visible, onClose, title, subtitle, options, isErro
         <View style={styles.content}>
           {(title || subtitle) && (
             <View style={styles.header}>
-              {title && <Text style={[styles.title, isError && styles.titleError]}>{title}</Text>}
-              {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+              {title ? <Text style={[styles.title, isError ? styles.titleError : null]}>{title}</Text> : null}
+              {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
             </View>
           )}
 

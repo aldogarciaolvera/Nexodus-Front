@@ -22,7 +22,7 @@ export interface FinanceSummary {
 
 export const FinanceService = {
   getAll: async (): Promise<FinanceTransaction[]> => {
-    const response = await apiFetch('/api/finances/');
+    const response = await apiFetch('/api/finances');
     return handleResponse(response);
   },
   getSummary: async (): Promise<FinanceSummary> => {
@@ -34,7 +34,7 @@ export const FinanceService = {
     return handleResponse(response);
   },
   create: async (data: FinancePayload) => {
-    const response = await apiFetch('/api/finances/', {
+    const response = await apiFetch('/api/finances', {
       method: 'POST',
       body: JSON.stringify(data),
     });

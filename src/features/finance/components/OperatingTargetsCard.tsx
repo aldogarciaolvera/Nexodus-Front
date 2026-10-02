@@ -56,7 +56,7 @@ export const OperatingTargetsCard = ({ transactions = [], categories = [], loadi
         .reduce((sum, t) => sum + t.amount, 0);
 
       // Colors to cycle through
-      const colors = [theme.colors.neonCyan, '#FFD700', '#FF3366', '#00E676'];
+      const colors = [theme.colors.neonCyan, theme.colors.warning, theme.colors.error, theme.colors.success];
       
       return {
         id: cat.id,
@@ -129,9 +129,17 @@ export const OperatingTargetsCard = ({ transactions = [], categories = [], loadi
           <Text style={{ color: theme.colors.slate400, fontFamily: 'JetBrainsMono_400Regular', textAlign: 'center' }}>No targets found</Text>
         ) : (
           targets.map((item, index) => {
-            const hasLimit = item.total > 0;
-            const fillPercent = hasLimit ? Math.min((item.value / item.total) * 100, 100) : 0;
-            const isOverLimit = hasLimit && item.value > item.total;
+            const netAmount = item.income - item.value;
+            let amountColor = theme.colors.text;
+            let displayAmountText = `$${Math.abs(netAmount).toFixed(2)}`;
+            
+            if (netAmount > 0) {
+              amountColor = theme.colors.success;
+            } else if (netAmount < 0) {
+              amountColor = theme.colors.error;
+              displayAmountText = `-$${Math.abs(netAmount).toFixed(2)}`;
+            }
+
             return (
               <TouchableOpacity 
                 key={item.id || index} 
@@ -156,23 +164,12 @@ export const OperatingTargetsCard = ({ transactions = [], categories = [], loadi
                 <View style={styles.itemHeader}>
                   <View style={styles.itemLabelRow}>
                     <View style={[styles.dot, { backgroundColor: item.color }]} />
-                    <Text style={[styles.itemLabel, isOverLimit && { color: theme.colors.error }]} numberOfLines={1}>{item.label}</Text>
-                    {isOverLimit && (
-                      <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={theme.colors.error} strokeWidth={2} style={{ marginLeft: 4 }}>
-                        <Path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </Svg>
-                    )}
+                    <Text style={[styles.itemLabel, netAmount < 0 && { color: theme.colors.error }]} numberOfLines={1}>{item.label}</Text>
                   </View>
                   <View style={styles.amountContainer}>
-                    <Text style={[styles.amountValue, isOverLimit && { color: theme.colors.error }]}>${item.value.toFixed(2)}</Text>
-                    {hasLimit && <Text style={styles.amountTotal}> / ${item.total.toFixed(2)}</Text>}
+                    <Text style={[styles.amountValue, { color: amountColor }]}>{displayAmountText}</Text>
                   </View>
                 </View>
-                {hasLimit && (
-                <View style={styles.progressTrack}>
-                  <View style={[styles.progressFill, { width: `${fillPercent}%`, backgroundColor: isOverLimit ? theme.colors.error : item.color }]} />
-                </View>
-                )}
               </TouchableOpacity>
             );
           })

@@ -17,6 +17,7 @@ export interface TaskHabitItem {
   lastCompletedAt?: string;
   createdAt?: string;
   updatedAt?: string;
+  notificationsEnabled?: boolean;
 }
 
 interface TaskHabitCardProps {

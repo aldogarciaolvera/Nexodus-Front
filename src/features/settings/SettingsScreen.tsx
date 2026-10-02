@@ -11,6 +11,19 @@ import Constants from 'expo-constants';
 import { AuthService } from '../../services/auth.service';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAlertStore } from '../../store/alertStore';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+
+if (Constants.appOwnership !== 'expo') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 export const SettingsScreen = () => {
   const theme = useTheme();
@@ -85,6 +98,48 @@ export const SettingsScreen = () => {
   };
 
 
+
+  const testNotification = async () => {
+    if (!Device.isDevice) {
+      showAlert('Error', 'Las notificaciones push requieren un dispositivo físico');
+      return;
+    }
+
+    if (Constants.appOwnership === 'expo') {
+      showAlert('Aviso', 'Las notificaciones no están disponibles en Expo Go en SDK 53+');
+      return;
+    }
+
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    
+    if (finalStatus !== 'granted') {
+      showAlert('Error', 'No se otorgaron permisos para notificaciones');
+      return;
+    }
+
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "¡Hola desde Nexodus! 🚀",
+          body: "Esta es una notificación de prueba para verificar que el sistema funciona.",
+          data: { test: 'true' },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+          seconds: 2,
+        },
+      });
+      showAlert('Éxito', 'La notificación se mostrará en 2 segundos', 'success');
+    } catch (e: any) {
+      showAlert('Error', `Fallo al programar notificación: ${e.message}`);
+    }
+  };
 
   const isTester = Array.isArray(user?.role) ? user.role.includes('Tester') : user?.role === 'Tester';
 
@@ -204,8 +259,19 @@ export const SettingsScreen = () => {
             >
               <Text style={[styles.logoutText, { color: theme.colors.neonCyan }]}>Test Refresh Token</Text>
             </TouchableOpacity>
+
           </View>
         )}
+
+        <View style={[styles.card, { marginTop: 16 }]}>
+          <TouchableOpacity 
+            style={[styles.logoutButton, { backgroundColor: theme.colors.surfaceLight, marginTop: 0, borderColor: theme.colors.neonCyan, borderWidth: 1 }]} 
+            activeOpacity={0.8}
+            onPress={testNotification}
+          >
+            <Text style={[styles.logoutText, { color: theme.colors.neonCyan }]}>Probar Notificación Push</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={logout} activeOpacity={0.8}>

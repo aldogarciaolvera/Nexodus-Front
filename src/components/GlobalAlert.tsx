@@ -50,7 +50,6 @@ export const GlobalAlert = () => {
     >
       <TouchableWithoutFeedback onPress={hideAlert}>
         <View style={styles.overlay}>
-          {/* @ts-ignore */}
           <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
           
           <TouchableWithoutFeedback>
@@ -117,10 +116,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: theme.colors.borderGlow,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
     elevation: 10,
   },
   iconContainer: {
