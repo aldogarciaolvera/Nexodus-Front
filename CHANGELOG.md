@@ -1,3 +1,9 @@
+## [0.0.7] - 2026-10-02
+
+### Features
+
+- feat: notificationes, mejoras en task y finanzas
+
 ## [0.0.6] - 2026-09-28
 
 ### Features
