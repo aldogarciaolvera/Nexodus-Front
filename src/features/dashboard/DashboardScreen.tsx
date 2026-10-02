@@ -6,6 +6,7 @@ import { DailyTodoCard } from '../../components/cards/DailyTodoCard';
 import { WorkoutCard } from '../../components/cards/WorkoutCard';
 import { DietCard } from '../../components/cards/DietCard';
 import { FinanceCard } from '../../components/cards/FinanceCard';
+import { IdeasCard } from '../../components/cards/IdeasCard';
 import { useTheme } from '../../utils/ThemeContext';
 import { ThemeColors } from '../../utils/theme';
 
@@ -26,6 +27,7 @@ export const DashboardScreen = () => {
             <View style={styles.gridColumn}>
               <DailyTodoCard />
               <DietCard />
+              <IdeasCard />
             </View>
             <View style={styles.gridColumn}>
               <WorkoutCard />

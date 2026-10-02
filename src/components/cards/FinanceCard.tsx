@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
 import { theme } from '../../utils/theme';
 import { useQuery } from '@tanstack/react-query';
@@ -8,6 +9,8 @@ import { CategoryService } from '../../services/category.service';
 import { Skeleton } from '../Skeleton';
 
 export const FinanceCard = () => {
+  const navigation = useNavigation<any>();
+
   const { data: summary, isLoading: loadingSummary } = useQuery({
     queryKey: ['financeSummary'],
     queryFn: FinanceService.getSummary,
@@ -32,20 +35,28 @@ export const FinanceCard = () => {
   const remaining = (summary?.totalIncome || 0) - totalSpent;
   const isNegative = remaining < 0;
 
-  // Calculate today's and yesterday's spending
   const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const yesterday = today - 86400000; // Subtract 24 hours in milliseconds
 
   let spentToday = 0;
   let spentYesterday = 0;
+  let currentMonthSpent = 0;
 
   transactions.forEach(t => {
-    if (t.transactionType === 'Gasto' && t.transactionDate) {
-      const tDate = new Date(t.transactionDate).getTime();
-      if (tDate >= today) {
+    if ((t.transactionType === 'Gasto' || t.transactionType === 'Expense') && t.transactionDate) {
+      const tDate = new Date(t.transactionDate);
+      const tTime = tDate.getTime();
+      
+      if (tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear) {
+        currentMonthSpent += t.amount;
+      }
+      
+      if (tTime >= today) {
         spentToday += t.amount;
-      } else if (tDate >= yesterday && tDate < today) {
+      } else if (tTime >= yesterday && tTime < today) {
         spentYesterday += t.amount;
       }
     }
@@ -54,7 +65,11 @@ export const FinanceCard = () => {
   const maxDaily = Math.max(spentToday, spentYesterday, 1); // Avoid division by zero
 
   return (
-    <View style={styles.card}>
+    <TouchableOpacity 
+      style={styles.card}
+      activeOpacity={0.8}
+      onPress={() => navigation.navigate('Finance')}
+    >
       <View>
         <View style={styles.header}>
           <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={theme.colors.neonCyan} strokeWidth={1.8}>
@@ -80,7 +95,7 @@ export const FinanceCard = () => {
         ) : (
           <>
             <Text style={styles.spentText}>
-              Gastado: <Text style={styles.spentValue}>${totalSpent.toFixed(2)}</Text>
+              Gastado (Mes): <Text style={styles.spentValue}>${currentMonthSpent.toFixed(2)}</Text>
             </Text>
             
             <View style={styles.chartRow}>
@@ -105,7 +120,7 @@ export const FinanceCard = () => {
           </>
         )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 
