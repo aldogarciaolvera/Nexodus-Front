@@ -1,3 +1,9 @@
+## [0.0.9] - 2026-10-07
+
+### Features
+
+- feat: Rutinas completas
+
 ## [0.0.8] - 2026-10-06
 
 ### Features
