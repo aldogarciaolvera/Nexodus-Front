@@ -1,3 +1,9 @@
+## [0.0.8] - 2026-10-06
+
+### Features
+
+- feat: Gym, Tasks y notificaciones
+
 ## [0.0.7] - 2026-10-02
 
 ### Features
