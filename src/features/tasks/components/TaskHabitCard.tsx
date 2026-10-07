@@ -58,7 +58,7 @@ export const TaskHabitCard: React.FC<TaskHabitCardProps> = ({ item, onToggle, on
             {item.title}
           </Text>
           {item.type === 'habit' && item.streak !== undefined && (
-            <Text style={styles.streakText}>🔥 {item.streak}d</Text>
+            <Text style={styles.streakText}>🔥 {item.streak}</Text>
           )}
           {item.type === 'task' && item.urgent && (
             <View style={styles.urgentDot} />

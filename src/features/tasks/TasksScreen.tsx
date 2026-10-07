@@ -14,6 +14,7 @@ import { isItemActiveForDate } from '../../utils/todoHelpers';
 import { Header } from '../../components/Header';
 import { Skeleton } from '../../components/Skeleton';
 import { useAlertStore } from '../../store/alertStore';
+import { scheduleTodoNotification, cancelTodoNotification } from '../../utils/notifications';
 
 const FILTERS = [
   { id: 'today', label: 'HOY' },
@@ -43,7 +44,8 @@ export const TasksScreen = () => {
 
   const createMutation = useMutation({
     mutationFn: (newTodo: CreateTodoDto) => TodoService.create(newTodo),
-    onSuccess: () => {
+    onSuccess: async (data) => {
+      await scheduleTodoNotification(data);
       queryClient.invalidateQueries({ queryKey: ['todos'] });
       setIsModalVisible(false);
     },
@@ -58,7 +60,11 @@ export const TasksScreen = () => {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => TodoService.delete(id),
-    onSuccess: () => {
+    onSuccess: async (_, id) => {
+      const todo = todos.find(t => t.id === id);
+      if (todo) {
+        await cancelTodoNotification(todo);
+      }
       queryClient.invalidateQueries({ queryKey: ['todos'] });
       setActionModalVisible(false);
       setSelectedItem(null);
@@ -83,31 +89,57 @@ export const TasksScreen = () => {
         frequency: data.frequency,
         isCompleted: false, // For un-completing tasks
         notificationsEnabled: data.notificationsEnabled,
+        notificationTime: data.notificationTime,
+        customDays: data.customDays,
       }),
-    onSuccess: () => {
+    onSuccess: async (data) => {
+      await scheduleTodoNotification(data);
       queryClient.invalidateQueries({ queryKey: ['todos'] });
       setIsModalVisible(false);
       setEditingItemDto(null);
     },
   });
 
+  // Compute date context for habits based on filter
+  const viewingDate = new Date();
+  if (filter === 'upcoming') {
+    viewingDate.setDate(viewingDate.getDate() + 1);
+  }
+  const viewingDateStr = viewingDate.toDateString();
+
   // Map Backend DTO to Frontend Item
-  const items: TaskHabitItem[] = todos.map(t => ({
-    id: t.id,
-    type: t.isHabit ? 'habit' : 'task',
-    title: t.task,
-    subtitle: t.subtitle,
-    tag: t.tag,
-    streak: t.currentStreak,
-    isCompleted: t.isCompleted,
-    urgent: t.urgent,
-    frequency: t.frequency,
-    customDays: t.customDays,
-    lastCompletedAt: t.lastCompletedAt,
-    createdAt: t.createdAt,
-    updatedAt: t.updatedAt,
-    notificationsEnabled: t.notificationsEnabled,
-  }));
+  const items: TaskHabitItem[] = todos.map(t => {
+    let computedCompleted = t.isCompleted;
+    const isRepeating = t.isHabit || (t.frequency && t.frequency !== 'Ninguna' && t.frequency !== 'Un solo día' && t.frequency !== '');
+
+    if (isRepeating && t.isCompleted) {
+      if (t.lastCompletedAt) {
+        const completedDate = new Date(t.lastCompletedAt).toDateString();
+        computedCompleted = completedDate === viewingDateStr;
+      } else {
+        // If no lastCompletedAt but marked as completed, assume it was today 
+        // (or fallback to true, but typically it should reset on new day)
+        computedCompleted = false;
+      }
+    }
+
+    return {
+      id: t.id,
+      type: t.isHabit ? 'habit' : 'task',
+      title: t.task,
+      subtitle: t.subtitle,
+      tag: t.tag,
+      streak: t.currentStreak,
+      isCompleted: computedCompleted,
+      urgent: t.urgent,
+      frequency: t.frequency,
+      customDays: t.customDays,
+      lastCompletedAt: t.lastCompletedAt,
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt,
+      notificationsEnabled: t.notificationsEnabled,
+    };
+  });
 
   const completedCount = items.filter(i => i.isCompleted).length;
   const totalCount = items.length;

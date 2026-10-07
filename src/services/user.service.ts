@@ -4,6 +4,8 @@ export interface UserProfile {
   username: string;
   email: string;
   phoneNumber: string;
+  weight?: number;
+  height?: number;
 }
 
 export const UserService = {

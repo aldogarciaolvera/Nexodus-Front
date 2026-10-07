@@ -23,5 +23,9 @@ module.exports = ({ config }) => {
       ...config.android,
       package: IS_DEV ? `${config.android?.package}.dev` : config.android?.package,
     },
+    plugins: [
+      ...(config.plugins || []),
+      "expo-image"
+    ],
   };
 };

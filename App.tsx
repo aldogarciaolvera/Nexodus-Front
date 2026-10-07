@@ -24,6 +24,7 @@ import { ThemeProvider, useTheme } from './src/utils/ThemeContext';
 import { GlobalAlert } from './src/components/GlobalAlert';
 import { useOTAUpdates } from './src/hooks/useOTAUpdates';
 import { GymScreen } from './src/features/gym/GymScreen';
+import { CreateRoutineScreen } from './src/features/gym/CreateRoutineScreen';
 import { DietScreen } from './src/features/diet/DietScreen';
 import { JournalScreen } from './src/features/journal/JournalScreen';
 import { CreateJournalEntryScreen } from './src/features/journal/CreateJournalEntryScreen';
@@ -121,6 +122,7 @@ function AppInner() {
             <>
               <Stack.Screen name="MainTabs" component={MainTabs} />
               <Stack.Screen name="CreateJournalEntry" component={CreateJournalEntryScreen} />
+              <Stack.Screen name="CreateRoutine" component={CreateRoutineScreen} />
               <Stack.Screen name="AllTransactions" component={AllTransactionsScreen} />
               <Stack.Screen name="AllTasks" component={AllTasksScreen} />
               <Stack.Screen name="Settings" component={SettingsScreen} />

@@ -43,12 +43,16 @@ export const SettingsScreen = () => {
   const [editUsername, setEditUsername] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [editWeight, setEditWeight] = useState('');
+  const [editHeight, setEditHeight] = useState('');
 
   useEffect(() => {
     if (profile) {
-      setEditUsername(profile.username);
-      setEditEmail(profile.email);
-      setEditPhone(profile.phoneNumber);
+      setEditUsername(profile.username || '');
+      setEditEmail(profile.email || '');
+      setEditPhone(profile.phoneNumber || '');
+      setEditWeight(profile.weight ? profile.weight.toString() : '');
+      setEditHeight(profile.height ? profile.height.toString() : '');
     }
   }, [profile]);
 
@@ -94,6 +98,8 @@ export const SettingsScreen = () => {
       username: editUsername,
       email: editEmail,
       phoneNumber: editPhone,
+      weight: editWeight ? parseFloat(editWeight) : undefined,
+      height: editHeight ? parseFloat(editHeight) : undefined,
     });
   };
 
@@ -340,6 +346,31 @@ export const SettingsScreen = () => {
               keyboardType="phone-pad"
               placeholderTextColor={theme.colors.slate500}
             />
+
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inputLabel}>Peso (kg)</Text>
+                <TextInput 
+                  style={styles.modalInput}
+                  value={editWeight}
+                  onChangeText={setEditWeight}
+                  placeholder="70.5"
+                  keyboardType="numeric"
+                  placeholderTextColor={theme.colors.slate500}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inputLabel}>Altura (m)</Text>
+                <TextInput 
+                  style={styles.modalInput}
+                  value={editHeight}
+                  onChangeText={setEditHeight}
+                  placeholder="1.75"
+                  keyboardType="numeric"
+                  placeholderTextColor={theme.colors.slate500}
+                />
+              </View>
+            </View>
             
             <TouchableOpacity 
               style={[styles.saveButton, mutation.isPending && styles.saveButtonDisabled]} 
@@ -476,7 +507,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingVertical: 20,
   },
   modalOverlayBackground: {
     position: 'absolute',
@@ -493,7 +524,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     padding: 24,
     borderWidth: 1,
     borderColor: colors.borderGlow,
-    maxHeight: '80%',
   },
   modalTitle: {
     fontFamily: 'Geist_700Bold',

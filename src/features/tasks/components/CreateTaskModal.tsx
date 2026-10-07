@@ -5,8 +5,7 @@ import { ThemeColors } from '../../../utils/theme';
 import { Input } from '../../../components/Input';
 import { Button } from '../../../components/Button';
 import { CreateTodoDto, TodoDto } from '../../../services/todo.service';
-import DateTimePicker from '@react-native-community/datetimepicker';
-
+import { CustomTimePicker } from '../../../components/CustomTimePicker';
 interface CreateTaskModalProps {
   visible: boolean;
   onClose: () => void;
@@ -299,15 +298,14 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
                   <View style={styles.timePickerContainer}>
                     <Text style={styles.label}>HORA DE NOTIFICACIÓN</Text>
                     {Platform.OS === 'ios' ? (
-                      <DateTimePicker
-                        value={notificationTime}
-                        mode="time"
-                        display="default"
-                        onChange={(event, selectedDate) => {
-                          if (selectedDate) setNotificationTime(selectedDate);
-                        }}
-                        textColor={theme.colors.white}
-                      />
+                      <TouchableOpacity 
+                        style={styles.timeBtn} 
+                        onPress={() => setShowTimePicker(true)}
+                      >
+                        <Text style={styles.timeText}>
+                          {notificationTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </Text>
+                      </TouchableOpacity>
                     ) : (
                       <TouchableOpacity 
                         style={styles.timeBtn} 
@@ -319,18 +317,15 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
                       </TouchableOpacity>
                     )}
 
-                    {Platform.OS === 'android' && showTimePicker && (
-                      <DateTimePicker
-                        value={notificationTime}
-                        mode="time"
-                        is24Hour={true}
-                        display="default"
-                        onChange={(event, selectedDate) => {
-                          setShowTimePicker(false);
-                          if (selectedDate) setNotificationTime(selectedDate);
-                        }}
-                      />
-                    )}
+                    <CustomTimePicker
+                      visible={showTimePicker}
+                      value={notificationTime}
+                      onClose={() => setShowTimePicker(false)}
+                      onConfirm={(date) => {
+                        setNotificationTime(date);
+                        setShowTimePicker(false);
+                      }}
+                    />
                   </View>
                 )}
 

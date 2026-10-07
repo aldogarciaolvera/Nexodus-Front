@@ -120,21 +120,36 @@ export const AllTasksScreen = () => {
   };
 
   // Map Backend DTO to Frontend Item
-  const items: TaskHabitItem[] = todos.map(t => ({
-    id: t.id,
-    type: t.isHabit ? 'habit' : 'task',
-    title: t.task,
-    subtitle: t.subtitle,
-    tag: t.tag,
-    streak: t.currentStreak,
-    isCompleted: t.isCompleted,
-    urgent: t.urgent,
-    frequency: t.frequency,
-    customDays: t.customDays,
-    lastCompletedAt: t.lastCompletedAt,
-    createdAt: t.createdAt,
-    updatedAt: t.updatedAt,
-  }));
+  const items: TaskHabitItem[] = todos.map(t => {
+    let computedCompleted = t.isCompleted;
+    const isRepeating = t.isHabit || (t.frequency && t.frequency !== 'Ninguna' && t.frequency !== 'Un solo día' && t.frequency !== '');
+
+    if (isRepeating && t.isCompleted) {
+      if (t.lastCompletedAt) {
+        const completedDate = new Date(t.lastCompletedAt).toDateString();
+        const viewingDate = new Date().toDateString(); // AllTasksScreen just uses "today"
+        computedCompleted = completedDate === viewingDate;
+      } else {
+        computedCompleted = false;
+      }
+    }
+
+    return {
+      id: t.id,
+      type: t.isHabit ? 'habit' : 'task',
+      title: t.task,
+      subtitle: t.subtitle,
+      tag: t.tag,
+      streak: t.currentStreak,
+      isCompleted: computedCompleted,
+      urgent: t.urgent,
+      frequency: t.frequency,
+      customDays: t.customDays,
+      lastCompletedAt: t.lastCompletedAt,
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt,
+    };
+  });
 
   // Filtering
   let filteredItems = items;
