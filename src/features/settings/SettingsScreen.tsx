@@ -13,6 +13,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAlertStore } from '../../store/alertStore';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import * as Updates from 'expo-updates';
 
 if (Constants.appOwnership !== 'expo') {
   Notifications.setNotificationHandler({
@@ -147,6 +148,52 @@ export const SettingsScreen = () => {
     }
   };
 
+  const handleCheckUpdates = async () => {
+    try {
+      if (__DEV__) {
+        showAlert('Aviso', 'Las actualizaciones OTA no funcionan en modo desarrollo o Expo Go.');
+        return;
+      }
+      
+      const update = await Updates.checkForUpdateAsync();
+      if (update.isAvailable) {
+        useAlertStore.getState().showAlert({
+          title: 'Actualización disponible',
+          message: 'Hay una nueva versión de Nexodus. ¿Deseas descargarla ahora?',
+          type: 'info',
+          buttons: [
+            { text: 'Cancelar', style: 'cancel', onPress: () => useAlertStore.getState().hideAlert() },
+            { 
+              text: 'Actualizar', 
+              style: 'default', 
+              onPress: async () => {
+                useAlertStore.getState().hideAlert();
+                useAlertStore.getState().showAlert('Actualizando', 'Descargando actualización...', 'info');
+                try {
+                  await Updates.fetchUpdateAsync();
+                  useAlertStore.getState().showAlert({
+                    title: '¡Listo!',
+                    message: 'La actualización se descargó correctamente. La app se reiniciará para aplicar los cambios.',
+                    type: 'success',
+                    buttons: [
+                      { text: 'Reiniciar', style: 'default', onPress: () => Updates.reloadAsync() }
+                    ]
+                  });
+                } catch (fetchErr: any) {
+                  useAlertStore.getState().showAlert('Error', `No se pudo descargar la actualización: ${fetchErr.message}`);
+                }
+              }
+            }
+          ]
+        });
+      } else {
+        showAlert('Al día', 'Estás usando la versión más reciente de Nexodus.', 'success');
+      }
+    } catch (error: any) {
+      showAlert('Error', `No se pudo comprobar actualizaciones: ${error.message}`);
+    }
+  };
+
   const isTester = Array.isArray(user?.role) ? user.role.includes('Tester') : user?.role === 'Tester';
 
   return (
@@ -276,6 +323,14 @@ export const SettingsScreen = () => {
             onPress={testNotification}
           >
             <Text style={[styles.logoutText, { color: theme.colors.neonCyan }]}>Probar Notificación Push</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.logoutButton, { backgroundColor: theme.colors.surfaceLight, marginTop: 12, borderColor: theme.colors.neonCyan, borderWidth: 1 }]} 
+            activeOpacity={0.8}
+            onPress={handleCheckUpdates}
+          >
+            <Text style={[styles.logoutText, { color: theme.colors.neonCyan }]}>Buscar Actualizaciones</Text>
           </TouchableOpacity>
         </View>
 
