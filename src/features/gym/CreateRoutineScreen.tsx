@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useTheme } from '../../utils/ThemeContext';
 import { ThemeColors } from '../../utils/theme';
 import { ArrowLeft, Plus, Save, Trash2, X, CheckCircle2 } from 'lucide-react-native';
@@ -11,7 +11,7 @@ import { gymService, Exercise } from '../../services/gym.service';
 import { Image } from 'expo-image';
 import { Skeleton } from '../../components/Skeleton';
 
-type Difficulty = 'Beginner' | 'Intermediate' | 'Advanced';
+type Difficulty = 'Principiante' | 'Intermedio' | 'Avanzado';
 
 interface RoutineExerciseForm {
   id: string; // temp ID for UI
@@ -19,7 +19,9 @@ interface RoutineExerciseForm {
   name: string;
   sets: number;
   reps: number;
+  weight?: number;
   restTimeInSeconds: number;
+  thumbUrl?: string;
 }
 
 const generateTempId = () => Math.random().toString(36).substring(7);
@@ -28,6 +30,9 @@ export const CreateRoutineScreen = () => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
   const navigation = useNavigation();
+  const route = useRoute<RouteProp<{ params: { routineId?: string } }>>();
+  const routineId = route.params?.routineId;
+  
   const showAlert = useAlertStore((state: any) => state.showAlert);
   const queryClient = useQueryClient();
 
@@ -42,7 +47,7 @@ export const CreateRoutineScreen = () => {
   const DAYS = [
     { label: 'L', value: 1 },
     { label: 'M', value: 2 },
-    { label: 'M', value: 3 },
+    { label: 'X', value: 3 },
     { label: 'J', value: 4 },
     { label: 'V', value: 5 },
     { label: 'S', value: 6 },
@@ -61,11 +66,41 @@ export const CreateRoutineScreen = () => {
     (e: Exercise) => selectedBodyPart === 'All' || (e.bodyPart || 'Otro') === selectedBodyPart
   );
 
+  const { data: existingRoutine, isLoading: isLoadingRoutine } = useQuery({
+    queryKey: ['routine', routineId],
+    queryFn: () => gymService.getRoutineById(routineId!),
+    enabled: !!routineId,
+  });
+
+  useEffect(() => {
+    if (existingRoutine && availableExercises.length > 0) {
+      setName(existingRoutine.name);
+      setDescription(existingRoutine.description || '');
+      setTargetDay(existingRoutine.targetDay);
+      setExercises(existingRoutine.exercises.map(ex => {
+        const foundEx = availableExercises.find((e: Exercise) => e.id === ex.exerciseId);
+        return {
+          id: ex.id || generateTempId(),
+          exerciseId: ex.exerciseId,
+          name: foundEx?.name || ex.exercise?.name || 'Cargando...',
+          thumbUrl: foundEx?.thumbUrl || foundEx?.gifUrl,
+          sets: ex.sets,
+          reps: ex.reps,
+          weight: ex.weight || 0,
+          restTimeInSeconds: ex.restTimeInSeconds
+        };
+      }));
+    }
+  }, [existingRoutine, availableExercises]);
+
   const saveMutation = useMutation({
-    mutationFn: gymService.createRoutine,
+    mutationFn: (data: any) => routineId 
+      ? gymService.updateRoutine(routineId, data)
+      : gymService.createRoutine(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['routines'] });
-      showAlert('Guardado', 'Rutina creada correctamente.', 'success');
+      queryClient.invalidateQueries({ queryKey: ['routine', routineId] });
+      showAlert('Guardado', routineId ? 'Rutina actualizada.' : 'Rutina creada correctamente.', 'success');
       navigation.goBack();
     },
     onError: (error: any) => {
@@ -78,6 +113,10 @@ export const CreateRoutineScreen = () => {
       showAlert('Error', 'El nombre de la rutina es requerido.', 'error');
       return;
     }
+    if (!targetDay) {
+      showAlert('Error', 'Debes asignar un día para la rutina.', 'error');
+      return;
+    }
     if (exercises.length === 0) {
       showAlert('Error', 'Debes agregar al menos un ejercicio.', 'error');
       return;
@@ -86,12 +125,13 @@ export const CreateRoutineScreen = () => {
     saveMutation.mutate({
       name,
       description,
-      difficultyLevel: 'Intermediate',
+      difficultyLevel: existingRoutine?.difficultyLevel || 'Intermedio',
       targetDay,
       exercises: exercises.map(e => ({
         exerciseId: e.exerciseId,
         sets: e.sets,
         reps: e.reps,
+        weight: e.weight || 0,
         restTimeInSeconds: e.restTimeInSeconds
       }))
     });
@@ -117,8 +157,10 @@ export const CreateRoutineScreen = () => {
         id: generateTempId(),
         exerciseId: ex.id,
         name: ex.name,
+        thumbUrl: ex.thumbUrl || ex.gifUrl,
         sets: 4,
         reps: 12,
+        weight: 0,
         restTimeInSeconds: 90
       }));
 
@@ -218,13 +260,14 @@ export const CreateRoutineScreen = () => {
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView 
         style={styles.container} 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <ArrowLeft color={theme.colors.text} size={24} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Crear Rutina</Text>
+          <Text style={styles.headerTitle}>{routineId ? 'Editar Rutina' : 'Crear Rutina'}</Text>
           <View style={{ width: 24 }} />
         </View>
 
@@ -254,7 +297,7 @@ export const CreateRoutineScreen = () => {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>DÍA (Opcional)</Text>
+            <Text style={styles.label}>DÍA</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
               {DAYS.map((day, idx) => (
                 <TouchableOpacity
@@ -281,8 +324,11 @@ export const CreateRoutineScreen = () => {
           {exercises.map((ex, index) => (
             <View key={ex.id} style={styles.exerciseCard}>
               <View style={styles.exCardTop}>
+                {ex.thumbUrl && (
+                  <Image source={{ uri: ex.thumbUrl }} style={{ width: 40, height: 40, borderRadius: 8, marginRight: 12 }} />
+                )}
                 <Text style={styles.exCardTitle}>{index + 1}. {ex.name}</Text>
-                <TouchableOpacity onPress={() => removeExercise(ex.id)}>
+                <TouchableOpacity onPress={() => removeExercise(ex.id)} style={{ marginLeft: 'auto' }}>
                   <Trash2 color={theme.colors.error} size={18} />
                 </TouchableOpacity>
               </View>
@@ -292,7 +338,19 @@ export const CreateRoutineScreen = () => {
                   <Text style={styles.metricLabel}>SETS</Text>
                   <View style={styles.metricInputContainer}>
                     <TouchableOpacity onPress={() => updateExercise(ex.id, 'sets', Math.max(1, ex.sets - 1))}><Text style={styles.metricBtn}>-</Text></TouchableOpacity>
-                    <Text style={styles.metricValue}>{ex.sets}</Text>
+                    <TextInput
+                      style={[styles.metricValue, { padding: 0, flex: 1, textAlign: 'center' }]}
+                      value={ex.sets.toString()}
+                      keyboardType="numeric"
+                      onChangeText={(text) => {
+                        const parsed = parseInt(text, 10);
+                        if (!isNaN(parsed) && parsed > 0) {
+                          updateExercise(ex.id, 'sets', parsed);
+                        } else if (text === '') {
+                          updateExercise(ex.id, 'sets', 1);
+                        }
+                      }}
+                    />
                     <TouchableOpacity onPress={() => updateExercise(ex.id, 'sets', ex.sets + 1)}><Text style={styles.metricBtn}>+</Text></TouchableOpacity>
                   </View>
                 </View>
@@ -301,7 +359,19 @@ export const CreateRoutineScreen = () => {
                   <Text style={styles.metricLabel}>REPS</Text>
                   <View style={styles.metricInputContainer}>
                     <TouchableOpacity onPress={() => updateExercise(ex.id, 'reps', Math.max(1, ex.reps - 1))}><Text style={styles.metricBtn}>-</Text></TouchableOpacity>
-                    <Text style={styles.metricValue}>{ex.reps}</Text>
+                    <TextInput
+                      style={[styles.metricValue, { padding: 0, flex: 1, textAlign: 'center' }]}
+                      value={ex.reps.toString()}
+                      keyboardType="numeric"
+                      onChangeText={(text) => {
+                        const parsed = parseInt(text, 10);
+                        if (!isNaN(parsed) && parsed > 0) {
+                          updateExercise(ex.id, 'reps', parsed);
+                        } else if (text === '') {
+                          updateExercise(ex.id, 'reps', 1);
+                        }
+                      }}
+                    />
                     <TouchableOpacity onPress={() => updateExercise(ex.id, 'reps', ex.reps + 1)}><Text style={styles.metricBtn}>+</Text></TouchableOpacity>
                   </View>
                 </View>
@@ -310,8 +380,43 @@ export const CreateRoutineScreen = () => {
                   <Text style={styles.metricLabel}>REST (s)</Text>
                   <View style={styles.metricInputContainer}>
                     <TouchableOpacity onPress={() => updateExercise(ex.id, 'restTimeInSeconds', Math.max(0, ex.restTimeInSeconds - 15))}><Text style={styles.metricBtn}>-</Text></TouchableOpacity>
-                    <Text style={styles.metricValue}>{ex.restTimeInSeconds}</Text>
+                    <TextInput
+                      style={[styles.metricValue, { padding: 0, flex: 1, textAlign: 'center' }]}
+                      value={ex.restTimeInSeconds.toString()}
+                      keyboardType="numeric"
+                      onChangeText={(text) => {
+                        const parsed = parseInt(text, 10);
+                        if (!isNaN(parsed)) {
+                          updateExercise(ex.id, 'restTimeInSeconds', parsed);
+                        } else if (text === '') {
+                          updateExercise(ex.id, 'restTimeInSeconds', 0);
+                        }
+                      }}
+                    />
                     <TouchableOpacity onPress={() => updateExercise(ex.id, 'restTimeInSeconds', ex.restTimeInSeconds + 15)}><Text style={styles.metricBtn}>+</Text></TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+
+              <View style={[styles.exMetricsRow, { marginTop: 12, justifyContent: 'flex-start' }]}>
+                <View style={styles.metricControl}>
+                  <Text style={styles.metricLabel}>PESO (kg)</Text>
+                  <View style={styles.metricInputContainer}>
+                    <TouchableOpacity onPress={() => updateExercise(ex.id, 'weight', Math.max(0, (ex.weight || 0) - 0.5))}><Text style={styles.metricBtn}>-</Text></TouchableOpacity>
+                    <TextInput
+                      style={[styles.metricValue, { padding: 0, flex: 1, textAlign: 'center' }]}
+                      value={ex.weight?.toString() || '0'}
+                      keyboardType="numeric"
+                      onChangeText={(text) => {
+                        const parsed = parseFloat(text.replace(',', '.'));
+                        if (!isNaN(parsed)) {
+                          updateExercise(ex.id, 'weight', parsed);
+                        } else if (text === '') {
+                          updateExercise(ex.id, 'weight', 0);
+                        }
+                      }}
+                    />
+                    <TouchableOpacity onPress={() => updateExercise(ex.id, 'weight', (ex.weight || 0) + 0.5)}><Text style={styles.metricBtn}>+</Text></TouchableOpacity>
                   </View>
                 </View>
               </View>
@@ -325,6 +430,7 @@ export const CreateRoutineScreen = () => {
           
           <View style={{ height: 40 }} />
         </ScrollView>
+      </KeyboardAvoidingView>
 
         <View style={styles.footer}>
           <TouchableOpacity 
@@ -338,7 +444,6 @@ export const CreateRoutineScreen = () => {
             </Text>
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

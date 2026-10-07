@@ -3,7 +3,8 @@ import { apiFetch, handleResponse } from './api';
 export interface Exercise {
   id: string;
   name: string;
-  description: string;
+  description?: string;
+  instructions?: string;
   targetMuscleGroup: string;
   equipment: string;
   videoUrl?: string;
@@ -18,6 +19,7 @@ export interface RoutineExercise {
   exerciseId: string;
   sets: number;
   reps: number;
+  weight?: number; // Added weight property
   restTimeInSeconds: number;
   exercise?: Exercise;
 }
@@ -39,6 +41,22 @@ export interface CreateRoutineRequest {
   difficultyLevel: string;
   targetDay?: number;
   exercises: Omit<RoutineExercise, 'id' | 'exercise'>[];
+}
+
+export interface CreateWorkoutLogRequest {
+  routineId: string;
+  durationInSeconds: number;
+  completedExercisesCount: number;
+  dateCompleted: string;
+}
+
+export interface WorkoutLog {
+  id: string;
+  routineId: string;
+  durationInSeconds: number;
+  completedExercisesCount: number;
+  dateCompleted: string;
+  routine?: Routine;
 }
 
 export const gymService = {
@@ -83,6 +101,22 @@ export const gymService = {
   deleteRoutine: async (id: string): Promise<void> => {
     const response = await apiFetch(`/api/routines/${id}`, {
       method: 'DELETE',
+    });
+    if (response.status !== 204) {
+      return handleResponse(response);
+    }
+  },
+
+  // Workout Logs
+  getWorkoutLogs: async (): Promise<WorkoutLog[]> => {
+    const response = await apiFetch('/api/workouts');
+    return handleResponse(response);
+  },
+
+  createWorkoutLog: async (data: CreateWorkoutLogRequest): Promise<void> => {
+    const response = await apiFetch('/api/workouts', {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
     return handleResponse(response);
   }
