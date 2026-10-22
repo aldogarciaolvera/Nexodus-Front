@@ -1,3 +1,10 @@
+## [0.0.10] - 2026-10-22
+
+### Features
+
+- feat: Auditoria de lo ya hecho
+- feat: boton de actualizaciones y documentacion
+
 ## [0.0.9] - 2026-10-07
 
 ### Features
