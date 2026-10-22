@@ -36,6 +36,58 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
 
 ## 🆕 Últimos Cambios
 
+- **Alineación de Layouts, Scroll en Ajustes, Dashboard Dinámico y Carga Completa de Ejercicios:**
+  - **Alineación Pixel-Perfect de Headers entre Pestañas:** Se normalizó la jerarquía de vistas y el padding superior (`paddingTop: Platform.OS === 'android' ? 24 : 12` y `paddingHorizontal: 20`) en `GymScreen`, `JournalScreen` y `DietScreen`, eliminando el desnivel de 4px al alternar entre pestañas desde la barra inferior.
+  - **Soporte de Desplazamiento en Ajustes (`SettingsScreen`):** Se integró un `ScrollView` envolvente con `keyboardShouldPersistTaps="handled"` y padding inferior seguro, garantizando acceso a todas las opciones (perfil, recordatorios, preferencias, tokens y cierre de sesión) en pantallas de cualquier tamaño.
+  - **Previsualización de Ejercicios y Ajuste de Tarjetas en Dashboard:**
+    - `WorkoutCard`: Ahora consulta y presenta los nombres de los ejercicios programados para la rutina de hoy aunque el entrenamiento aún no se haya iniciado (`gymService.getRoutineById`), mostrando además el número de ejercicios programados en el gauge circular.
+    - **Ajuste Natural al Contenido:** Se removieron `flex: 1`, `minHeight: 180` y `justifyContent: 'space-between'` en `DailyTodoCard`, `WorkoutCard`, `DietCard`, `FinanceCard` e `IdeasCard`, eliminando los espacios vacíos y permitiendo que cada tarjeta abrace fielmente su contenido.
+  - **Carga de Todos los Ejercicios al Crear Rutinas:**
+    - Se implementó `gymService.getAllExercises()` con estrategia de fallback de paginación automática respetando el tope de `pageSize=100` del backend y paginando en paralelo o secuencialmente según metadata (`totalPages` / lotes de 50-100) con deduplicación por ID, garantizando que el selector cargue la totalidad de los ejercicios de la base de datos sin importar cómo divida las páginas el backend.
+
+- **Recordatorio Global de Tareas y Corrección Integral de Notificaciones:**
+  - **Recordatorio Global Diario en Ajustes:** Se implementó una nueva preferencia en `SettingsScreen` con un Switch interactivo y selector horario emergente (`CustomTimePicker`). Al activarse, permite elegir la hora deseada (ej. `20:00`) y programa una notificación local diaria persistente para alertar al usuario de revisar y completar sus tareas del día. Una vez guardado, se muestra el Switch activo y una píldora táctil con la hora configurada para permitir ajustes posteriores.
+  - **Corrección de Entrega de Notificaciones en Tareas y Hábitos (`notifications.ts`):**
+    - **Parsing Robusto de Horarios:** Se resolvió el error crítico donde `new Date(todo.notificationTime)` con formato `"HH:mm"` generaba `Invalid Date` y parámetros `NaN`, impidiendo la programación de alertas.
+    - **Normalización de Frecuencias e Idiomas:** Se corrigió la discrepancia de nombres entre el selector de la UI (`Daily`, `Weekly`, `Monthly`) y las condiciones de scheduling, dando soporte a ambas convenciones en inglés y español.
+    - **Mapeo de Días de la Semana:** Corrección del índice de días entre el estándar de la app (1=Lunes .. 7=Domingo) y la API de Expo Notifications (1=Domingo .. 7=Sábado) para hábitos semanales con `customDays`.
+    - **Canal de Notificaciones en Android (`setNotificationChannelAsync`):** Creación mandatoria del canal de importancia máxima (`AndroidImportance.MAX`), sonido del sistema por defecto (omitiendo la clave `sound` para evitar la búsqueda errónea de assets de audio locales en el bundle nativo) y vinculación directa a los triggers para garantizar la presentación de banners y sonido en Android 8.0+.
+    - **Inicialización Global del Handler:** Desacoplamiento de `setNotificationHandler` para ejecutarse a nivel de raíz (`notifications.ts` y `App.tsx`), garantizando que las notificaciones en primer plano y segundo plano se muestren consistentemente sin importar la pantalla activa.
+    - **Sincronización en `AllTasksScreen`:** Integración de `scheduleTodoNotification` y `cancelTodoNotification` al editar o eliminar tareas desde la vista completa de tareas.
+
+- **Buscador de Ejercicios y Localización al Español (Módulo de Gimnasio):**
+  - **Buscador en Tiempo Real e Inmune a Acentos:** Implementación de una barra de búsqueda (`TextInput`) con soporte accesible en `ExercisePickerModal` y normalización de texto NFD (`normalizeSearchText`) para ignorar acentos, diacríticos y mayúsculas/minúsculas (ej. "Jalon" encuentra "Jalón", "Biceps" encuentra "Bíceps", "maquina" encuentra "Máquina"). Permite filtrar instantáneamente ejercicios por nombre si el usuario ya los conoce, o por músculo, grupo o equipamiento. Cuenta con botón de limpieza (`X`), estado vacío informativo y contador de resultados.
+  - **Localización Completa al Español:** Mapeo y traducción integral de anatomía y equipamiento (`src/utils/gymTranslations.ts`), traduciendo partes del cuerpo (`chest` -> Pecho, `shoulders` -> Hombros, `back` -> Espalda, etc.), grupos musculares (`delts` -> Deltoides, `biceps` -> Bíceps, etc.), equipamiento y categorías en los filtros, badges de selección, tarjetas de creación de rutinas (`RoutineExerciseItem`) y durante la ejecución de entrenamientos (`ActiveWorkoutScreen`).
+  - **Sincronización Total con Endpoints del Backend:**
+    - `gymService.getExercises`: Soporte para paginación opcional (`page`, `pageSize`) y desempaquetado agnóstico de formatos de respuesta (`array`, `{ items }`, `{ data }`, `{ content }`).
+    - Métodos agregados en `gymService`: `getWorkoutLogById` y `deleteWorkoutLog` (`/api/workouts/:id`).
+    - Verificación y blindaje de endpoints: `/api/todos/:id/uncompleted`, `/api/notes/:id` (con `PATCH`), `/api/finances`, `/api/categories`, `/api/auth` y `/api/user/me`.
+
+- **Auditoría Integral de Rendimiento, Accesibilidad y Tipado Estricto:**
+  - **Accesibilidad Universal (WCAG 2.2):** Se dotó a todos los botones interactivos, iconos de acción, modales, controles de peso y casillas de verificación de áreas de toque mínimas de 48x48px (`hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}`), junto con roles semánticos (`accessibilityRole="button" | "checkbox"`), etiquetas descriptivas (`accessibilityLabel`) y estados de accesibilidad (`accessibilityState`).
+  - **Query Key Factory & Estrategia de Caché Global:** Centralización de todas las claves de consulta en `src/services/queryKeys.ts` (`todos`, `gym`, `finance`, `journal`, `user`). Se configuró `QueryClient` en `App.tsx` con `staleTime: 2min`, `gcTime: 30min`, `retry: 1` y `refetchOnWindowFocus: false`, eliminando desincronizaciones de caché entre tarjetas y pantallas completas.
+  - **Aislamiento de Re-renderizados en Entrenamientos Activos:** Desacoplamiento del cronómetro en `ActiveWorkoutScreen` en un subcomponente memoizado `<WorkoutTimer />` con selectores específicos de Zustand (`useWorkoutStore(state => state.elapsedSeconds)`), reduciendo drásticamente los re-renderizados innecesarios del árbol de ejercicios de 60 por minuto a 0.
+  - **Optimización de Listas y Derivación de Datos con `useMemo`:** Se envolvieron todos los filtrados pesados, ordenamientos y cálculos de rachas/métricas en `useMemo` en `DailyTodoCard`, `IdeasCard`, `WorkoutCard`, `JournalScreen`, `TasksScreen`, `AllTasksScreen` y `AllTransactionsScreen`, además de implementar *array reference hoisting* (`EMPTY_TODOS`, `EMPTY_ROUTINES`, `EMPTY_NOTES`) para prevenir recolector de basura excesivo.
+  - **Tipado Completo de Navegación y Estilos:** Definición centralizada de tipos en `src/utils/navigation.ts` con tipado global en `ReactNavigation.RootParamList` para autocompletado y validación estricta de rutas en toda la app. Tipado fuerte en `createStyles(colors, typography, metrics)` y en los selectores de `useAlertStore`.
+  - **Fidelidad Tipográfica Obsidian Cyan:** Se corrigieron los nombres de fuentes en las tarjetas del Dashboard a las familias exactas cargadas por Expo (`Geist_400Regular`, `Geist_500Medium`, `JetBrainsMono_400Regular`, `JetBrainsMono_500Medium`), evitando caídas a las fuentes del sistema y garantizando números tabulares fijos en métricas sin saltos de layout.
+  - **Unificación de Alertas de Confirmación:** Reemplazo de submenús redundantes por diálogos estructurados en `<GlobalAlert />` para eliminación segura de categorías y registros.
+
+- **Refactorización de Arquitectura FSD & Modularización:**
+  - Reubicación de las tarjetas del Dashboard (`DailyTodoCard`, `WorkoutCard`, `FinanceCard`, `DietCard`, `IdeasCard`) al dominio `src/features/dashboard/components/`, retirando el directorio centralizado obsoleto `src/components/cards/`.
+  - Conexión real de `WorkoutCard` con el estado en vivo de las rutinas (`useWorkoutStore` y `gymService.getRoutines`), permitiendo iniciar o continuar entrenamientos asignados para el día actual desde el Dashboard principal.
+  - Modularización de pantallas complejas extrayendo subcomponentes independientes y desacoplados:
+    - `ExercisePickerModal` y `RoutineExerciseItem` en `src/features/gym/components/`, reduciendo la pantalla `CreateRoutineScreen` de 684 a 290 líneas.
+    - `GymOnboardingModal` en `src/features/gym/components/` para el registro inicial de peso y altura.
+    - `ProfileEditModal` en `src/features/settings/components/` para la edición de perfil.
+    - `FrequencySelector` en `src/features/tasks/components/` para la selección de frecuencia y días de hábitos/tareas.
+- **Optimización de Peticiones de Red (Caching Agresivo):**
+  - Implementación de `staleTime` (10 minutos) y `gcTime` (30 minutos) en `useQueries` dentro de `GymScreen` para eliminar la tormenta de peticiones N+1 al consultar los detalles de cada rutina.
+- **Barra de Navegación Flotante (Floating Detached BottomNav):**
+  - Rediseño de `BottomNav` como barra flotante despegada del fondo (*floating detached*) con `borderRadius: 24`, separación vertical adaptativa por plataforma, fondo translúcido con efecto glassmorphic y borde tonal de 1px.
+- **Reactividad Completa de Tema Claro / Oscuro:**
+  - Migración sistemática de componentes base (`Input`, `Button`, `GlobalAlert`, `LoginScreen`, `RegisterScreen`, etc.) al hook reactivo `useTheme()`, garantizando cambios de tema fluidos e inmediatos en toda la UI sin recargas.
+  - Eliminación estricta de propiedades `elevation` (sombras proyectadas) en `GlobalAlert`, `DropdownMenu` y `CreateTaskModal`, cumpliendo con el diseño Obsidian Cyan basado en contraste tonal y bordes estructurales de 1px.
+  - Aplicación de tipografía monospace `JetBrains Mono` en métricas y balances numéricos (como en `NetWorthCard`) para prevenir desplazamientos tabulares.
 - **Actualizaciones OTA en UI:** Implementación de un botón interactivo "Buscar Actualizaciones" en la pantalla de Configuración (`SettingsScreen`), el cual consulta programáticamente a los servidores de EAS a través de `expo-updates` y solicita el reinicio de la aplicación si se encuentra código JS nuevo.
 - **Módulo de Gym (Rastreo de Entrenamiento):** 
   - Las listas de Rutinas pre-calculan de forma reactiva (`useQueries`) la cantidad de ejercicios en ellas en base al detalle, hidratando los nombres y miniaturas desde los ejercicios cacheados.

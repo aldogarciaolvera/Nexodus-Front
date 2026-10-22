@@ -69,7 +69,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.borderGlow,
-    elevation: 5,
     overflow: 'hidden',
   },
   menuItem: {

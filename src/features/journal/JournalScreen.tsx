@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../utils/ThemeContext';
@@ -9,14 +9,18 @@ import { useNavigation } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import journalService, { NoteDto } from '../../services/journal.service';
 import { ActionSheet } from '../../components/ActionSheet';
-import { useAlertStore } from '../../store/alertStore';
+import { useAlertStore, AlertState } from '../../store/alertStore';
 import { Skeleton } from '../../components/Skeleton';
 import { IdeaDetailsModal } from './components/IdeaDetailsModal';
+import { AppNavigationProp } from '../../utils/navigation';
+import { queryKeys } from '../../services/queryKeys';
+
+const EMPTY_NOTES: NoteDto[] = [];
 
 export const JournalScreen = () => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<AppNavigationProp>();
   const [activeTab, setActiveTab] = useState<'idea' | 'diario'>('idea');
 
   const queryClient = useQueryClient();
@@ -25,15 +29,15 @@ export const JournalScreen = () => {
   const [isActionModalVisible, setActionModalVisible] = useState(false);
   const [selectedIdeaForModal, setSelectedIdeaForModal] = useState<NoteDto | null>(null);
 
-  const { data: notes = [], isLoading } = useQuery({
-    queryKey: ['notes'],
+  const { data: notes = EMPTY_NOTES, isLoading } = useQuery({
+    queryKey: queryKeys.journal.notes,
     queryFn: () => journalService.getAll(),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => journalService.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notes'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.journal.notes });
       setActionModalVisible(false);
       setSelectedNote(null);
     },
@@ -47,7 +51,7 @@ export const JournalScreen = () => {
       isCompleted: !idea.isCompleted 
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notes'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.journal.notes });
     }
   });
 
@@ -85,19 +89,27 @@ export const JournalScreen = () => {
     });
   };
 
-  const ideas = notes.filter(n => n.type === 'idea');
-  const journalEntries = notes.filter(n => n.type === 'diario');
+  const { ideas, groupedJournal, sortedDates } = useMemo(() => {
+    const ideaList = notes.filter(n => n.type === 'idea');
+    const journalEntries = notes.filter(n => n.type === 'diario');
 
-  // Group journal entries by date string
-  const groupedJournal = journalEntries.reduce((acc, entry) => {
-    const dateKey = new Date(entry.createdAt).toLocaleDateString();
-    if (!acc[dateKey]) acc[dateKey] = [];
-    acc[dateKey].push(entry);
-    return acc;
-  }, {} as Record<string, NoteDto[]>);
+    // Group journal entries by date string
+    const grouped = journalEntries.reduce((acc, entry) => {
+      const dateKey = new Date(entry.createdAt).toLocaleDateString();
+      if (!acc[dateKey]) acc[dateKey] = [];
+      acc[dateKey].push(entry);
+      return acc;
+    }, {} as Record<string, NoteDto[]>);
 
-  // Sort dates descending
-  const sortedDates = Object.keys(groupedJournal).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+    // Sort dates descending
+    const dates = Object.keys(grouped).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+
+    return {
+      ideas: ideaList,
+      groupedJournal: grouped,
+      sortedDates: dates,
+    };
+  }, [notes]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -236,6 +248,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.obsidian,
   },
+  scrollContainer: {
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'android' ? 24 : 12,
+    paddingBottom: 100,
+  },
   typeToggle: {
     flexDirection: 'row',
     backgroundColor: colors.surface,
@@ -265,11 +282,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   toggleTextActive: {
     fontFamily: 'Geist_700Bold',
     color: colors.obsidian,
-  },
-  scrollContainer: {
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'android' ? 24 : 12,
-    paddingBottom: 20,
   },
   ideasContainer: {
     gap: 16,

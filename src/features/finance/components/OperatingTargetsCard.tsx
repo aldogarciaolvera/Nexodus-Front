@@ -10,8 +10,10 @@ import { CategoryModal } from './CategoryModal';
 import { CategoryDetailsModal } from './CategoryDetailsModal';
 import { Skeleton } from '../../../components/Skeleton';
 import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { AppNavigationProp } from '../../../utils/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../../../services/queryKeys';
+import { useAlertStore, AlertState } from '../../../store/alertStore';
 
 interface OperatingTargetsCardProps {
   transactions?: FinanceTransaction[];
@@ -22,9 +24,9 @@ interface OperatingTargetsCardProps {
 export const OperatingTargetsCard = ({ transactions = [], categories = [], loading = false }: OperatingTargetsCardProps) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
+  const showAlert = useAlertStore((state: AlertState) => state.showAlert);
 
   const [actionSheetVisible, setActionSheetVisible] = useState(false);
-  const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
   const [actionCategory, setActionCategory] = useState<Category | null>(null);
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
@@ -71,7 +73,7 @@ export const OperatingTargetsCard = ({ transactions = [], categories = [], loadi
     .sort((a, b) => b.value - a.value); // Sort by highest spend
   }, [transactions, categories, theme.colors]);
 
-  const navigation = useNavigation<NativeStackNavigationProp<any>>();
+  const navigation = useNavigation<AppNavigationProp>();
 
   const deleteCategoryMutation = useMutation({
     mutationFn: async (categoryId: string) => {
@@ -80,26 +82,29 @@ export const OperatingTargetsCard = ({ transactions = [], categories = [], loadi
       await CategoryService.delete(categoryId);
     },
     onMutate: async (categoryId) => {
-      await queryClient.cancelQueries({ queryKey: ['categories'] });
-      await queryClient.cancelQueries({ queryKey: ['financeTransactions'] });
+      await queryClient.cancelQueries({ queryKey: queryKeys.finance.categories });
+      await queryClient.cancelQueries({ queryKey: queryKeys.finance.transactions });
 
-      const previousCategories = queryClient.getQueryData(['categories']);
-      const previousTransactions = queryClient.getQueryData(['financeTransactions']);
+      const previousCategories = queryClient.getQueryData(queryKeys.finance.categories);
+      const previousTransactions = queryClient.getQueryData(queryKeys.finance.transactions);
 
-      queryClient.setQueryData(['categories'], (old: any) => old?.filter((c: any) => c.id !== categoryId));
-      queryClient.setQueryData(['financeTransactions'], (old: any) => old?.filter((t: any) => t.categoryId !== categoryId));
+      queryClient.setQueryData(queryKeys.finance.categories, (old: any) => old?.filter((c: any) => c.id !== categoryId));
+      queryClient.setQueryData(queryKeys.finance.transactions, (old: any) => old?.filter((t: any) => t.categoryId !== categoryId));
 
       return { previousCategories, previousTransactions };
     },
     onError: (err, variables, context) => {
-      queryClient.setQueryData(['categories'], context?.previousCategories);
-      queryClient.setQueryData(['financeTransactions'], context?.previousTransactions);
-      console.error(err);
+      queryClient.setQueryData(queryKeys.finance.categories, context?.previousCategories);
+      queryClient.setQueryData(queryKeys.finance.transactions, context?.previousTransactions);
+      showAlert('Error', 'No se pudo eliminar la categoría', 'error');
+    },
+    onSuccess: () => {
+      showAlert('Eliminado', 'Categoría eliminada con éxito', 'success');
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
-      queryClient.invalidateQueries({ queryKey: ['financeTransactions'] });
-      queryClient.invalidateQueries({ queryKey: ['financeSummary'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.finance.categories });
+      queryClient.invalidateQueries({ queryKey: queryKeys.finance.transactions });
+      queryClient.invalidateQueries({ queryKey: queryKeys.finance.summary });
     }
   });
 
@@ -181,8 +186,8 @@ export const OperatingTargetsCard = ({ transactions = [], categories = [], loadi
         onClose={() => setCategoryModalVisible(false)}
         editingCategory={editingCategory}
         onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ['categories'] });
-          queryClient.invalidateQueries({ queryKey: ['financeSummary'] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.finance.categories });
+          queryClient.invalidateQueries({ queryKey: queryKeys.finance.summary });
         }}
       />
 
@@ -212,24 +217,21 @@ export const OperatingTargetsCard = ({ transactions = [], categories = [], loadi
             label: 'Eliminar',
             destructive: true,
             onPress: () => {
-              setConfirmDeleteVisible(true);
-            }
-          }
-        ]}
-      />
-
-      <ActionSheet
-        visible={confirmDeleteVisible}
-        onClose={() => setConfirmDeleteVisible(false)}
-        title="Confirmar Eliminación"
-        subtitle={actionCategory ? `¿Estás seguro que deseas eliminar "${actionCategory.name}"?` : ''}
-        options={[
-          {
-            label: 'Sí, Eliminar',
-            destructive: true,
-            onPress: () => {
               if (!actionCategory) return;
-              deleteCategoryMutation.mutate(actionCategory.id!);
+              const catToDelete = actionCategory;
+              showAlert({
+                title: 'Confirmar Eliminación',
+                message: `¿Estás seguro que deseas eliminar "${catToDelete.name}"?`,
+                type: 'error',
+                buttons: [
+                  { text: 'Cancelar', style: 'cancel' },
+                  { 
+                    text: 'Eliminar', 
+                    style: 'destructive', 
+                    onPress: () => deleteCategoryMutation.mutate(catToDelete.id!) 
+                  }
+                ]
+              });
             }
           }
         ]}

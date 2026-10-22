@@ -31,10 +31,21 @@ import { JournalScreen } from './src/features/journal/JournalScreen';
 import { CreateJournalEntryScreen } from './src/features/journal/CreateJournalEntryScreen';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
+import { RootStackParamList, RootTabParamList } from './src/utils/navigation';
+import { setupNotificationChannel, requestNotificationPermissions } from './src/utils/notifications';
 
-const Stack = createNativeStackNavigator();
-const Tab = createBottomTabNavigator();
-const queryClient = new QueryClient();
+const Stack = createNativeStackNavigator<RootStackParamList>();
+const Tab = createBottomTabNavigator<RootTabParamList>();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 2, // 2 minutes
+      gcTime: 1000 * 60 * 30, // 30 minutes
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 function MainTabs() {
   return (
@@ -62,19 +73,12 @@ function AppInner() {
   useOTAUpdates();
 
   useEffect(() => {
-    const requestNotificationPermission = async () => {
+    const initNotifications = async () => {
       if (Constants.appOwnership === 'expo') return;
-      try {
-        const { status: existingStatus } = await Notifications.getPermissionsAsync();
-        if (existingStatus !== 'granted') {
-          await Notifications.requestPermissionsAsync();
-        }
-      } catch (e) {
-        console.warn('Notification permissions error:', e);
-      }
+      await requestNotificationPermissions();
     };
     
-    requestNotificationPermission();
+    initNotifications();
     initialize().finally(() => setIsReady(true));
   }, []);
 

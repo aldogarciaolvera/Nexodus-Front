@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
 import { useTheme } from '../utils/ThemeContext';
 import { ThemeColors } from '../utils/theme';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { BlurView } from 'expo-blur';
 
 const ICONS = {
   Dashboard: (active: boolean, colors: ThemeColors) => (
@@ -56,40 +57,46 @@ export const BottomNav = ({ state, descriptors, navigation }: BottomTabBarProps)
 
   return (
     <View style={styles.container}>
-      <View style={styles.navBar}>
-        {state.routes.map((route, index) => {
-          const isFocused = state.index === index;
-          
-          const onPress = () => {
-            const event = navigation.emit({
-              type: 'tabPress',
-              target: route.key,
-              canPreventDefault: true,
-            });
+      <BlurView 
+        intensity={24} 
+        tint={isDarkMode ? "dark" : "light"} 
+        style={styles.blurWrapper}
+      >
+        <View style={styles.navBar}>
+          {state.routes.map((route, index) => {
+            const isFocused = state.index === index;
+            
+            const onPress = () => {
+              const event = navigation.emit({
+                type: 'tabPress',
+                target: route.key,
+                canPreventDefault: true,
+              });
 
-            if (!isFocused && !event.defaultPrevented) {
-              navigation.navigate(route.name);
-            }
-          };
+              if (!isFocused && !event.defaultPrevented) {
+                navigation.navigate(route.name);
+              }
+            };
 
-          return (
-            <TouchableOpacity 
-              key={route.key}
-              style={styles.tabItem} 
-              activeOpacity={0.7}
-              onPress={onPress}
-            >
-              <View style={styles.iconContainer}>
-                {ICONS[route.name as keyof typeof ICONS](isFocused, theme.colors)}
-                {isFocused && <View style={styles.iconGlow} />}
-              </View>
-              <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>
-                {LABELS[route.name as keyof typeof LABELS]}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+            return (
+              <TouchableOpacity 
+                key={route.key}
+                style={styles.tabItem} 
+                activeOpacity={0.7}
+                onPress={onPress}
+              >
+                <View style={styles.iconContainer}>
+                  {ICONS[route.name as keyof typeof ICONS](isFocused, theme.colors)}
+                  {isFocused && <View style={styles.iconGlow} />}
+                </View>
+                <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>
+                  {LABELS[route.name as keyof typeof LABELS]}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </BlurView>
     </View>
   );
 };
@@ -97,26 +104,31 @@ export const BottomNav = ({ state, descriptors, navigation }: BottomTabBarProps)
 const createStyles = (colors: ThemeColors, isDarkMode: boolean) => StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingBottom: 24, // Account for safe area roughly
-    paddingTop: 10,
-    backgroundColor: isDarkMode ? 'rgba(16, 19, 26, 0.9)' : 'rgba(255, 255, 255, 0.9)',
-    borderTopWidth: 1,
-    borderTopColor: isDarkMode ? 'rgba(34, 40, 54, 0.8)' : 'rgba(226, 232, 240, 0.8)',
+    bottom: Platform.OS === 'ios' ? 24 : 16,
+    left: 16,
+    right: 16,
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.borderGlow,
+    backgroundColor: isDarkMode ? 'rgba(16, 19, 26, 1)' : 'rgba(255, 255, 255, 1)',
+  },
+  blurWrapper: {
+    borderRadius: 24,
+    overflow: 'hidden',
   },
   navBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
   },
   tabItem: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 2,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     gap: 4,
   },
   iconContainer: {

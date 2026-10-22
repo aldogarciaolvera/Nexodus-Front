@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { theme } from '../../../utils/theme';
+import { useTheme } from '../../../utils/ThemeContext';
+import { ThemeColors, ThemeTypography } from '../../../utils/theme';
 
 interface ProgressTelemetryProps {
   completed: number;
@@ -15,6 +16,8 @@ export const ProgressTelemetry: React.FC<ProgressTelemetryProps> = ({
   urgent,
   activeHabits
 }) => {
+  const theme = useTheme();
+  const styles = createStyles(theme.colors, theme.typography);
   const percentage = total === 0 ? 0 : Math.round((completed / total) * 100);
 
   return (
@@ -25,7 +28,7 @@ export const ProgressTelemetry: React.FC<ProgressTelemetryProps> = ({
           <Text style={styles.title}>PROGRESO</Text>
         </View>
         <Text style={styles.progressText}>
-          <Text style={styles.progressFraction}>{completed} of {total} Done</Text>
+          <Text style={styles.progressFraction}>{completed} de {total} Listos</Text>
           <Text style={styles.progressDot}> • </Text>
           <Text style={styles.progressPercentage}>{percentage}%</Text>
         </Text>
@@ -52,7 +55,7 @@ export const ProgressTelemetry: React.FC<ProgressTelemetryProps> = ({
         </View>
 
         <View style={styles.statBox}>
-          <Text style={styles.statLabel}>HABITOS</Text>
+          <Text style={styles.statLabel}>HÁBITOS</Text>
           <Text style={styles.statValue}>{activeHabits}</Text>
         </View>
       </View>
@@ -60,14 +63,14 @@ export const ProgressTelemetry: React.FC<ProgressTelemetryProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, typography: ThemeTypography) => StyleSheet.create({
   container: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: 24,
     padding: 20,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: theme.colors.borderGlow,
+    borderColor: colors.borderGlow,
   },
   header: {
     flexDirection: 'row',
@@ -83,38 +86,38 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: theme.colors.neonCyan,
+    backgroundColor: colors.neonCyan,
     marginRight: 8,
   },
   title: {
-    color: theme.colors.slate400,
-    fontFamily: theme.typography.fontMono,
+    color: colors.slate400,
+    fontFamily: typography.fontMono,
     fontSize: 11,
     letterSpacing: 1,
   },
   progressText: {
-    fontFamily: theme.typography.fontMono,
+    fontFamily: typography.fontMono,
     fontSize: 12,
   },
   progressFraction: {
-    color: theme.colors.neonCyan,
+    color: colors.neonCyan,
   },
   progressDot: {
-    color: theme.colors.slate500,
+    color: colors.slate500,
   },
   progressPercentage: {
-    color: theme.colors.neonCyan,
+    color: colors.neonCyan,
   },
   progressBarContainer: {
     height: 6,
-    backgroundColor: theme.colors.surfaceLight,
+    backgroundColor: colors.surfaceLight,
     borderRadius: 3,
     marginBottom: 24,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: theme.colors.neonCyan,
+    backgroundColor: colors.neonCyan,
     borderRadius: 3,
   },
   statsContainer: {
@@ -125,17 +128,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statLabel: {
-    color: theme.colors.slate500,
-    fontFamily: theme.typography.fontMono,
+    color: colors.slate500,
+    fontFamily: typography.fontMono,
     fontSize: 10,
     letterSpacing: 1,
     marginBottom: 4,
     textAlign: "center",
   },
   statValue: {
-    color: theme.colors.white,
-    fontFamily: theme.typography.fontFamilyBold,
-    fontSize: 24,
+    color: colors.text,
+    fontFamily: typography.fontMonoMedium,
+    fontSize: 22,
     textAlign: "center",
   },
 });

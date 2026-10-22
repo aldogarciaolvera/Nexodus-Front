@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
@@ -10,6 +10,9 @@ import { ActionSheet } from '../../../components/ActionSheet';
 import { TransactionModal } from './TransactionModal';
 import { TransactionDetailsModal } from './TransactionDetailsModal';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { AppNavigationProp } from '../../../utils/navigation';
+import { queryKeys } from '../../../services/queryKeys';
+import { useAlertStore, AlertState } from '../../../store/alertStore';
 
 interface TransactionsCardProps {
   transactions: FinanceTransaction[];
@@ -17,10 +20,25 @@ interface TransactionsCardProps {
   loading?: boolean;
 }
 
+const IncomeIcon = ({ color }: { color: string }) => (
+  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.5}>
+    <Rect x="2" y="6" width="20" height="12" rx="2" />
+    <Circle cx="12" cy="12" r="2" />
+    <Path d="M6 12h.01M18 12h.01" />
+  </Svg>
+);
+
+const ExpenseIcon = ({ color }: { color: string }) => (
+  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.5}>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+  </Svg>
+);
+
 export const TransactionsCard = ({ transactions, categories = [], loading }: TransactionsCardProps) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<AppNavigationProp>();
+  const showAlert = useAlertStore((state: AlertState) => state.showAlert);
 
   const [actionSheetVisible, setActionSheetVisible] = useState(false);
   const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
@@ -33,8 +51,12 @@ export const TransactionsCard = ({ transactions, categories = [], loading }: Tra
   const deleteMutation = useMutation({
     mutationFn: (id: string) => FinanceService.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['financeTransactions'] });
-      queryClient.invalidateQueries({ queryKey: ['financeSummary'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.finance.transactions });
+      queryClient.invalidateQueries({ queryKey: queryKeys.finance.summary });
+      showAlert('Eliminado', 'Transacción eliminada exitosamente', 'success');
+    },
+    onError: (err: any) => {
+      showAlert('Error', err.message || 'No se pudo eliminar la transacción', 'error');
     }
   });
 
@@ -51,21 +73,7 @@ export const TransactionsCard = ({ transactions, categories = [], loading }: Tra
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
-  const IncomeIcon = () => (
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={theme.colors.neonCyan} strokeWidth={1.5}>
-      <Rect x="2" y="6" width="20" height="12" rx="2" />
-      <Circle cx="12" cy="12" r="2" />
-      <Path d="M6 12h.01M18 12h.01" />
-    </Svg>
-  );
-
-  const ExpenseIcon = () => (
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={theme.colors.slate300} strokeWidth={1.5}>
-      <Path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-    </Svg>
-  );
-
-  const displayTransactions = transactions.slice(0, 3);
+  const displayTransactions = useMemo(() => transactions.slice(0, 3), [transactions]);
 
   return (
     <View style={styles.card}>
@@ -97,7 +105,7 @@ export const TransactionsCard = ({ transactions, categories = [], loading }: Tra
               activeOpacity={0.8}
             >
               <View style={styles.iconContainer}>
-                {isIncome ? <IncomeIcon /> : <ExpenseIcon />}
+                {isIncome ? <IncomeIcon color={theme.colors.neonCyan} /> : <ExpenseIcon color={theme.colors.slate300} />}
               </View>
               <View style={styles.detailsContainer}>
                 <Text style={styles.title} numberOfLines={1}>{categoryName}</Text>

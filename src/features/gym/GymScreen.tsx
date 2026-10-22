@@ -10,19 +10,19 @@ import { useNavigation } from '@react-navigation/native';
 import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { UserService } from '../../services/user.service';
 import { gymService } from '../../services/gym.service';
-import { useAlertStore } from '../../store/alertStore';
+import { useAlertStore, AlertState } from '../../store/alertStore';
 import { Skeleton } from '../../components/Skeleton';
 import { useWorkoutStore } from '../../store/workoutStore';
+import { GymOnboardingModal } from './components/GymOnboardingModal';
+import { AppNavigationProp } from '../../utils/navigation';
+import { queryKeys } from '../../services/queryKeys';
 
 export const GymScreen = () => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
-  const navigation = useNavigation<NativeStackNavigationProp<any>>();
+  const navigation = useNavigation<AppNavigationProp>();
   const queryClient = useQueryClient();
-  const showAlert = useAlertStore((state: any) => state.showAlert);
-
-  const [inputWeight, setInputWeight] = useState('');
-  const [inputHeight, setInputHeight] = useState('');
+  const showAlert = useAlertStore((state: AlertState) => state.showAlert);
 
   const { 
     isActive, 
@@ -39,20 +39,22 @@ export const GymScreen = () => {
   };
 
   const { data: profile, isLoading } = useQuery({
-    queryKey: ['profile'],
+    queryKey: queryKeys.gym.profile,
     queryFn: UserService.getProfile,
   });
 
   const { data: routinesList = [], isLoading: isLoadingRoutines } = useQuery({
-    queryKey: ['routines'],
+    queryKey: queryKeys.gym.routines,
     queryFn: gymService.getRoutines,
   });
 
   const routineQueries = useQueries({
     queries: routinesList.map(r => ({
-      queryKey: ['routine', r.id],
+      queryKey: queryKeys.gym.routine(r.id),
       queryFn: () => gymService.getRoutineById(r.id),
-      enabled: !!r.id
+      enabled: !!r.id,
+      staleTime: 10 * 60 * 1000,
+      gcTime: 30 * 60 * 1000,
     }))
   });
 
@@ -64,7 +66,7 @@ export const GymScreen = () => {
   const deleteMutation = useMutation({
     mutationFn: gymService.deleteRoutine,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['routines'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gym.routines });
       useAlertStore.getState().showAlert('Éxito', 'La rutina ha sido eliminada.', 'success');
     },
     onError: () => {
@@ -92,7 +94,7 @@ export const GymScreen = () => {
   };
 
   const { data: workoutLogs = [] } = useQuery({
-    queryKey: ['workouts'],
+    queryKey: queryKeys.gym.workouts,
     queryFn: gymService.getWorkoutLogs,
   });
 
@@ -104,7 +106,7 @@ export const GymScreen = () => {
   const todayRoutineLight = routines.find(r => r.targetDay === getDayNumber());
   
   const { data: todayRoutineFull } = useQuery({
-    queryKey: ['routine', todayRoutineLight?.id],
+    queryKey: queryKeys.gym.routine(todayRoutineLight?.id),
     queryFn: () => gymService.getRoutineById(todayRoutineLight!.id),
     enabled: !!todayRoutineLight?.id,
   });
@@ -139,33 +141,6 @@ export const GymScreen = () => {
     return 'upcoming';
   };
 
-  const mutation = useMutation({
-    mutationFn: UserService.updateProfile,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['profile'] });
-      showAlert('Guardado', 'Tus datos corporales fueron actualizados', 'success');
-    },
-    onError: (e) => {
-      showAlert('Error', 'No se pudieron guardar tus datos', 'error');
-    }
-  });
-
-  const handleSaveBodyData = () => {
-    if (!inputWeight || !inputHeight) {
-      showAlert('Requerido', 'Por favor ingresa tu peso y altura.', 'error');
-      return;
-    }
-
-    mutation.mutate({
-      ...profile,
-      username: profile?.username || '',
-      email: profile?.email || '',
-      phoneNumber: profile?.phoneNumber || '',
-      weight: parseFloat(inputWeight),
-      height: parseFloat(inputHeight),
-    });
-  };
-
   if (isLoading || isLoadingRoutines) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -182,59 +157,19 @@ export const GymScreen = () => {
 
   // Si no tiene peso O altura, mostrar la pantalla de bienvenida/onboarding
   if (!profile?.weight || !profile?.height) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'center', padding: 20 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <View style={styles.onboardingCard}>
-            <Text style={styles.onboardingTitle}>Bienvenido al Gym</Text>
-            <Text style={styles.onboardingSub}>Para personalizar tus rutinas y calorías, necesitamos un par de datos tuyos.</Text>
-            
-            <View style={{ marginBottom: 16 }}>
-              <Text style={styles.onboardingLabel}>Peso (kg)</Text>
-              <TextInput 
-                style={styles.onboardingInput}
-                placeholder="70.5"
-                placeholderTextColor={theme.colors.mutedText}
-                keyboardType="numeric"
-                value={inputWeight}
-                onChangeText={setInputWeight}
-              />
-            </View>
-
-            <View style={{ marginBottom: 24 }}>
-              <Text style={styles.onboardingLabel}>Altura (m)</Text>
-              <TextInput 
-                style={styles.onboardingInput}
-                placeholder="1.75"
-                placeholderTextColor={theme.colors.mutedText}
-                keyboardType="numeric"
-                value={inputHeight}
-                onChangeText={setInputHeight}
-              />
-            </View>
-
-            <TouchableOpacity 
-              style={[styles.onboardingBtn, mutation.isPending && { opacity: 0.7 }]} 
-              onPress={handleSaveBodyData}
-              disabled={mutation.isPending}
-            >
-              <Text style={styles.onboardingBtnText}>{mutation.isPending ? 'Guardando...' : 'Comenzar a Entrenar'}</Text>
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
-    );
+    return <GymOnboardingModal profile={profile} />;
   }
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView 
-        style={{ flex: 1 }} 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        {/* Header */}
-        <Header title="Gym & Rutinas" />
+      <View style={styles.container}>
+        <KeyboardAvoidingView 
+          style={{ flex: 1 }} 
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {/* Header */}
+            <Header title="Gym & Rutinas" />
 
         {/* Session Execution Card */}
         {completedTodayWorkout ? (
@@ -392,16 +327,17 @@ export const GymScreen = () => {
           );
         })}
 
-      </ScrollView>
-      </KeyboardAvoidingView>
+        </ScrollView>
+        </KeyboardAvoidingView>
 
-      <TouchableOpacity 
-        style={styles.fab} 
-        activeOpacity={0.8}
-        onPress={() => navigation.navigate('CreateRoutine')}
-      >
-        <Plus color={theme.colors.obsidian} size={24} />
-      </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.fab} 
+          activeOpacity={0.8}
+          onPress={() => navigation.navigate('CreateRoutine')}
+        >
+          <Plus color={theme.colors.obsidian} size={24} />
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 };
@@ -411,8 +347,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.obsidian,
   },
+  container: {
+    flex: 1,
+    backgroundColor: colors.obsidian,
+  },
   scrollContainer: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'android' ? 24 : 12,
     paddingBottom: 100,
   },
   header: {
@@ -663,53 +604,4 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderGlow,
   },
-  onboardingCard: {
-    backgroundColor: colors.surface,
-    padding: 24,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.borderGlow,
-  },
-  onboardingTitle: {
-    fontFamily: 'Geist_700Bold',
-    fontSize: 24,
-    color: colors.text,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  onboardingSub: {
-    fontFamily: 'Geist_400Regular',
-    fontSize: 14,
-    color: colors.mutedText,
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 20,
-  },
-  onboardingLabel: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 11,
-    color: colors.mutedText,
-    marginBottom: 8,
-  },
-  onboardingInput: {
-    backgroundColor: colors.obsidian,
-    borderWidth: 1,
-    borderColor: colors.borderGlow,
-    borderRadius: 12,
-    padding: 16,
-    color: colors.text,
-    fontFamily: 'Geist_500Medium',
-    fontSize: 16,
-  },
-  onboardingBtn: {
-    backgroundColor: colors.neonCyan,
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  onboardingBtnText: {
-    fontFamily: 'Geist_700Bold',
-    fontSize: 16,
-    color: colors.obsidian,
-  }
 });

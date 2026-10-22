@@ -20,20 +20,20 @@ description: Reglas críticas del sistema, restricciones y directrices de compor
 * Always follow the architecture laid out in `ARCHITECTURE.md`. Do not change anything from it. If any referenced folders do not exist, create them.
 
 ## 2. Brand & Visual Identity (Obsidian Cyan)
-* Theme: Technical minimalism and stealth luxury (Strict Dark Mode).
-* Primary Accent: `#00F0FF` (Electric vivid cyan) for active states.
-* Neutral Canvas: `#0D0E11` (Pure base).
-* Surfaces: `#171922` for standard cards, `#1B1E28` for elevated overlays.
+* Theme: Technical minimalism and stealth luxury (Dark and Light mode support, defaulting to Obsidian Cyan).
+* Primary Accent: `#38BDF8` (Active neon cyan) and `#00F0FF` (Neon ice accent).
+* Neutral Canvas: `#0B0D11` (Pure base).
+* Surfaces: `#14171F` for standard cards, `#1B202A` for elevated overlays.
 * Typography: Use `Geist` for headlines/body and `JetBrains Mono` for metrics, numerals, and tags.
-* Elevation: Rely strictly on tonal layering and `1px` structural borders (`#252836`); never use drop shadows.
+* Elevation: Rely strictly on tonal layering and `1px` structural borders (`#222836`); never use drop shadows.
 * Always utilize the design specified in `DESIGN.md` for the app's design.
 
 ## 3. UI Components & Geometry
 * Layout: 4-column single-stack mobile layout with `20px` (1.25rem) margins.
 * Cards: Use `rounded-2xl` (16px) geometry.
 * Badges & Pills: Use `rounded-full` capsule geometry.
-* Bottom Navigation: Floating detached, 24px border radius, translucent glass backdrop (`#12141A` at 80% opacity, 24px blur).
-* Progress Bars: Solid `#00F0FF` fill, `4px` or `6px` track height.
+* Bottom Navigation: Floating detached, 24px border radius, translucent glass backdrop (`#10131A` at 90% opacity, 24px blur).
+* Progress Bars: Solid `#38BDF8` / `#00F0FF` fill, `4px` or `6px` track height.
 * **Custom Alert Rule:** All errors, warnings, or notifications MUST use the custom `GlobalAlert` component via `useAlertStore.getState().showAlert(...)`. NEVER use the native `Alert.alert()` or local state text to ensure visual consistency across the app.
 * **Loading State Rule:** Always use the reusable `Skeleton` component (`src/components/Skeleton.tsx`) for data fetching states instead of native `ActivityIndicator` to prevent UI jumps. However, `ActivityIndicator` SHOULD still be used inside action buttons (e.g., Save, Submit).
 * **Keyboard Handling Rule:** Every screen or modal with text inputs MUST wrap its form content with a combination of `KeyboardAvoidingView` (with `behavior="padding"` on iOS) and `ScrollView` (with `keyboardShouldPersistTaps="handled"`) to prevent the software keyboard from covering the inputs.

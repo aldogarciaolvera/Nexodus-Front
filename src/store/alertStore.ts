@@ -15,7 +15,7 @@ export interface AlertOptions {
   buttons?: AlertButton[];
 }
 
-interface AlertState {
+export interface AlertState {
   visible: boolean;
   title: string;
   message: string;

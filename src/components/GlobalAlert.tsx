@@ -2,26 +2,27 @@ import React from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, TouchableWithoutFeedback } from 'react-native';
 import Svg, { Path, Circle, Line } from 'react-native-svg';
 import { useAlertStore } from '../store/alertStore';
-import { theme } from '../utils/theme';
+import { useTheme } from '../utils/ThemeContext';
+import { ThemeColors, ThemeTypography, ThemeMetrics } from '../utils/theme';
 import { BlurView } from 'expo-blur';
 
 const ErrorIcon = () => (
-  <Svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ffb4ab" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <Svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#FF4365" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <Circle cx="12" cy="12" r="10" />
     <Line x1="15" y1="9" x2="9" y2="15" />
     <Line x1="9" y1="9" x2="15" y2="15" />
   </Svg>
 );
 
-const SuccessIcon = () => (
-  <Svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={theme.colors.neonCyan} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+const SuccessIcon = ({ color }: { color: string }) => (
+  <Svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <Path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
     <Path d="M22 4L12 14.01l-3-3" />
   </Svg>
 );
 
-const InfoIcon = () => (
-  <Svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={theme.colors.slate400} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+const InfoIcon = ({ color }: { color: string }) => (
+  <Svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <Circle cx="12" cy="12" r="10" />
     <Line x1="12" y1="16" x2="12" y2="12" />
     <Line x1="12" y1="8" x2="12.01" y2="8" />
@@ -30,14 +31,16 @@ const InfoIcon = () => (
 
 export const GlobalAlert = () => {
   const { visible, title, message, type, buttons, hideAlert } = useAlertStore();
+  const theme = useTheme();
+  const styles = createStyles(theme.colors, theme.typography, theme.metrics, theme.isDarkMode);
 
   if (!visible) return null;
 
   const renderIcon = () => {
     switch (type) {
       case 'error': return <ErrorIcon />;
-      case 'success': return <SuccessIcon />;
-      case 'info': return <InfoIcon />;
+      case 'success': return <SuccessIcon color={theme.colors.neonCyan} />;
+      case 'info': return <InfoIcon color={theme.colors.slate400} />;
     }
   };
 
@@ -50,7 +53,7 @@ export const GlobalAlert = () => {
     >
       <TouchableWithoutFeedback onPress={hideAlert}>
         <View style={styles.overlay}>
-          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+          <BlurView intensity={24} tint={theme.isDarkMode ? "dark" : "light"} style={StyleSheet.absoluteFill} />
           
           <TouchableWithoutFeedback>
             <View style={styles.alertContainer}>
@@ -81,7 +84,7 @@ export const GlobalAlert = () => {
                       <Text style={[
                         styles.buttonText,
                         btn.style === 'cancel' && { color: theme.colors.slate300 },
-                        btn.style === 'destructive' && { color: theme.colors.white }
+                        btn.style === 'destructive' && { color: '#FFFFFF' }
                       ]}>{btn.text}</Text>
                     </TouchableOpacity>
                   ))}
@@ -99,45 +102,49 @@ export const GlobalAlert = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (
+  colors: ThemeColors, 
+  typography: ThemeTypography, 
+  metrics: ThemeMetrics, 
+  isDarkMode: boolean
+) => StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(13, 14, 17, 0.85)',
+    backgroundColor: isDarkMode ? 'rgba(11, 13, 17, 0.85)' : 'rgba(15, 23, 42, 0.4)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: theme.metrics.marginHorizontal,
+    padding: metrics.marginHorizontal,
   },
   alertContainer: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: 24,
     padding: 24,
     width: '100%',
     maxWidth: 400,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: theme.colors.borderGlow,
-    elevation: 10,
+    borderColor: colors.borderGlow,
   },
   iconContainer: {
     marginBottom: 16,
     padding: 12,
-    backgroundColor: theme.colors.obsidian,
+    backgroundColor: colors.obsidian,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: theme.colors.borderGlow,
+    borderColor: colors.borderGlow,
   },
   title: {
-    fontFamily: theme.typography.fontFamilyBold,
+    fontFamily: typography.fontFamilyBold,
     fontSize: 20,
-    color: theme.colors.white,
+    color: colors.text,
     marginBottom: 8,
     textAlign: 'center',
     letterSpacing: -0.5,
   },
   message: {
-    fontFamily: theme.typography.fontFamily,
+    fontFamily: typography.fontFamily,
     fontSize: 15,
-    color: theme.colors.slate400,
+    color: colors.mutedText,
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 22,
@@ -149,7 +156,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   button: {
-    backgroundColor: theme.colors.neonCyan,
+    backgroundColor: colors.neonCyan,
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 12,
@@ -157,8 +164,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonText: {
-    color: theme.colors.obsidian,
-    fontFamily: theme.typography.fontFamilyBold,
+    color: isDarkMode ? colors.obsidian : '#FFFFFF',
+    fontFamily: typography.fontFamilyBold,
     fontSize: 16,
   }
 });

@@ -5,7 +5,7 @@ import { ThemeColors } from '../../../utils/theme';
 import { Category, CategoryService } from '../../../services/category.service';
 import { ActionSheet } from '../../../components/ActionSheet';
 import { useMutation } from '@tanstack/react-query';
-import { useAlertStore } from '../../../store/alertStore';
+import { useAlertStore, AlertState } from '../../../store/alertStore';
 
 interface CategoryModalProps {
   visible: boolean;
@@ -22,7 +22,7 @@ export const CategoryModal = ({ visible, onClose, editingCategory, onSuccess }: 
   const [categoryDesc, setCategoryDesc] = useState('');
   const [monthlyLimit, setMonthlyLimit] = useState('');
 
-  const { showAlert } = useAlertStore();
+  const showAlert = useAlertStore((state: AlertState) => state.showAlert);
 
   useEffect(() => {
     if (visible) {
@@ -52,13 +52,13 @@ export const CategoryModal = ({ visible, onClose, editingCategory, onSuccess }: 
     },
     onError: (error) => {
       console.error(error);
-      showAlert('Error', 'Fallo al guardar categoría');
+      showAlert('Error', 'Fallo al guardar categoría', 'error');
     }
   });
 
   const handleSave = () => {
     if (!categoryName.trim()) {
-      showAlert('Error', 'Ingresa un nombre para la categoría');
+      showAlert('Error', 'Ingresa un nombre para la categoría', 'error');
       return;
     }
 
@@ -87,7 +87,13 @@ export const CategoryModal = ({ visible, onClose, editingCategory, onSuccess }: 
             <TouchableOpacity activeOpacity={1} style={[styles.content, { maxHeight: '90%', flexShrink: 1 }]} onPress={() => {}}>
               <View style={styles.header}>
                 <Text style={styles.title}>{editingCategory ? 'Editar Categoría' : 'Nueva Categoría'}</Text>
-                <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                <TouchableOpacity 
+                  onPress={onClose} 
+                  style={styles.closeBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cerrar modal de categoría"
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
                   <Text style={styles.closeText}>✕</Text>
                 </TouchableOpacity>
               </View>

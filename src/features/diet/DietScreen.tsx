@@ -243,7 +243,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.obsidian,
   },
   scrollContainer: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'android' ? 24 : 12,
     paddingBottom: 100,
   },
   header: {

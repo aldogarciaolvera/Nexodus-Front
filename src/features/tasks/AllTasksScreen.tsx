@@ -1,18 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { theme } from '../../utils/theme';
+import { useTheme } from '../../utils/ThemeContext';
+import { ThemeColors, ThemeTypography } from '../../utils/theme';
 import { TodoService, TodoDto, CreateTodoDto } from '../../services/todo.service';
 import { TaskHabitItem, TaskHabitCard } from './components/TaskHabitCard';
 import { ActionSheet } from '../../components/ActionSheet';
 import { CreateTaskModal } from './components/CreateTaskModal';
 import { Skeleton } from '../../components/Skeleton';
 import { useAlertStore } from '../../store/alertStore';
+import { queryKeys } from '../../services/queryKeys';
+import { scheduleTodoNotification, cancelTodoNotification } from '../../utils/notifications';
+
+const EMPTY_TODOS: TodoDto[] = [];
 
 export const AllTasksScreen = () => {
+  const theme = useTheme();
+  const styles = createStyles(theme.colors, theme.typography);
   const navigation = useNavigation();
   const queryClient = useQueryClient();
   const alertStore = useAlertStore();
@@ -24,15 +31,19 @@ export const AllTasksScreen = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingItemDto, setEditingItemDto] = useState<TodoDto | null>(null);
 
-  const { data: todos = [], isLoading } = useQuery({
-    queryKey: ['todos'],
+  const { data: todos = EMPTY_TODOS, isLoading } = useQuery({
+    queryKey: queryKeys.todos.all,
     queryFn: TodoService.getAll,
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => TodoService.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['todos'] });
+    onSuccess: async (_, id) => {
+      const todo = todos.find(t => t.id === id);
+      if (todo) {
+        await cancelTodoNotification(todo);
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
       setActionModalVisible(false);
       setSelectedItem(null);
     },
@@ -40,12 +51,12 @@ export const AllTasksScreen = () => {
 
   const completeMutation = useMutation({
     mutationFn: (id: string) => TodoService.complete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['todos'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.todos.all }),
   });
 
   const uncompleteMutation = useMutation({
     mutationFn: (id: string) => TodoService.uncomplete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['todos'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.todos.all }),
   });
 
   const updateMutation = useMutation({
@@ -57,10 +68,14 @@ export const AllTasksScreen = () => {
         urgent: data.urgent,
         isHabit: data.isHabit,
         frequency: data.frequency,
-        isCompleted: false, // Optional: might want to preserve isCompleted status
+        isCompleted: false,
+        notificationsEnabled: data.notificationsEnabled,
+        notificationTime: data.notificationTime,
+        customDays: data.customDays,
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['todos'] });
+    onSuccess: async (data) => {
+      await scheduleTodoNotification(data);
+      queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
       setIsModalVisible(false);
       setEditingItemDto(null);
     },
@@ -119,50 +134,52 @@ export const AllTasksScreen = () => {
     }
   };
 
-  // Map Backend DTO to Frontend Item
-  const items: TaskHabitItem[] = todos.map(t => {
-    let computedCompleted = t.isCompleted;
-    const isRepeating = t.isHabit || (t.frequency && t.frequency !== 'Ninguna' && t.frequency !== 'Un solo día' && t.frequency !== '');
+  const sortedItems = useMemo(() => {
+    // Map Backend DTO to Frontend Item
+    const items: TaskHabitItem[] = todos.map(t => {
+      let computedCompleted = t.isCompleted;
+      const isRepeating = t.isHabit || (t.frequency && t.frequency !== 'Ninguna' && t.frequency !== 'Un solo día' && t.frequency !== '');
 
-    if (isRepeating && t.isCompleted) {
-      if (t.lastCompletedAt) {
-        const completedDate = new Date(t.lastCompletedAt).toDateString();
-        const viewingDate = new Date().toDateString(); // AllTasksScreen just uses "today"
-        computedCompleted = completedDate === viewingDate;
-      } else {
-        computedCompleted = false;
+      if (isRepeating && t.isCompleted) {
+        if (t.lastCompletedAt) {
+          const completedDate = new Date(t.lastCompletedAt).toDateString();
+          const viewingDate = new Date().toDateString(); // AllTasksScreen just uses "today"
+          computedCompleted = completedDate === viewingDate;
+        } else {
+          computedCompleted = false;
+        }
       }
-    }
 
-    return {
-      id: t.id,
-      type: t.isHabit ? 'habit' : 'task',
-      title: t.task,
-      subtitle: t.subtitle,
-      tag: t.tag,
-      streak: t.currentStreak,
-      isCompleted: computedCompleted,
-      urgent: t.urgent,
-      frequency: t.frequency,
-      customDays: t.customDays,
-      lastCompletedAt: t.lastCompletedAt,
-      createdAt: t.createdAt,
-      updatedAt: t.updatedAt,
-    };
-  });
+      return {
+        id: t.id,
+        type: t.isHabit ? 'habit' : 'task',
+        title: t.task,
+        subtitle: t.subtitle,
+        tag: t.tag,
+        streak: t.currentStreak,
+        isCompleted: computedCompleted,
+        urgent: t.urgent,
+        frequency: t.frequency,
+        customDays: t.customDays,
+        lastCompletedAt: t.lastCompletedAt,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+      };
+    });
 
-  // Filtering
-  let filteredItems = items;
-  if (filter === 'tasks') filteredItems = items.filter(i => i.type === 'task');
-  else if (filter === 'habits') filteredItems = items.filter(i => i.type === 'habit');
-  else if (filter === 'completed') filteredItems = items.filter(i => i.isCompleted);
-  else if (filter === 'pending') filteredItems = items.filter(i => !i.isCompleted);
+    // Filtering
+    let filteredItems = items;
+    if (filter === 'tasks') filteredItems = items.filter(i => i.type === 'task');
+    else if (filter === 'habits') filteredItems = items.filter(i => i.type === 'habit');
+    else if (filter === 'completed') filteredItems = items.filter(i => i.isCompleted);
+    else if (filter === 'pending') filteredItems = items.filter(i => !i.isCompleted);
 
-  const sortedItems = [...filteredItems].sort((a, b) => {
-    if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;
-    if (a.urgent !== b.urgent) return a.urgent ? -1 : 1;
-    return 0;
-  });
+    return [...filteredItems].sort((a, b) => {
+      if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;
+      if (a.urgent !== b.urgent) return a.urgent ? -1 : 1;
+      return 0;
+    });
+  }, [todos, filter]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -267,10 +284,10 @@ export const AllTasksScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, typography: ThemeTypography) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: theme.colors.obsidian,
+    backgroundColor: colors.obsidian,
   },
   header: {
     flexDirection: 'row',
@@ -279,15 +296,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.borderGlow,
+    borderBottomColor: colors.borderGlow,
   },
   backButton: {
     padding: 4,
   },
   headerTitle: {
-    fontFamily: theme.typography.fontFamilyMedium,
+    fontFamily: typography.fontFamilyMedium,
     fontSize: 18,
-    color: theme.colors.text,
+    color: colors.text,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -302,25 +319,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: theme.colors.surfaceLight,
+    backgroundColor: colors.surfaceLight,
     borderWidth: 1,
-    borderColor: theme.colors.borderGlow,
+    borderColor: colors.borderGlow,
   },
   filterPillActive: {
-    borderColor: theme.colors.neonCyan,
+    borderColor: colors.neonCyan,
     backgroundColor: 'rgba(0, 240, 255, 0.1)',
   },
   filterPillText: {
-    fontFamily: theme.typography.fontMono,
+    fontFamily: typography.fontMono,
     fontSize: 11,
-    color: theme.colors.slate400,
+    color: colors.slate400,
   },
   filterPillTextActive: {
-    color: theme.colors.neonCyan,
+    color: colors.neonCyan,
   },
   emptyText: {
-    fontFamily: theme.typography.fontFamily,
-    color: theme.colors.slate400,
+    fontFamily: typography.fontFamily,
+    color: colors.slate400,
     textAlign: 'center',
     marginTop: 40,
   },

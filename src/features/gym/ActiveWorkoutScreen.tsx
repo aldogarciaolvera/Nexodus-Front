@@ -5,35 +5,44 @@ import { useTheme } from '../../utils/ThemeContext';
 import { ThemeColors } from '../../utils/theme';
 import { useWorkoutStore } from '../../store/workoutStore';
 import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Play, Pause, ChevronLeft, ChevronRight, CheckCircle, X } from 'lucide-react-native';
 import { Image } from 'expo-image';
-import { useAlertStore } from '../../store/alertStore';
+import { useAlertStore, AlertState } from '../../store/alertStore';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { gymService } from '../../services/gym.service';
+import { gymService, RoutineExercise } from '../../services/gym.service';
+import { RootStackParamList } from '../../utils/navigation';
+import { queryKeys } from '../../services/queryKeys';
+import { translateBodyPart, translateMuscle } from '../../utils/gymTranslations';
+
+const WorkoutTimer = React.memo(({ style }: { style: any }) => {
+  const elapsedSeconds = useWorkoutStore((state) => state.elapsedSeconds);
+  const mins = Math.floor(elapsedSeconds / 60);
+  const secs = elapsedSeconds % 60;
+  const formatted = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  return <Text style={style}>{formatted}</Text>;
+});
 
 export const ActiveWorkoutScreen = () => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const queryClient = useQueryClient();
-  const showAlert = useAlertStore((state: any) => state.showAlert);
+  const showAlert = useAlertStore((state: AlertState) => state.showAlert);
   
-  const { 
-    isActive, 
-    activeRoutine, 
-    elapsedSeconds, 
-    currentExerciseIndex,
-    completedSets,
-    isPaused,
-    tickTimer,
-    pauseWorkout,
-    resumeWorkout,
-    endWorkout,
-    nextExercise,
-    prevExercise,
-    completeSet,
-    updateExerciseWeight
-  } = useWorkoutStore();
+  const isActive = useWorkoutStore(state => state.isActive);
+  const activeRoutine = useWorkoutStore(state => state.activeRoutine);
+  const currentExerciseIndex = useWorkoutStore(state => state.currentExerciseIndex);
+  const completedSets = useWorkoutStore(state => state.completedSets);
+  const isPaused = useWorkoutStore(state => state.isPaused);
+  const tickTimer = useWorkoutStore(state => state.tickTimer);
+  const pauseWorkout = useWorkoutStore(state => state.pauseWorkout);
+  const resumeWorkout = useWorkoutStore(state => state.resumeWorkout);
+  const endWorkout = useWorkoutStore(state => state.endWorkout);
+  const nextExercise = useWorkoutStore(state => state.nextExercise);
+  const prevExercise = useWorkoutStore(state => state.prevExercise);
+  const completeSet = useWorkoutStore(state => state.completeSet);
+  const updateExerciseWeight = useWorkoutStore(state => state.updateExerciseWeight);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -48,7 +57,7 @@ export const ActiveWorkoutScreen = () => {
   const currentExercise = activeRoutine?.exercises?.[currentExerciseIndex];
 
   const { data: fullExerciseData } = useQuery({
-    queryKey: ['exercise', currentExercise?.exerciseId],
+    queryKey: queryKeys.gym.exercise(currentExercise?.exerciseId),
     queryFn: () => gymService.getExerciseById(currentExercise!.exerciseId),
     enabled: !!currentExercise?.exerciseId,
   });
@@ -56,7 +65,7 @@ export const ActiveWorkoutScreen = () => {
   const mutation = useMutation({
     mutationFn: gymService.createWorkoutLog,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workouts'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gym.workouts });
       showAlert('Éxito', '¡Rutina completada y guardada!', 'success');
     },
     onError: (err) => {
@@ -80,12 +89,6 @@ export const ActiveWorkoutScreen = () => {
 
   const displayExercise = fullExerciseData || currentExercise.exercise;
 
-  const formatTime = (totalSeconds: number) => {
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
   const handleEndWorkout = () => {
     pauseWorkout();
     showAlert({
@@ -98,7 +101,7 @@ export const ActiveWorkoutScreen = () => {
           text: 'Finalizar', 
           onPress: () => {
             const currentRoutine = activeRoutine;
-            const finalElapsedSeconds = elapsedSeconds;
+            const finalElapsedSeconds = useWorkoutStore.getState().elapsedSeconds;
             
             // First end the workout and navigate to prevent getting stuck
             endWorkout();
@@ -121,7 +124,7 @@ export const ActiveWorkoutScreen = () => {
               description: currentRoutine.description || '',
               difficultyLevel: currentRoutine.difficultyLevel || 'Beginner',
               targetDay: currentRoutine.targetDay,
-              exercises: currentRoutine.exercises.map((ex: any) => ({
+              exercises: currentRoutine.exercises.map((ex: RoutineExercise) => ({
                 exerciseId: ex.exerciseId,
                 sets: ex.sets,
                 reps: ex.reps,
@@ -145,22 +148,33 @@ export const ActiveWorkoutScreen = () => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.headerBtn} onPress={handleGoBack}>
+        <TouchableOpacity 
+          style={styles.headerBtn} 
+          onPress={handleGoBack}
+          accessibilityRole="button"
+          accessibilityLabel="Volver al gimnasio"
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
           <ChevronLeft color={theme.colors.white} size={24} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTimer}>{formatTime(elapsedSeconds)}</Text>
+          <WorkoutTimer style={styles.headerTimer} />
           <Text style={styles.headerRoutineName}>{activeRoutine.name}</Text>
         </View>
-        <TouchableOpacity style={styles.headerBtn} onPress={handleEndWorkout}>
+        <TouchableOpacity 
+          style={styles.headerBtn} 
+          onPress={handleEndWorkout}
+          accessibilityRole="button"
+          accessibilityLabel="Finalizar entrenamiento"
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
           <X color={theme.colors.white} size={24} />
         </TouchableOpacity>
       </View>
 
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* Progress Dots */}
@@ -180,6 +194,19 @@ export const ActiveWorkoutScreen = () => {
         <Text style={styles.exerciseCounter}>EJERCICIO {currentExerciseIndex + 1} DE {activeRoutine.exercises.length}</Text>
         <Text style={styles.exerciseTitle}>{displayExercise?.name || 'Ejercicio Desconocido'}</Text>
         
+        {(Boolean(displayExercise?.bodyPart) || Boolean(displayExercise?.muscle)) ? (
+          <View style={styles.exerciseMetaRow}>
+            {displayExercise?.bodyPart ? (
+              <View style={styles.bodyPartPill}>
+                <Text style={styles.bodyPartPillText}>{translateBodyPart(displayExercise.bodyPart)}</Text>
+              </View>
+            ) : null}
+            {displayExercise?.muscle ? (
+              <Text style={styles.muscleText}>{translateMuscle(displayExercise.muscle)}</Text>
+            ) : null}
+          </View>
+        ) : null}
+
         {displayExercise?.instructions ? (
           <Text style={styles.exerciseDescription}>{displayExercise.instructions}</Text>
         ) : (
@@ -221,6 +248,9 @@ export const ActiveWorkoutScreen = () => {
             <TouchableOpacity 
               style={styles.weightBtn}
               onPress={() => updateExerciseWeight(currentExerciseIndex, Math.max(0, (currentExercise.weight || 0) - 0.5))}
+              accessibilityRole="button"
+              accessibilityLabel="Reducir peso"
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Text style={styles.weightBtnText}>-</Text>
             </TouchableOpacity>
@@ -228,6 +258,7 @@ export const ActiveWorkoutScreen = () => {
               style={[styles.weightValue, { padding: 0 }]}
               value={currentExercise.weight?.toString() || '0'}
               keyboardType="numeric"
+              accessibilityLabel="Peso en kilogramos"
               onChangeText={(text) => {
                 const parsed = parseFloat(text.replace(',', '.'));
                 if (!isNaN(parsed)) {
@@ -240,6 +271,9 @@ export const ActiveWorkoutScreen = () => {
             <TouchableOpacity 
               style={styles.weightBtn}
               onPress={() => updateExerciseWeight(currentExerciseIndex, (currentExercise.weight || 0) + 0.5)}
+              accessibilityRole="button"
+              accessibilityLabel="Aumentar peso"
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Text style={styles.weightBtnText}>+</Text>
             </TouchableOpacity>
@@ -269,6 +303,9 @@ export const ActiveWorkoutScreen = () => {
             ]}
             onPress={() => completeSet(currentExercise.exerciseId)}
             disabled={exerciseDoneSets >= currentExercise.sets}
+            accessibilityRole="button"
+            accessibilityLabel="Completar serie actual"
+            accessibilityState={{ disabled: exerciseDoneSets >= currentExercise.sets }}
           >
             <Text style={styles.completeSetText}>Completar Serie</Text>
           </TouchableOpacity>
@@ -325,7 +362,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   progressDotActive: { backgroundColor: colors.neonCyan },
   progressDotCompleted: { backgroundColor: colors.success },
   exerciseCounter: { color: colors.mutedText, fontFamily: 'JetBrainsMono_500Medium', fontSize: 12, letterSpacing: 1, marginBottom: 8, textAlign: 'center' },
-  exerciseTitle: { color: colors.white, fontFamily: 'Geist_700Bold', fontSize: 28, textAlign: 'center', marginBottom: 4 },
+  exerciseTitle: { color: colors.white, fontFamily: 'Geist_700Bold', fontSize: 28, textAlign: 'center', marginBottom: 6 },
+  exerciseMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 },
+  bodyPartPill: { backgroundColor: 'rgba(0, 240, 255, 0.12)', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(0, 240, 255, 0.3)' },
+  bodyPartPillText: { fontFamily: 'JetBrainsMono_500Medium', fontSize: 11, color: colors.neonCyan },
+  muscleText: { fontFamily: 'JetBrainsMono_400Regular', fontSize: 12, color: colors.mutedText },
   exerciseDescription: { color: colors.slate400, fontFamily: 'Geist_400Regular', fontSize: 14, textAlign: 'left', marginBottom: 24, paddingHorizontal: 10 },
   gifContainer: { width: '100%', height: 250, backgroundColor: colors.white, borderRadius: 20, overflow: 'hidden', marginBottom: 24 },
   gifImage: { width: '100%', height: '100%' },

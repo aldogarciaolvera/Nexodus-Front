@@ -1,6 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, TouchableOpacityProps, ActivityIndicator } from 'react-native';
-import { theme } from '../utils/theme';
+import { useTheme } from '../utils/ThemeContext';
+import { ThemeColors, ThemeTypography } from '../utils/theme';
 
 interface ButtonProps extends TouchableOpacityProps {
   title: string;
@@ -11,6 +12,8 @@ interface ButtonProps extends TouchableOpacityProps {
 export const Button: React.FC<ButtonProps> = ({ title, variant = 'primary', loading, style, disabled, ...props }) => {
   const isPrimary = variant === 'primary';
   const isDisabled = disabled || loading;
+  const theme = useTheme();
+  const styles = createStyles(theme.colors, theme.typography, theme.isDarkMode);
 
   return (
     <TouchableOpacity
@@ -22,10 +25,13 @@ export const Button: React.FC<ButtonProps> = ({ title, variant = 'primary', load
       ]}
       disabled={isDisabled}
       activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: !!isDisabled, busy: !!loading }}
       {...props}
     >
       {loading ? (
-        <ActivityIndicator color={isPrimary ? theme.colors.obsidian : theme.colors.white} />
+        <ActivityIndicator color={isPrimary ? (theme.isDarkMode ? theme.colors.obsidian : '#FFFFFF') : theme.colors.text} />
       ) : (
         <Text style={[
           styles.text,
@@ -38,7 +44,7 @@ export const Button: React.FC<ButtonProps> = ({ title, variant = 'primary', load
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, typography: ThemeTypography, isDarkMode: boolean) => StyleSheet.create({
   button: {
     borderRadius: 12,
     paddingVertical: 14,
@@ -48,24 +54,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   primary: {
-    backgroundColor: theme.colors.neonCyan,
+    backgroundColor: colors.neonCyan,
   },
   ghost: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: theme.colors.borderGlow,
+    borderColor: colors.borderGlow,
   },
   disabled: {
     opacity: 0.5,
   },
   text: {
-    fontFamily: theme.typography.fontFamilyBold,
+    fontFamily: typography.fontFamilyBold,
     fontSize: 16,
   },
   textPrimary: {
-    color: theme.colors.obsidian,
+    color: isDarkMode ? colors.obsidian : '#FFFFFF',
   },
   textGhost: {
-    color: theme.colors.white,
+    color: colors.text,
   }
 });
