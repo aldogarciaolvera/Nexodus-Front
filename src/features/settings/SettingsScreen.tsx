@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Switch, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Switch, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { Clock } from 'lucide-react-native';
@@ -42,6 +42,7 @@ export const SettingsScreen = () => {
     d.setHours(20, 0, 0, 0);
     return d;
   });
+  const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
 
   useEffect(() => {
     getGlobalReminderConfig().then(cfg => {
@@ -135,9 +136,22 @@ export const SettingsScreen = () => {
   };
 
   const handleCheckUpdates = async () => {
+    if (isCheckingUpdates) return;
+    setIsCheckingUpdates(true);
+
     try {
       if (__DEV__) {
         showAlert('Aviso', 'Las actualizaciones OTA no funcionan en modo desarrollo o Expo Go.');
+        return;
+      }
+
+      if (!Updates.isEnabled) {
+        const channel = Updates.channel || 'ninguno';
+        const runtime = Updates.runtimeVersion || 'desconocido';
+        showAlert(
+          'Actualizaciones no disponibles',
+          `Las actualizaciones OTA no están habilitadas en esta compilación.\n\n• Canal: ${channel}\n• Runtime: ${runtime}\n• Tipo: Build local / debug`
+        );
         return;
       }
       
@@ -145,7 +159,7 @@ export const SettingsScreen = () => {
       if (update.isAvailable) {
         useAlertStore.getState().showAlert({
           title: 'Actualización disponible',
-          message: 'Hay una nueva versión de Nexodus. ¿Deseas descargarla ahora?',
+          message: 'Hay una nueva versión de Nexodus disponible. ¿Deseas descargarla e instalarla ahora?',
           type: 'info',
           buttons: [
             { text: 'Cancelar', style: 'cancel', onPress: () => useAlertStore.getState().hideAlert() },
@@ -173,10 +187,19 @@ export const SettingsScreen = () => {
           ]
         });
       } else {
-        showAlert('Al día', 'Estás usando la versión más reciente de Nexodus.', 'success');
+        const channel = Updates.channel || 'preview';
+        const runtime = Updates.runtimeVersion || 'desconocido';
+        const updateId = Updates.updateId ? `${Updates.updateId.substring(0, 8)}...` : 'Build nativa embebida';
+        showAlert(
+          'Al día', 
+          `Estás usando la versión más reciente compatible con tu compilación.\n\n• Canal: ${channel}\n• Runtime: ${runtime}\n• Update ID: ${updateId}`,
+          'success'
+        );
       }
     } catch (error: any) {
       showAlert('Error', `No se pudo comprobar actualizaciones: ${error.message}`);
+    } finally {
+      setIsCheckingUpdates(false);
     }
   };
 
@@ -357,11 +380,25 @@ export const SettingsScreen = () => {
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={[styles.logoutButton, { backgroundColor: theme.colors.surfaceLight, marginTop: 12, borderColor: theme.colors.neonCyan, borderWidth: 1 }]} 
+            style={[
+              styles.logoutButton, 
+              { 
+                backgroundColor: theme.colors.surfaceLight, 
+                marginTop: 12, 
+                borderColor: theme.colors.neonCyan, 
+                borderWidth: 1,
+                opacity: isCheckingUpdates ? 0.7 : 1
+              }
+            ]} 
             activeOpacity={0.8}
             onPress={handleCheckUpdates}
+            disabled={isCheckingUpdates}
           >
-            <Text style={[styles.logoutText, { color: theme.colors.neonCyan }]}>Buscar Actualizaciones</Text>
+            {isCheckingUpdates ? (
+              <ActivityIndicator color={theme.colors.neonCyan} size="small" />
+            ) : (
+              <Text style={[styles.logoutText, { color: theme.colors.neonCyan }]}>Buscar Actualizaciones</Text>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -370,7 +407,7 @@ export const SettingsScreen = () => {
           <Text style={styles.logoutText}>Cerrar sesión</Text>
         </TouchableOpacity>
 
-        <Text style={styles.versionText}>v{Constants.expoConfig?.version || '0.0.2'}</Text>
+        <Text style={styles.versionText}>v{Constants.expoConfig?.version || '0.0.10'}</Text>
       </ScrollView>
 
       {/* Edit Profile Modal */}

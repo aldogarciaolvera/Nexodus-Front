@@ -9,7 +9,7 @@ export const useOTAUpdates = () => {
 
   const checkForUpdates = async () => {
     // Solo verificar si no estamos en entorno de desarrollo y las actualizaciones están habilitadas
-    if (__DEV__) return;
+    if (__DEV__ || !Updates.isEnabled) return;
     
     if (isChecking) return;
     setIsChecking(true);
