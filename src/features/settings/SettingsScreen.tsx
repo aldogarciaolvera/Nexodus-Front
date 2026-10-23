@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Switch, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
-import { Clock } from 'lucide-react-native';
+import { Clock, Dumbbell, ChevronRight } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../utils/ThemeContext';
 import { ThemeColors } from '../../utils/theme';
@@ -13,11 +13,11 @@ import { AuthService } from '../../services/auth.service';
 import { useQuery } from '@tanstack/react-query';
 import { useAlertStore, AlertState } from '../../store/alertStore';
 import { queryKeys } from '../../services/queryKeys';
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
 import * as Updates from 'expo-updates';
 import { ProfileEditModal } from './components/ProfileEditModal';
 import { CustomTimePicker } from '../../components/CustomTimePicker';
+import { useEquipmentStore } from '../../store/equipmentStore';
+import { EquipmentModal } from '../gym/components/EquipmentModal';
 import { 
   getGlobalReminderConfig, 
   scheduleGlobalReminder, 
@@ -32,6 +32,9 @@ export const SettingsScreen = () => {
   const navigation = useNavigation();
   const { logout, user, accessToken, refreshToken, updateTokens, updateAccessToken, apiEnv, setApiEnv, getApiUrl } = useAuthStore();
   const [isProfileModalVisible, setProfileModalVisible] = useState(false);
+  const [isEquipmentModalVisible, setEquipmentModalVisible] = useState(false);
+  const { getActiveProfile } = useEquipmentStore();
+  const activeProfile = getActiveProfile();
   const showAlert = useAlertStore((state: AlertState) => state.showAlert);
 
   const [globalReminderEnabled, setGlobalReminderEnabled] = useState(false);
@@ -95,45 +98,6 @@ export const SettingsScreen = () => {
     queryKey: queryKeys.user.profile,
     queryFn: UserService.getProfile,
   });
-
-
-
-  const testNotification = async () => {
-    if (!Device.isDevice) {
-      showAlert('Error', 'Las notificaciones push requieren un dispositivo físico');
-      return;
-    }
-
-    if (Constants.appOwnership === 'expo') {
-      showAlert('Aviso', 'Las notificaciones no están disponibles en Expo Go en SDK 53+');
-      return;
-    }
-
-    const hasPermission = await requestNotificationPermissions();
-    if (!hasPermission) {
-      showAlert('Error', 'No se otorgaron permisos para notificaciones');
-      return;
-    }
-
-    try {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "¡Hola desde Nexodus! 🚀",
-          body: "Esta es una notificación de prueba para verificar que el sistema funciona.",
-          sound: true,
-          data: { test: 'true' },
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-          channelId: 'default',
-          seconds: 2,
-        },
-      });
-      showAlert('Éxito', 'La notificación se mostrará en 2 segundos', 'success');
-    } catch (e: any) {
-      showAlert('Error', `Fallo al programar notificación: ${e.message}`);
-    }
-  };
 
   const handleCheckUpdates = async () => {
     if (isCheckingUpdates) return;
@@ -298,6 +262,32 @@ export const SettingsScreen = () => {
             </View>
           </View>
         </View>
+
+        {/* Gym Equipment Configuration */}
+        <View style={[styles.sectionHeader, { marginTop: 24 }]}>
+          <Text style={styles.sectionHeaderText}>ENTRENAMIENTO & GYM</Text>
+        </View>
+
+        <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.gymRow}
+            onPress={() => setEquipmentModalVisible(true)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Configurar equipamiento de gimnasio"
+          >
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <Dumbbell size={16} color={theme.colors.neonCyan} />
+                <Text style={styles.rowTitle}>Mi Equipamiento</Text>
+              </View>
+              <Text style={styles.rowSubtitle}>
+                {activeProfile.name} • {activeProfile.availableEquipment.length} equipos activos
+              </Text>
+            </View>
+            <ChevronRight size={18} color={theme.colors.mutedText} />
+          </TouchableOpacity>
+        </View>
         
         {__DEV__ && isTester && (
           <View style={[styles.card, { marginTop: 16 }]}>
@@ -372,19 +362,11 @@ export const SettingsScreen = () => {
 
         <View style={[styles.card, { marginTop: 16 }]}>
           <TouchableOpacity 
-            style={[styles.logoutButton, { backgroundColor: theme.colors.surfaceLight, marginTop: 0, borderColor: theme.colors.neonCyan, borderWidth: 1 }]} 
-            activeOpacity={0.8}
-            onPress={testNotification}
-          >
-            <Text style={[styles.logoutText, { color: theme.colors.neonCyan }]}>Probar Notificación Push</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
             style={[
               styles.logoutButton, 
               { 
                 backgroundColor: theme.colors.surfaceLight, 
-                marginTop: 12, 
+                marginTop: 0, 
                 borderColor: theme.colors.neonCyan, 
                 borderWidth: 1,
                 opacity: isCheckingUpdates ? 0.7 : 1
@@ -393,6 +375,8 @@ export const SettingsScreen = () => {
             activeOpacity={0.8}
             onPress={handleCheckUpdates}
             disabled={isCheckingUpdates}
+            accessibilityRole="button"
+            accessibilityLabel="Buscar actualizaciones del sistema"
           >
             {isCheckingUpdates ? (
               <ActivityIndicator color={theme.colors.neonCyan} size="small" />
@@ -415,6 +399,12 @@ export const SettingsScreen = () => {
         visible={isProfileModalVisible}
         onClose={() => setProfileModalVisible(false)}
         profile={profile}
+      />
+
+      {/* Gym Equipment Modal */}
+      <EquipmentModal
+        visible={isEquipmentModalVisible}
+        onClose={() => setEquipmentModalVisible(false)}
       />
 
       {/* Global Reminder Time Picker Modal */}
@@ -499,6 +489,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: 'JetBrainsMono_400Regular',
     fontSize: 11,
     color: colors.slate400,
+  },
+  gymRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
   },
   profileSection: {
     flexDirection: 'row',

@@ -63,7 +63,7 @@ export const WorkoutCard = () => {
     if (isActive) {
       navigation.navigate('ActiveWorkout');
     } else {
-      navigation.navigate('Gym');
+      navigation.navigate('Fit', { initialTab: 'gym' });
     }
   };
 
@@ -71,7 +71,7 @@ export const WorkoutCard = () => {
     if (isActive) {
       navigation.navigate('ActiveWorkout');
     } else if (todayRoutine) {
-      navigation.navigate('Gym');
+      navigation.navigate('Fit', { initialTab: 'gym' });
     } else {
       navigation.navigate('CreateRoutine');
     }

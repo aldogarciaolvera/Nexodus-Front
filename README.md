@@ -36,6 +36,31 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
 
 ## 🆕 Últimos Cambios
 
+- **Motor de Recomendación Biomecánica de Pesos y Sistema de Equipamiento de Gym:**
+  - **Motor Biomecánico Inteligente (`src/utils/weightRecommendation.ts`):**
+    - Calcula recomendaciones realistas de carga de trabajo inicial según la relación peso/altura del perfil del usuario (`UserService.getProfile`) y la dificultad asignada a la rutina (`Principiante`, `Intermedio`, `Avanzado`).
+    - Aplica multiplicadores según el grupo muscular primario (piernas, pecho, espalda, hombros, brazos) y reglas mecánicas estrictas: barras olímpicas (mínimo de barra 20kg o 15kg según peso y saltos de 2.5kg), mancuernas (peso por mano en múltiplos de 2kg), máquinas/poleas (saltos de 5kg) y ejercicios con peso corporal (0kg con tag explícito).
+    - **Insignia Interactiva en Rutinas (`RoutineExerciseItem.tsx`):** Muestra una insignia `💡 Sugerido: X kg` con justificación contextual. Al tocarla, aplica instantáneamente el valor sugerido en el input de peso.
+    - **Pre-llenado Automático (`CreateRoutineScreen.tsx`):** Al seleccionar ejercicios desde el catálogo, se calcula y asigna automáticamente la carga recomendada sin requerir tecleo manual, permitiendo modificación libre por parte del usuario.
+  - **Inventario y Perfiles de Equipamiento de Gimnasio (`src/store/equipmentStore.ts` y `EquipmentModal.tsx`):**
+    - Perfiles preconfigurados: *Gimnasio Comercial* (catálogo completo de barras, mancuernas, poleas, Smith, máquinas y accesorios), *Home Gym / En Casa* (mancuernas, banco, bandas y peso corporal) y *Calistenia / Viaje* (peso corporal y bandas elásticas).
+    - Persistencia en almacenamiento seguro con `expo-secure-store`.
+    - Modal de configuración (`EquipmentModal`) con selector de perfil, checklist interactivo por máquina con iconos dedicados de Obsidian Cyan y opción de restaurar valores por defecto.
+  - **Filtro de Equipamiento en Selector de Ejercicios (`ExercisePickerModal.tsx`):**
+    - Barra de equipamiento integrada en el buscador que muestra el perfil activo, acceso directo al modal de configuración y switch rápido (`✓ Mi Equipo` / `Ver Todos`), descartando ejercicios no soportados por las instalaciones del usuario.
+  - **Gestión desde Ajustes y Limpieza de UI (`SettingsScreen.tsx`):**
+    - Nueva sección de preferencias **ENTRENAMIENTO & GYM** con acceso directo a "Mi Equipamiento" indicando el perfil actual y conteo de equipos activos.
+    - Retiro del botón de prueba de notificaciones push para mantener una interfaz depurada y orientada al usuario final, optimizando la tarjeta de búsqueda de actualizaciones del sistema.
+
+- **Unificación de Pantallas Gym & Dieta (`FitScreen` y Barra de Navegación):**
+  - **Pestaña Unificada "Fit" en la Barra de Navegación:** Se consolidaron las rutas separadas de Gym y Diet en una única pestaña denominada `Fit`, conservando el icónico glifo de mancuerna (`Gym`) en `BottomNav`, reduciendo la barra a 5 pestañas equilibradas (`Dashboard`, `Ideas`, `Tasks`, `Fit`, `Money`) con áreas de toque optimizadas (WCAG 2.2).
+  - **Switch Interactivo Gym & Dieta:** Se implementó un selector de tipo píldora (`typeToggle`) en `FitScreen` con diseño idéntico al de "Ideas & Diario", permitiendo alternar fluidamente entre `Gym` (entrenamientos, racha de la semana, rutinas y botón flotante de creación) y `Dieta` (resumen calórico, desglose de macronutrientes, hidratación, comidas programadas y protocolo 16:8).
+  - **Navegación Contextual Bidireccional:** Tanto `WorkoutCard` como `DietCard` en el Dashboard ahora están enlazados de forma reactiva a `FitScreen`, navegando directamente a la subpestaña correspondiente (`initialTab: 'gym'` o `'diet'`) mediante parámetros de ruta tipados (`RootTabParamList`).
+  - **Arquitectura Limpia & Modularidad:** Desacoplamiento de las vistas en `GymView` (`src/features/gym/components/GymView.tsx`) y `DietView` (`src/features/diet/components/DietView.tsx`), manteniendo la cohesión por dominios y wrappers de retrocompatibilidad en `GymScreen` y `DietScreen`.
+
+- **Actualización de Compatibilidad de Dependencias (Expo SDK 57):**
+  - **Sincronización de `expo-notifications` (`~57.0.24`):** Se actualizó el paquete `expo-notifications` a la versión `57.0.24` recomendada por `npx expo install --check` para total alineación con el runtime de Expo SDK 57, asegurando el soporte continuo de notificaciones locales y push, actualizando las exclusiones de release en `pnpm-workspace.yaml`.
+
 - **Diagnóstico y Robusteza en Actualizaciones OTA (`useOTAUpdates` y `SettingsScreen`):**
   - **Detección y Feedback Visual:** Se integró un indicador de carga (`ActivityIndicator`) dentro del botón "Buscar Actualizaciones" en `SettingsScreen` respetando las directrices de diseño, desactivando el botón mientras se consulta la API de Expo Updates.
   - **Guarda de Seguridad de Estado:** Comprobación estricta de `Updates.isEnabled` tanto en `useOTAUpdates` como en `handleCheckUpdates` para prevenir excepciones al ejecutar en builds de depuración o entornos locales donde las actualizaciones OTA no están habilitadas.

@@ -8,6 +8,8 @@ import { ArrowLeft, Plus, Save } from 'lucide-react-native';
 import { useAlertStore, AlertState } from '../../store/alertStore';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { gymService, Exercise, CreateRoutineRequest } from '../../services/gym.service';
+import { UserService } from '../../services/user.service';
+import { calculateRecommendedWeight } from '../../utils/weightRecommendation';
 import { ExercisePickerModal } from './components/ExercisePickerModal';
 import { RoutineExerciseItem, RoutineExerciseForm } from './components/RoutineExerciseItem';
 import { queryKeys } from '../../services/queryKeys';
@@ -46,6 +48,11 @@ export const CreateRoutineScreen = () => {
     queryFn: () => gymService.getAllExercises(),
     staleTime: 10 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
+  });
+
+  const { data: profile } = useQuery({
+    queryKey: queryKeys.gym.profile,
+    queryFn: UserService.getProfile,
   });
 
   const { data: existingRoutine } = useQuery({
@@ -124,18 +131,28 @@ export const CreateRoutineScreen = () => {
   const handleConfirmAddExercises = (selectedList: Exercise[]) => {
     const newExercises = selectedList
       .filter(ex => !exercises.some(e => e.exerciseId === ex.id))
-      .map(ex => ({
-        id: generateTempId(),
-        exerciseId: ex.id,
-        name: ex.name,
-        thumbUrl: ex.thumbUrl || ex.gifUrl,
-        sets: 4,
-        reps: 12,
-        weight: 0,
-        restTimeInSeconds: 90,
-        muscle: ex.muscle || ex.targetMuscleGroup,
-        bodyPart: ex.bodyPart
-      }));
+      .map(ex => {
+        const rec = calculateRecommendedWeight(
+          ex,
+          profile?.weight,
+          profile?.height,
+          'Beginner'
+        );
+
+        return {
+          id: generateTempId(),
+          exerciseId: ex.id,
+          name: ex.name,
+          thumbUrl: ex.thumbUrl || ex.gifUrl,
+          sets: rec.suggestedSets || 4,
+          reps: rec.suggestedReps || 12,
+          weight: rec.weight,
+          restTimeInSeconds: 90,
+          muscle: ex.muscle || ex.targetMuscleGroup,
+          bodyPart: ex.bodyPart,
+          equipment: ex.equipment,
+        };
+      });
 
     setExercises(prev => [...prev, ...newExercises]);
   };
@@ -218,15 +235,27 @@ export const CreateRoutineScreen = () => {
             <Text style={styles.label}>EJERCICIOS ({exercises.length})</Text>
           </View>
 
-          {exercises.map((ex, index) => (
-            <RoutineExerciseItem
-              key={ex.id}
-              exercise={ex}
-              index={index}
-              onUpdate={updateExercise}
-              onRemove={removeExercise}
-            />
-          ))}
+          {exercises.map((ex, index) => {
+            const foundEx = availableExercises.find((e: Exercise) => e.id === ex.exerciseId);
+            const rec = calculateRecommendedWeight(
+              foundEx || ex,
+              profile?.weight,
+              profile?.height,
+              'Beginner'
+            );
+
+            return (
+              <RoutineExerciseItem
+                key={ex.id}
+                exercise={ex}
+                index={index}
+                onUpdate={updateExercise}
+                onRemove={removeExercise}
+                recommendedWeight={rec.weight}
+                recommendationRationale={rec.rationale}
+              />
+            );
+          })}
 
           <TouchableOpacity style={styles.addExerciseBtn} onPress={() => setShowExercisePicker(true)}>
             <Plus color={theme.colors.neonCyan} size={20} />

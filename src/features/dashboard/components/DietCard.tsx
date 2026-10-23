@@ -1,15 +1,24 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
+import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
+import { AppNavigationProp } from '../../../utils/navigation';
 
 export const DietCard = () => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
+  const navigation = useNavigation<AppNavigationProp>();
 
   return (
-    <View style={styles.card}>
+    <TouchableOpacity 
+      style={styles.card}
+      activeOpacity={0.8}
+      onPress={() => navigation.navigate('Fit', { initialTab: 'diet' })}
+      accessibilityRole="button"
+      accessibilityLabel="Ver sección de Dieta y Macros"
+    >
       <View>
         <View style={styles.header}>
           <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={theme.colors.neonCyan} strokeWidth={1.8}>
@@ -59,7 +68,7 @@ export const DietCard = () => {
         <Text style={styles.footerLabel}>Target Reached</Text>
         <Text style={styles.footerValue}>72%</Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 

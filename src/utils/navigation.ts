@@ -7,8 +7,9 @@ export type RootTabParamList = {
   Dashboard: undefined;
   Ideas: undefined;
   Tasks: undefined;
-  Gym: undefined;
-  Diet: undefined;
+  Fit: { initialTab?: 'gym' | 'diet' } | undefined;
+  Gym?: { initialTab?: 'gym' | 'diet' };
+  Diet?: undefined;
   Money: undefined;
 };
 

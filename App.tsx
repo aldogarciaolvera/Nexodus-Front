@@ -23,6 +23,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ThemeProvider, useTheme } from './src/utils/ThemeContext';
 import { GlobalAlert } from './src/components/GlobalAlert';
 import { useOTAUpdates } from './src/hooks/useOTAUpdates';
+import { FitScreen } from './src/features/fit/FitScreen';
 import { GymScreen } from './src/features/gym/GymScreen';
 import { CreateRoutineScreen } from './src/features/gym/CreateRoutineScreen';
 import { ActiveWorkoutScreen } from './src/features/gym/ActiveWorkoutScreen';
@@ -56,8 +57,7 @@ function MainTabs() {
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
       <Tab.Screen name="Ideas" component={JournalScreen} />
       <Tab.Screen name="Tasks" component={TasksScreen} />
-      <Tab.Screen name="Gym" component={GymScreen} />
-      <Tab.Screen name="Diet" component={DietScreen} />
+      <Tab.Screen name="Fit" component={FitScreen} />
       <Tab.Screen name="Money" component={FinanceScreen} />
     </Tab.Navigator>
   );

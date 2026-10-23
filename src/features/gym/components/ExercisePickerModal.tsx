@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, FlatList, TextInput, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, CheckCircle2, Search, X } from 'lucide-react-native';
+import { ArrowLeft, CheckCircle2, Search, X, Dumbbell, SlidersHorizontal } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { useQuery } from '@tanstack/react-query';
 import { gymService, Exercise } from '../../../services/gym.service';
@@ -10,6 +10,8 @@ import { Skeleton } from '../../../components/Skeleton';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
 import { translateBodyPart, translateMuscle, translateEquipment, normalizeSearchText } from '../../../utils/gymTranslations';
+import { useEquipmentStore, isExerciseSupported } from '../../../store/equipmentStore';
+import { EquipmentModal } from './EquipmentModal';
 
 interface ExercisePickerModalProps {
   visible: boolean;
@@ -30,6 +32,10 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedBodyPart, setSelectedBodyPart] = useState<string>('Todos');
   const [selectedForAddition, setSelectedForAddition] = useState<Set<string>>(new Set());
+  const [showEquipmentModal, setShowEquipmentModal] = useState<boolean>(false);
+
+  const { profiles, activeProfileId, getActiveProfile, filterEnabled, setFilterEnabled } = useEquipmentStore();
+  const activeProfile = getActiveProfile();
 
   const { data: availableExercises = [], isLoading: isLoadingExercises } = useQuery({
     queryKey: queryKeys.gym.exercises,
@@ -57,6 +63,11 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
     const query = normalizeSearchText(searchQuery);
 
     return availableExercises.filter(e => {
+      // Filter by available equipment if enabled
+      if (filterEnabled && !isExerciseSupported(e.equipment, activeProfile.availableEquipment)) {
+        return false;
+      }
+
       const part = e.bodyPart || e.targetMuscleGroup;
       const matchesBodyPart = selectedBodyPart === 'Todos' || part === selectedBodyPart;
       if (!matchesBodyPart) return false;
@@ -70,7 +81,7 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
 
       return Boolean(nameMatch || muscleMatch || bodyPartMatch || equipmentMatch);
     });
-  }, [availableExercises, selectedBodyPart, searchQuery]);
+  }, [availableExercises, selectedBodyPart, searchQuery, filterEnabled, activeProfileId, profiles]);
 
   const toggleExerciseSelection = (exerciseId: string) => {
     const newSet = new Set(selectedForAddition);
@@ -146,6 +157,35 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
                 </TouchableOpacity>
               )}
             </View>
+          </View>
+
+          {/* Equipment Filter Bar */}
+          <View style={styles.equipmentBar}>
+            <TouchableOpacity
+              style={styles.equipmentProfileButton}
+              onPress={() => setShowEquipmentModal(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`Perfil de equipamiento actual: ${activeProfile.name}. Toca para cambiar.`}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Dumbbell size={14} color={theme.colors.neonCyan} />
+              <Text style={styles.equipmentProfileText} numberOfLines={1}>
+                {activeProfile.name}
+              </Text>
+              <SlidersHorizontal size={13} color={theme.colors.mutedText} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.filterToggleBtn, filterEnabled && styles.filterToggleBtnActive]}
+              onPress={() => setFilterEnabled(!filterEnabled)}
+              accessibilityRole="button"
+              accessibilityLabel={filterEnabled ? 'Filtro por equipo activado' : 'Filtro por equipo desactivado'}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={[styles.filterToggleText, filterEnabled && styles.filterToggleTextActive]}>
+                {filterEnabled ? '✓ Mi Equipo' : 'Ver Todos'}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Body Part Filter Chips */}
@@ -257,6 +297,11 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
           )}
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      <EquipmentModal
+        visible={showEquipmentModal}
+        onClose={() => setShowEquipmentModal(false)}
+      />
     </Modal>
   );
 };
@@ -320,6 +365,53 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   clearSearchBtn: {
     padding: 4,
     marginLeft: 4,
+  },
+  equipmentBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 4,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  equipmentProfileButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderGlow,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 6,
+  },
+  equipmentProfileText: {
+    flex: 1,
+    fontFamily: 'Geist_500Medium',
+    fontSize: 12,
+    color: colors.text,
+  },
+  filterToggleBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: colors.surfaceLight,
+    borderWidth: 1,
+    borderColor: colors.borderGlow,
+  },
+  filterToggleBtnActive: {
+    backgroundColor: 'rgba(0, 240, 255, 0.15)',
+    borderColor: colors.neonCyan,
+  },
+  filterToggleText: {
+    fontFamily: 'JetBrainsMono_500Medium',
+    fontSize: 11,
+    color: colors.mutedText,
+  },
+  filterToggleTextActive: {
+    color: colors.neonCyan,
   },
   filterContainer: {
     paddingVertical: 10,

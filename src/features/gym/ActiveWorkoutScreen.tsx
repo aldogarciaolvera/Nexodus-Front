@@ -105,7 +105,7 @@ export const ActiveWorkoutScreen = () => {
             
             // First end the workout and navigate to prevent getting stuck
             endWorkout();
-            navigation.navigate('MainTabs', { screen: 'Gym' });
+            navigation.navigate('MainTabs', { screen: 'Fit', params: { initialTab: 'gym' } });
 
             // Calculate total completed exercises (where at least 1 set was done)
             const completedCount = Object.keys(completedSets).filter(exId => completedSets[exId] > 0).length;

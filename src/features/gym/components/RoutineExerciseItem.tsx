@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
-import { Trash2 } from 'lucide-react-native';
+import { Trash2, Sparkles } from 'lucide-react-native';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
 
@@ -18,6 +18,7 @@ export interface RoutineExerciseForm {
   thumbUrl?: string;
   muscle?: string;
   bodyPart?: string;
+  equipment?: string;
 }
 
 interface RoutineExerciseItemProps {
@@ -25,6 +26,8 @@ interface RoutineExerciseItemProps {
   index: number;
   onUpdate: (id: string, field: keyof RoutineExerciseForm, value: number) => void;
   onRemove: (id: string) => void;
+  recommendedWeight?: number;
+  recommendationRationale?: string;
 }
 
 export const RoutineExerciseItem: React.FC<RoutineExerciseItemProps> = ({
@@ -32,6 +35,8 @@ export const RoutineExerciseItem: React.FC<RoutineExerciseItemProps> = ({
   index,
   onUpdate,
   onRemove,
+  recommendedWeight,
+  recommendationRationale,
 }) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
@@ -171,7 +176,7 @@ export const RoutineExerciseItem: React.FC<RoutineExerciseItemProps> = ({
         </View>
       </View>
 
-      <View style={[styles.exMetricsRow, { marginTop: 12, justifyContent: 'flex-start' }]}>
+      <View style={[styles.exMetricsRow, { marginTop: 12, justifyContent: 'flex-start', alignItems: 'flex-end', gap: 10 }]}>
         <View style={styles.metricControl}>
           <Text style={styles.metricLabel}>PESO (kg)</Text>
           <View style={styles.metricInputContainer}>
@@ -207,6 +212,28 @@ export const RoutineExerciseItem: React.FC<RoutineExerciseItemProps> = ({
             </TouchableOpacity>
           </View>
         </View>
+
+        {recommendedWeight !== undefined && recommendedWeight > 0 && (
+          <TouchableOpacity
+            style={styles.recommendationBadge}
+            activeOpacity={0.7}
+            onPress={() => onUpdate(ex.id, 'weight', recommendedWeight)}
+            accessibilityRole="button"
+            accessibilityLabel={`Aplicar peso sugerido de ${recommendedWeight} kg`}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Sparkles color={theme.colors.neonCyan} size={12} style={{ marginRight: 5 }} />
+            <Text style={styles.recommendationBadgeText}>
+              Sugerido: <Text style={styles.recommendationBadgeValue}>{recommendedWeight} kg</Text>
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {recommendedWeight === 0 && (
+          <View style={styles.bodyweightBadge}>
+            <Text style={styles.bodyweightBadgeText}>Peso corporal</Text>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -285,5 +312,38 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     padding: 0,
     flex: 1,
     textAlign: 'center',
+  },
+  recommendationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 240, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: colors.borderGlow,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    height: 38,
+  },
+  recommendationBadgeText: {
+    fontFamily: 'Geist_400Regular',
+    fontSize: 11,
+    color: colors.mutedText,
+  },
+  recommendationBadgeValue: {
+    fontFamily: 'JetBrainsMono_600SemiBold',
+    color: colors.neonCyan,
+  },
+  bodyweightBadge: {
+    backgroundColor: colors.surfaceLight,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.borderGlow,
+    height: 38,
+    justifyContent: 'center',
+  },
+  bodyweightBadgeText: {
+    fontFamily: 'JetBrainsMono_400Regular',
+    fontSize: 11,
+    color: colors.mutedText,
   },
 });
