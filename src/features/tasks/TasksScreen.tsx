@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Text, TouchableOpacity, Platform, Modal, TouchableWithoutFeedback } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { theme } from '../../utils/theme';
+import { useTheme } from '../../utils/ThemeContext';
+import { ThemeColors, ThemeTypography, ThemeMetrics } from '../../utils/theme';
 import { ProgressTelemetry } from './components/ProgressTelemetry';
 import { FilterPills } from './components/FilterPills';
 import { TaskHabitCard, TaskHabitItem } from './components/TaskHabitCard';
@@ -15,6 +16,9 @@ import { Header } from '../../components/Header';
 import { Skeleton } from '../../components/Skeleton';
 import { useAlertStore } from '../../store/alertStore';
 import { scheduleTodoNotification, cancelTodoNotification } from '../../utils/notifications';
+import { queryKeys } from '../../services/queryKeys';
+
+const EMPTY_TODOS: TodoDto[] = [];
 
 const FILTERS = [
   { id: 'today', label: 'HOY' },
@@ -28,6 +32,8 @@ const FILTERS = [
 ];
 
 export const TasksScreen = () => {
+  const theme = useTheme();
+  const styles = createStyles(theme.colors, theme.typography, theme.metrics);
   const queryClient = useQueryClient();
   const navigation = useNavigation();
   const alertStore = useAlertStore();
@@ -37,8 +43,8 @@ export const TasksScreen = () => {
   const [isActionModalVisible, setActionModalVisible] = useState(false);
   const [editingItemDto, setEditingItemDto] = useState<TodoDto | null>(null);
 
-  const { data: todos = [], isLoading } = useQuery({
-    queryKey: ['todos'],
+  const { data: todos = EMPTY_TODOS, isLoading } = useQuery({
+    queryKey: queryKeys.todos.all,
     queryFn: TodoService.getAll,
   });
 
@@ -46,7 +52,7 @@ export const TasksScreen = () => {
     mutationFn: (newTodo: CreateTodoDto) => TodoService.create(newTodo),
     onSuccess: async (data) => {
       await scheduleTodoNotification(data);
-      queryClient.invalidateQueries({ queryKey: ['todos'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
       setIsModalVisible(false);
     },
   });
@@ -54,7 +60,7 @@ export const TasksScreen = () => {
   const completeMutation = useMutation({
     mutationFn: (id: string) => TodoService.complete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['todos'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
     },
   });
 
@@ -65,7 +71,7 @@ export const TasksScreen = () => {
       if (todo) {
         await cancelTodoNotification(todo);
       }
-      queryClient.invalidateQueries({ queryKey: ['todos'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
       setActionModalVisible(false);
       setSelectedItem(null);
     },
@@ -74,7 +80,7 @@ export const TasksScreen = () => {
   const uncompleteMutation = useMutation({
     mutationFn: (id: string) => TodoService.uncomplete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['todos'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
     },
   });
 
@@ -94,57 +100,93 @@ export const TasksScreen = () => {
       }),
     onSuccess: async (data) => {
       await scheduleTodoNotification(data);
-      queryClient.invalidateQueries({ queryKey: ['todos'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
       setIsModalVisible(false);
       setEditingItemDto(null);
     },
   });
 
-  // Compute date context for habits based on filter
-  const viewingDate = new Date();
-  if (filter === 'upcoming') {
-    viewingDate.setDate(viewingDate.getDate() + 1);
-  }
-  const viewingDateStr = viewingDate.toDateString();
-
-  // Map Backend DTO to Frontend Item
-  const items: TaskHabitItem[] = todos.map(t => {
-    let computedCompleted = t.isCompleted;
-    const isRepeating = t.isHabit || (t.frequency && t.frequency !== 'Ninguna' && t.frequency !== 'Un solo día' && t.frequency !== '');
-
-    if (isRepeating && t.isCompleted) {
-      if (t.lastCompletedAt) {
-        const completedDate = new Date(t.lastCompletedAt).toDateString();
-        computedCompleted = completedDate === viewingDateStr;
-      } else {
-        // If no lastCompletedAt but marked as completed, assume it was today 
-        // (or fallback to true, but typically it should reset on new day)
-        computedCompleted = false;
-      }
+  const { items, completedCount, totalCount, urgentCount, activeHabitsCount, sortedItems, pendingExecutionCount } = useMemo(() => {
+    // Compute date context for habits based on filter
+    const viewingDate = new Date();
+    if (filter === 'upcoming') {
+      viewingDate.setDate(viewingDate.getDate() + 1);
     }
+    const viewingDateStr = viewingDate.toDateString();
+
+    // Map Backend DTO to Frontend Item
+    const mappedItems: TaskHabitItem[] = todos.map(t => {
+      let computedCompleted = t.isCompleted;
+      const isRepeating = t.isHabit || (t.frequency && t.frequency !== 'Ninguna' && t.frequency !== 'Un solo día' && t.frequency !== '');
+
+      if (isRepeating && t.isCompleted) {
+        if (t.lastCompletedAt) {
+          const completedDate = new Date(t.lastCompletedAt).toDateString();
+          computedCompleted = completedDate === viewingDateStr;
+        } else {
+          computedCompleted = false;
+        }
+      }
+
+      return {
+        id: t.id,
+        type: t.isHabit ? 'habit' : 'task',
+        title: t.task,
+        subtitle: t.subtitle,
+        tag: t.tag,
+        streak: t.currentStreak,
+        isCompleted: computedCompleted,
+        urgent: t.urgent,
+        frequency: t.frequency,
+        customDays: t.customDays,
+        lastCompletedAt: t.lastCompletedAt,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+        notificationsEnabled: t.notificationsEnabled,
+      };
+    });
+
+    const completed = mappedItems.filter(i => i.isCompleted).length;
+    const total = mappedItems.length;
+    const urgent = mappedItems.filter(i => i.type === 'task' && i.urgent && !i.isCompleted).length;
+    const habits = mappedItems.filter(i => i.type === 'habit').length;
+
+    let filtered = mappedItems;
+    if (filter === 'today') {
+      const today = new Date();
+      filtered = mappedItems.filter(i => isItemActiveForDate(i, today, false));
+    } else if (filter === 'upcoming') {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      filtered = mappedItems.filter(i => isItemActiveForDate(i, tomorrow, true));
+    } else if (filter === 'work') filtered = mappedItems.filter(i => i.tag === 'TRABAJO');
+    else if (filter === 'personal') filtered = mappedItems.filter(i => i.tag === 'PERSONAL');
+    else if (filter === 'health') filtered = mappedItems.filter(i => i.tag === 'SALUD');
+    else if (filter === 'tasks') filtered = mappedItems.filter(i => i.type === 'task');
+    else if (filter === 'habits') filtered = mappedItems.filter(i => i.type === 'habit');
+
+    const sorted = [...filtered].sort((a, b) => {
+      if (a.isCompleted !== b.isCompleted) {
+        return a.isCompleted ? 1 : -1;
+      }
+      if (a.urgent !== b.urgent) {
+        return a.urgent ? -1 : 1;
+      }
+      return 0;
+    });
+
+    const pendingExecution = sorted.filter(i => !i.isCompleted).length;
 
     return {
-      id: t.id,
-      type: t.isHabit ? 'habit' : 'task',
-      title: t.task,
-      subtitle: t.subtitle,
-      tag: t.tag,
-      streak: t.currentStreak,
-      isCompleted: computedCompleted,
-      urgent: t.urgent,
-      frequency: t.frequency,
-      customDays: t.customDays,
-      lastCompletedAt: t.lastCompletedAt,
-      createdAt: t.createdAt,
-      updatedAt: t.updatedAt,
-      notificationsEnabled: t.notificationsEnabled,
+      items: mappedItems,
+      completedCount: completed,
+      totalCount: total,
+      urgentCount: urgent,
+      activeHabitsCount: habits,
+      sortedItems: sorted,
+      pendingExecutionCount: pendingExecution,
     };
-  });
-
-  const completedCount = items.filter(i => i.isCompleted).length;
-  const totalCount = items.length;
-  const urgentCount = items.filter(i => i.type === 'task' && i.urgent && !i.isCompleted).length;
-  const activeHabitsCount = items.filter(i => i.type === 'habit').length;
+  }, [todos, filter]);
 
   const handleToggle = (id: string) => {
     const item = todos.find(t => t.id === id);
@@ -204,33 +246,6 @@ export const TasksScreen = () => {
     }
   };
 
-  let filteredItems = items;
-  if (filter === 'today') {
-    const today = new Date();
-    filteredItems = items.filter(i => isItemActiveForDate(i, today, false));
-  }
-  else if (filter === 'upcoming') {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    filteredItems = items.filter(i => isItemActiveForDate(i, tomorrow, true));
-  }
-  else if (filter === 'work') filteredItems = items.filter(i => i.tag === 'TRABAJO');
-  else if (filter === 'personal') filteredItems = items.filter(i => i.tag === 'PERSONAL');
-  else if (filter === 'health') filteredItems = items.filter(i => i.tag === 'SALUD');
-  else if (filter === 'tasks') filteredItems = items.filter(i => i.type === 'task');
-  else if (filter === 'habits') filteredItems = items.filter(i => i.type === 'habit');
-  // 'all' shows all items
-
-  const sortedItems = [...filteredItems].sort((a, b) => {
-    if (a.isCompleted !== b.isCompleted) {
-      return a.isCompleted ? 1 : -1;
-    }
-    if (a.urgent !== b.urgent) {
-      return a.urgent ? -1 : 1;
-    }
-    return 0;
-  });
-
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.container}>
@@ -266,7 +281,7 @@ export const TasksScreen = () => {
 
               <View style={styles.listHeader}>
                 <Text style={styles.listHeaderText}>
-                  EN EJECUCION • {filteredItems.length - filteredItems.filter(i => i.isCompleted).length}
+                  EN EJECUCION • {pendingExecutionCount}
                 </Text>
                 <TouchableOpacity onPress={() => navigation.navigate('AllTasks' as never)}>
                   <Text style={styles.viewAllText}>VER TODO</Text>
@@ -334,17 +349,17 @@ export const TasksScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, typography: ThemeTypography, metrics: ThemeMetrics) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: theme.colors.obsidian,
+    backgroundColor: colors.obsidian,
   },
   container: {
     flex: 1,
-    backgroundColor: theme.colors.obsidian,
+    backgroundColor: colors.obsidian,
   },
   scrollContent: {
-    paddingHorizontal: theme.metrics.marginHorizontal,
+    paddingHorizontal: metrics.marginHorizontal,
     paddingTop: Platform.OS === 'android' ? 24 : 12,
     paddingBottom: 20,
   },
@@ -361,15 +376,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   listHeaderText: {
-    color: theme.colors.slate400,
-    fontFamily: theme.typography.fontMono,
+    color: colors.slate400,
+    fontFamily: typography.fontMono,
     fontSize: 11,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
   },
   viewAllText: {
-    color: theme.colors.neonCyan,
-    fontFamily: theme.typography.fontMono,
+    color: colors.neonCyan,
+    fontFamily: typography.fontMono,
     fontSize: 11,
     letterSpacing: 1,
     textTransform: 'uppercase',
@@ -387,16 +402,16 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: theme.colors.neonCyan,
+    backgroundColor: colors.neonCyan,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: theme.colors.borderGlow,
+    borderColor: colors.borderGlow,
   },
   fabIcon: {
     fontSize: 28,
     fontWeight: '300',
-    color: '#000000', // Assuming black for contrast against neon cyan
-    lineHeight: 32, // to vertically center the + symbol properly
+    color: '#000000',
+    lineHeight: 32,
   },
 });

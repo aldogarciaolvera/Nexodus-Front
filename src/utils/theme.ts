@@ -75,6 +75,9 @@ export const metrics = {
   marginHorizontal: 20, 
 };
 
+export type ThemeTypography = typeof typography;
+export type ThemeMetrics = typeof metrics;
+
 // Default export for backward compatibility during transition
 export const theme = {
   colors: darkColors,

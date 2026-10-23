@@ -1,6 +1,7 @@
 import React from 'react';
 import { ScrollView, Text, TouchableOpacity, StyleSheet, View } from 'react-native';
-import { theme } from '../../../utils/theme';
+import { useTheme } from '../../../utils/ThemeContext';
+import { ThemeColors, ThemeTypography, ThemeMetrics } from '../../../utils/theme';
 
 interface FilterOption {
   id: string;
@@ -15,6 +16,9 @@ interface FilterPillsProps {
 }
 
 export const FilterPills: React.FC<FilterPillsProps> = ({ options, selectedId, onSelect }) => {
+  const theme = useTheme();
+  const styles = createStyles(theme.colors, theme.typography, theme.metrics);
+
   return (
     <View style={styles.container}>
       <ScrollView 
@@ -56,12 +60,12 @@ export const FilterPills: React.FC<FilterPillsProps> = ({ options, selectedId, o
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, typography: ThemeTypography, metrics: ThemeMetrics) => StyleSheet.create({
   container: {
     marginVertical: 16,
   },
   scrollContent: {
-    paddingHorizontal: theme.metrics.marginHorizontal,
+    paddingHorizontal: metrics.marginHorizontal,
     gap: 8,
   },
   pill: {
@@ -70,39 +74,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: colors.borderGlow,
   },
   pillSelected: {
     backgroundColor: 'rgba(0, 240, 255, 0.1)',
-    borderColor: 'rgba(0, 240, 255, 0.2)',
+    borderColor: colors.neonCyan,
   },
   dot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: theme.colors.neonCyan,
+    backgroundColor: colors.neonCyan,
     marginRight: 8,
   },
   label: {
-    color: theme.colors.slate400,
-    fontFamily: theme.typography.fontMono,
+    color: colors.slate400,
+    fontFamily: typography.fontMono,
     fontSize: 11,
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
   labelSelected: {
-    color: theme.colors.neonCyan,
-    fontFamily: theme.typography.fontFamilyBold,
+    color: colors.neonCyan,
+    fontFamily: typography.fontFamilyBold,
   },
   count: {
-    color: theme.colors.slate500,
-    fontFamily: theme.typography.fontMono,
+    color: colors.slate500,
+    fontFamily: typography.fontMono,
     fontSize: 11,
     marginLeft: 4,
   },
   countSelected: {
-    color: theme.colors.neonCyan,
+    color: colors.neonCyan,
   },
 });

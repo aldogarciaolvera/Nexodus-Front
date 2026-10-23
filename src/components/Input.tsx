@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { TextInput, TextInputProps, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
-import { theme } from '../utils/theme';
+import { useTheme } from '../utils/ThemeContext';
+import { ThemeColors, ThemeTypography } from '../utils/theme';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -26,6 +27,8 @@ const EyeOffIcon = ({ color }: { color: string }) => (
 export const Input: React.FC<InputProps> = ({ label, error, style, isPassword, secureTextEntry, onFocus, onBlur, ...props }) => {
   const [isFocused, setIsFocused] = useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const theme = useTheme();
+  const styles = createStyles(theme.colors, theme.typography);
 
   const shouldSecure = isPassword ? !isPasswordVisible : secureTextEntry;
 
@@ -41,7 +44,8 @@ export const Input: React.FC<InputProps> = ({ label, error, style, isPassword, s
             isPassword && { paddingRight: 48 }, // Make space for the icon
             style,
           ]}
-          placeholderTextColor={theme.colors.slate400}
+          accessibilityLabel={label || props.placeholder}
+          placeholderTextColor={theme.colors.mutedText}
           secureTextEntry={shouldSecure}
           onFocus={(e) => {
             setIsFocused(true);
@@ -58,11 +62,14 @@ export const Input: React.FC<InputProps> = ({ label, error, style, isPassword, s
             style={styles.eyeIcon} 
             onPress={() => setIsPasswordVisible(!isPasswordVisible)}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={isPasswordVisible ? "Ocultar contraseña" : "Ver contraseña"}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             {isPasswordVisible ? (
-              <EyeOffIcon color={theme.colors.slate400} />
+              <EyeOffIcon color={theme.colors.mutedText} />
             ) : (
-              <EyeIcon color={theme.colors.slate400} />
+              <EyeIcon color={theme.colors.mutedText} />
             )}
           </TouchableOpacity>
         )}
@@ -72,14 +79,14 @@ export const Input: React.FC<InputProps> = ({ label, error, style, isPassword, s
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, typography: ThemeTypography) => StyleSheet.create({
   container: {
     marginBottom: 16,
   },
   label: {
-    fontFamily: theme.typography.fontMonoMedium,
+    fontFamily: typography.fontMonoMedium,
     fontSize: 11,
-    color: theme.colors.slate400,
+    color: colors.slate400,
     marginBottom: 8,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
@@ -89,14 +96,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   input: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: theme.colors.borderGlow,
+    borderColor: colors.borderGlow,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    color: theme.colors.white,
-    fontFamily: theme.typography.fontFamily,
+    color: colors.text,
+    fontFamily: typography.fontFamily,
     fontSize: 16,
   },
   eyeIcon: {
@@ -106,15 +113,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   inputFocused: {
-    borderColor: theme.colors.neonCyan,
+    borderColor: colors.neonCyan,
   },
   inputError: {
-    borderColor: '#ffb4ab',
+    borderColor: colors.error,
   },
   errorText: {
-    color: '#ffb4ab',
+    color: colors.error,
     fontSize: 12,
-    fontFamily: theme.typography.fontFamily,
+    fontFamily: typography.fontFamily,
     marginTop: 4,
   },
 });

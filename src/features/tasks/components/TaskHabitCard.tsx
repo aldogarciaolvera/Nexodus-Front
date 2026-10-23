@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { theme } from '../../../utils/theme';
+import { useTheme } from '../../../utils/ThemeContext';
+import { ThemeColors, ThemeTypography } from '../../../utils/theme';
 
 export interface TaskHabitItem {
   id: string;
@@ -27,17 +28,25 @@ interface TaskHabitCardProps {
 }
 
 export const TaskHabitCard: React.FC<TaskHabitCardProps> = ({ item, onToggle, onLongPress }) => {
+  const theme = useTheme();
+  const styles = createStyles(theme.colors, theme.typography, theme.isDarkMode);
   return (
     <TouchableOpacity 
       style={[styles.container, item.isCompleted && styles.containerCompleted]}
       onLongPress={() => onLongPress?.(item)}
       activeOpacity={0.8}
       delayLongPress={400}
+      accessibilityRole="button"
+      accessibilityLabel={`Elemento: ${item.title}`}
     >
       <TouchableOpacity 
         style={styles.checkboxContainer} 
         onPress={() => onToggle(item.id)}
         activeOpacity={0.7}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: !!item.isCompleted }}
+        accessibilityLabel={`Marcar ${item.title} como ${item.isCompleted ? 'pendiente' : 'completado'}`}
+        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
       >
         <View style={[
           styles.checkbox,
@@ -92,15 +101,15 @@ export const TaskHabitCard: React.FC<TaskHabitCardProps> = ({ item, onToggle, on
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, typography: ThemeTypography, isDarkMode: boolean) => StyleSheet.create({
   container: {
     flexDirection: 'row',
-    backgroundColor: theme.colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: theme.colors.borderGlow,
+    borderColor: colors.borderGlow,
   },
   containerCompleted: {
     opacity: 0.6,
@@ -115,16 +124,16 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: theme.colors.slate600,
+    borderColor: colors.slate600,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkboxCompleted: {
-    backgroundColor: theme.colors.neonCyan,
-    borderColor: theme.colors.neonCyan,
+    backgroundColor: colors.neonCyan,
+    borderColor: colors.neonCyan,
   },
   checkmark: {
-    color: theme.colors.obsidian,
+    color: isDarkMode ? colors.obsidian : '#FFFFFF',
     fontSize: 14,
     fontWeight: 'bold',
   },
@@ -138,18 +147,18 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   title: {
-    color: theme.colors.white,
-    fontFamily: theme.typography.fontFamilyBold,
+    color: colors.text,
+    fontFamily: typography.fontFamilyBold,
     fontSize: 16,
     flex: 1,
   },
   textCompleted: {
     textDecorationLine: 'line-through',
-    color: theme.colors.slate400,
+    color: colors.slate400,
   },
   streakText: {
     color: '#F5A623',
-    fontFamily: theme.typography.fontMono,
+    fontFamily: typography.fontMono,
     fontSize: 12,
     fontWeight: 'bold',
   },
@@ -157,11 +166,11 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: theme.colors.error,
+    backgroundColor: colors.error,
   },
   subtitle: {
-    color: theme.colors.slate400,
-    fontFamily: theme.typography.fontFamily,
+    color: colors.slate400,
+    fontFamily: typography.fontFamily,
     fontSize: 14,
     marginBottom: 8,
   },
@@ -177,23 +186,23 @@ const styles = StyleSheet.create({
   },
   timeIcon: {
     fontSize: 12,
-    color: theme.colors.slate500,
+    color: colors.slate500,
     marginRight: 4,
   },
   timeText: {
-    color: theme.colors.slate400,
-    fontFamily: theme.typography.fontMono,
+    color: colors.slate400,
+    fontFamily: typography.fontMono,
     fontSize: 11,
   },
   categoryTag: {
-    backgroundColor: theme.colors.surfaceLight,
+    backgroundColor: colors.surfaceLight,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,
   },
   categoryText: {
-    color: theme.colors.slate300,
-    fontFamily: theme.typography.fontMono,
+    color: colors.slate300,
+    fontFamily: typography.fontMono,
     fontSize: 10,
     textTransform: 'uppercase',
   },

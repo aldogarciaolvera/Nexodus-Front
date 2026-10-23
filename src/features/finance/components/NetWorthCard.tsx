@@ -111,8 +111,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     gap: 8,
   },
   balance: {
-    fontFamily: 'Geist_700Bold',
-    fontSize: 32,
+    fontFamily: 'JetBrainsMono_500Medium',
+    fontSize: 30,
+    letterSpacing: -0.5,
     color: colors.text,
   },
   currency: {

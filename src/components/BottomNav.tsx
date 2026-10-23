@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
 import { useTheme } from '../utils/ThemeContext';
 import { ThemeColors } from '../utils/theme';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { BlurView } from 'expo-blur';
 
 const ICONS = {
   Dashboard: (active: boolean, colors: ThemeColors) => (
@@ -14,6 +15,11 @@ const ICONS = {
   Tasks: (active: boolean, colors: ThemeColors) => (
     <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={active ? colors.neonCyan : "currentColor"} color={colors.mutedText} strokeWidth={active ? 1.8 : 1.6}>
       <Path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </Svg>
+  ),
+  Fit: (active: boolean, colors: ThemeColors) => (
+    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={active ? colors.neonCyan : "currentColor"} color={colors.mutedText} strokeWidth={active ? 1.8 : 1.6}>
+      <Path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9v6m3-8.25v10.5m0-10.5h1.5a1.5 1.5 0 011.5 1.5v7.5a1.5 1.5 0 01-1.5 1.5h-1.5m10.5-10.5v10.5m0-10.5h-1.5a1.5 1.5 0 00-1.5 1.5v7.5a1.5 1.5 0 001.5 1.5h1.5m3-8.25v6" />
     </Svg>
   ),
   Gym: (active: boolean, colors: ThemeColors) => (
@@ -43,7 +49,8 @@ const ICONS = {
 const LABELS = {
   Dashboard: 'Home',
   Tasks: 'Tasks',
-  Gym: 'Gym',
+  Fit: 'Fit',
+  Gym: 'Fit',
   Diet: 'Diet',
   Money: 'Money',
   Ideas: 'Ideas',
@@ -56,40 +63,46 @@ export const BottomNav = ({ state, descriptors, navigation }: BottomTabBarProps)
 
   return (
     <View style={styles.container}>
-      <View style={styles.navBar}>
-        {state.routes.map((route, index) => {
-          const isFocused = state.index === index;
-          
-          const onPress = () => {
-            const event = navigation.emit({
-              type: 'tabPress',
-              target: route.key,
-              canPreventDefault: true,
-            });
+      <BlurView 
+        intensity={24} 
+        tint={isDarkMode ? "dark" : "light"} 
+        style={styles.blurWrapper}
+      >
+        <View style={styles.navBar}>
+          {state.routes.map((route, index) => {
+            const isFocused = state.index === index;
+            
+            const onPress = () => {
+              const event = navigation.emit({
+                type: 'tabPress',
+                target: route.key,
+                canPreventDefault: true,
+              });
 
-            if (!isFocused && !event.defaultPrevented) {
-              navigation.navigate(route.name);
-            }
-          };
+              if (!isFocused && !event.defaultPrevented) {
+                navigation.navigate(route.name);
+              }
+            };
 
-          return (
-            <TouchableOpacity 
-              key={route.key}
-              style={styles.tabItem} 
-              activeOpacity={0.7}
-              onPress={onPress}
-            >
-              <View style={styles.iconContainer}>
-                {ICONS[route.name as keyof typeof ICONS](isFocused, theme.colors)}
-                {isFocused && <View style={styles.iconGlow} />}
-              </View>
-              <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>
-                {LABELS[route.name as keyof typeof LABELS]}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+            return (
+              <TouchableOpacity 
+                key={route.key}
+                style={styles.tabItem} 
+                activeOpacity={0.7}
+                onPress={onPress}
+              >
+                <View style={styles.iconContainer}>
+                  {ICONS[route.name as keyof typeof ICONS](isFocused, theme.colors)}
+                  {isFocused && <View style={styles.iconGlow} />}
+                </View>
+                <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>
+                  {LABELS[route.name as keyof typeof LABELS]}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </BlurView>
     </View>
   );
 };
@@ -97,26 +110,31 @@ export const BottomNav = ({ state, descriptors, navigation }: BottomTabBarProps)
 const createStyles = (colors: ThemeColors, isDarkMode: boolean) => StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingBottom: 24, // Account for safe area roughly
-    paddingTop: 10,
-    backgroundColor: isDarkMode ? 'rgba(16, 19, 26, 0.9)' : 'rgba(255, 255, 255, 0.9)',
-    borderTopWidth: 1,
-    borderTopColor: isDarkMode ? 'rgba(34, 40, 54, 0.8)' : 'rgba(226, 232, 240, 0.8)',
+    bottom: Platform.OS === 'ios' ? 24 : 16,
+    left: 16,
+    right: 16,
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.borderGlow,
+    backgroundColor: isDarkMode ? 'rgba(16, 19, 26, 1)' : 'rgba(255, 255, 255, 1)',
+  },
+  blurWrapper: {
+    borderRadius: 24,
+    overflow: 'hidden',
   },
   navBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
   },
   tabItem: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 2,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     gap: 4,
   },
   iconContainer: {

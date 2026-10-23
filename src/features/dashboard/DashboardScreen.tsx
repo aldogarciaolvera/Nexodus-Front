@@ -2,11 +2,11 @@ import React from 'react';
 import { View, StyleSheet, ScrollView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Header } from '../../components/Header';
-import { DailyTodoCard } from '../../components/cards/DailyTodoCard';
-import { WorkoutCard } from '../../components/cards/WorkoutCard';
-import { DietCard } from '../../components/cards/DietCard';
-import { FinanceCard } from '../../components/cards/FinanceCard';
-import { IdeasCard } from '../../components/cards/IdeasCard';
+import { DailyTodoCard } from './components/DailyTodoCard';
+import { WorkoutCard } from './components/WorkoutCard';
+import { DietCard } from './components/DietCard';
+import { FinanceCard } from './components/FinanceCard';
+import { IdeasCard } from './components/IdeasCard';
 import { useTheme } from '../../utils/ThemeContext';
 import { ThemeColors } from '../../utils/theme';
 

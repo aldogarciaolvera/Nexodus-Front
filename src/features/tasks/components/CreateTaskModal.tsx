@@ -6,6 +6,8 @@ import { Input } from '../../../components/Input';
 import { Button } from '../../../components/Button';
 import { CreateTodoDto, TodoDto } from '../../../services/todo.service';
 import { CustomTimePicker } from '../../../components/CustomTimePicker';
+import { FrequencySelector, TaskFrequency } from './FrequencySelector';
+
 interface CreateTaskModalProps {
   visible: boolean;
   onClose: () => void;
@@ -16,7 +18,7 @@ interface CreateTaskModalProps {
 }
 
 const TAGS = ['TRABAJO', 'PERSONAL', 'SALUD'];
-const FREQUENCIES = [
+const FREQUENCIES: { id: TaskFrequency; label: string }[] = [
   { id: 'Daily', label: 'Diario' },
   { id: 'Weekly', label: 'Semanal' },
   { id: 'Monthly', label: 'Mensual' },
@@ -31,7 +33,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
   const [subtitle, setSubtitle] = useState('');
   const [tag, setTag] = useState<string | null>(null);
   const [urgent, setUrgent] = useState(false);
-  const [frequency, setFrequency] = useState('Daily');
+  const [frequency, setFrequency] = useState<TaskFrequency>('Daily');
   const [isRepeating, setIsRepeating] = useState(false);
   const [selectedWeeklyDays, setSelectedWeeklyDays] = useState<number[]>([]);
   const [selectedMonthlyDays, setSelectedMonthlyDays] = useState<number[]>([]);
@@ -50,7 +52,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
         
         if (editingItem.frequency) {
           setIsRepeating(true);
-          setFrequency(editingItem.frequency);
+          setFrequency((editingItem.frequency as TaskFrequency) || 'Daily');
           if (editingItem.frequency === 'Weekly' && editingItem.customDays) {
             setSelectedWeeklyDays(editingItem.customDays.split(',').map(Number));
           } else if (editingItem.frequency === 'Monthly' && editingItem.customDays) {
@@ -138,7 +140,13 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
           <View style={[styles.modalContent, { maxHeight: '90%', flexShrink: 1 }]}>
             <View style={styles.header}>
               <Text style={styles.title}>{editingItem ? (isHabit ? 'Editar Hábito' : 'Editar Tarea') : 'Nueva Task'}</Text>
-              <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <TouchableOpacity 
+                onPress={onClose} 
+                style={styles.closeBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Cerrar modal de creación de tarea"
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
                 <Text style={styles.closeText}>✕</Text>
               </TouchableOpacity>
             </View>
@@ -205,48 +213,19 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
                 )}
 
                 {(isHabit || isRepeating) && (
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>FRECUENCIA</Text>
-                    <View style={styles.frequencySelector}>
-                      {FREQUENCIES.map(f => (
-                        <TouchableOpacity
-                          key={f.id}
-                          style={[styles.frequencyBtn, frequency === f.id && styles.frequencyBtnActive]}
-                          onPress={() => setFrequency(f.id)}
-                        >
-                          <Text style={[styles.frequencyText, frequency === f.id && styles.frequencyTextActive]}>
-                            {f.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-                )}
-
-                {(isHabit || isRepeating) && frequency === 'Weekly' && (
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>DÍAS DE LA SEMANA</Text>
-                    <View style={styles.daysGrid}>
-                      {[
-                        { id: 1, label: 'L' }, { id: 2, label: 'M' }, { id: 3, label: 'X' },
-                        { id: 4, label: 'J' }, { id: 5, label: 'V' }, { id: 6, label: 'S' }, { id: 7, label: 'D' }
-                      ].map(d => (
-                        <TouchableOpacity 
-                          key={d.id}
-                          style={[styles.dayBtn, selectedWeeklyDays.includes(d.id) && styles.dayBtnActive]}
-                          onPress={() => {
-                            if (selectedWeeklyDays.includes(d.id)) {
-                              setSelectedWeeklyDays(prev => prev.filter(v => v !== d.id));
-                            } else {
-                              setSelectedWeeklyDays(prev => [...prev, d.id]);
-                            }
-                          }}
-                        >
-                          <Text style={[styles.dayText, selectedWeeklyDays.includes(d.id) && styles.dayTextActive]}>{d.label}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
+                  <FrequencySelector
+                    frequency={frequency}
+                    onFrequencyChange={setFrequency}
+                    selectedWeeklyDays={selectedWeeklyDays}
+                    onToggleWeeklyDay={(dayId) => {
+                      if (selectedWeeklyDays.includes(dayId)) {
+                        setSelectedWeeklyDays(prev => prev.filter(v => v !== dayId));
+                      } else {
+                        setSelectedWeeklyDays(prev => [...prev, dayId]);
+                      }
+                    }}
+                    frequencies={FREQUENCIES}
+                  />
                 )}
 
                 {(isHabit || isRepeating) && frequency === 'Monthly' && (
@@ -396,7 +375,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.borderGlow,
-    elevation: 2,
   },
   typeBtnText: {
     color: colors.slate500,

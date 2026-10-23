@@ -1,30 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Switch, TouchableOpacity, TextInput, Modal, TouchableWithoutFeedback, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Switch, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
+import { Clock, Dumbbell, ChevronRight } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../utils/ThemeContext';
 import { ThemeColors } from '../../utils/theme';
 import { useAuthStore } from '../../store/authStore';
-import { UserService, UserProfile } from '../../services/user.service';
+import { UserService } from '../../services/user.service';
 import Constants from 'expo-constants';
 import { AuthService } from '../../services/auth.service';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAlertStore } from '../../store/alertStore';
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
+import { useQuery } from '@tanstack/react-query';
+import { useAlertStore, AlertState } from '../../store/alertStore';
+import { queryKeys } from '../../services/queryKeys';
 import * as Updates from 'expo-updates';
-
-if (Constants.appOwnership !== 'expo') {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    }),
-  });
-}
+import { ProfileEditModal } from './components/ProfileEditModal';
+import { CustomTimePicker } from '../../components/CustomTimePicker';
+import { useEquipmentStore } from '../../store/equipmentStore';
+import { EquipmentModal } from '../gym/components/EquipmentModal';
+import { 
+  getGlobalReminderConfig, 
+  scheduleGlobalReminder, 
+  cancelGlobalReminder, 
+  requestNotificationPermissions 
+} from '../../utils/notifications';
 
 export const SettingsScreen = () => {
   const theme = useTheme();
@@ -33,125 +32,90 @@ export const SettingsScreen = () => {
   const navigation = useNavigation();
   const { logout, user, accessToken, refreshToken, updateTokens, updateAccessToken, apiEnv, setApiEnv, getApiUrl } = useAuthStore();
   const [isProfileModalVisible, setProfileModalVisible] = useState(false);
-  const queryClient = useQueryClient();
-  const { showAlert } = useAlertStore();
+  const [isEquipmentModalVisible, setEquipmentModalVisible] = useState(false);
+  const { getActiveProfile } = useEquipmentStore();
+  const activeProfile = getActiveProfile();
+  const showAlert = useAlertStore((state: AlertState) => state.showAlert);
+
+  const [globalReminderEnabled, setGlobalReminderEnabled] = useState(false);
+  const [globalReminderTime, setGlobalReminderTime] = useState('20:00');
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [timePickerDate, setTimePickerDate] = useState(() => {
+    const d = new Date();
+    d.setHours(20, 0, 0, 0);
+    return d;
+  });
+  const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
+
+  useEffect(() => {
+    getGlobalReminderConfig().then(cfg => {
+      setGlobalReminderEnabled(cfg.enabled);
+      setGlobalReminderTime(cfg.time);
+      const [h, m] = cfg.time.split(':').map(Number);
+      const d = new Date();
+      d.setHours(h || 20, m || 0, 0, 0);
+      setTimePickerDate(d);
+    });
+  }, []);
+
+  const handleToggleGlobalReminder = async (val: boolean) => {
+    if (val) {
+      const hasPermission = await requestNotificationPermissions();
+      if (!hasPermission) {
+        showAlert('Permiso Requerido', 'Debes conceder permisos de notificaciones para activar el recordatorio.', 'error');
+        return;
+      }
+      const [h, m] = globalReminderTime.split(':').map(Number);
+      const d = new Date();
+      d.setHours(h || 20, m || 0, 0, 0);
+      setTimePickerDate(d);
+      setShowTimePicker(true);
+    } else {
+      await cancelGlobalReminder();
+      setGlobalReminderEnabled(false);
+      showAlert('Recordatorio Desactivado', 'Se ha cancelado el recordatorio diario de tareas.', 'info');
+    }
+  };
+
+  const handleConfirmTime = async (selectedDate: Date) => {
+    setShowTimePicker(false);
+    const formatted = `${selectedDate.getHours().toString().padStart(2, '0')}:${selectedDate.getMinutes().toString().padStart(2, '0')}`;
+    const success = await scheduleGlobalReminder(formatted);
+    if (success) {
+      setGlobalReminderEnabled(true);
+      setGlobalReminderTime(formatted);
+      showAlert('Recordatorio Guardado', `Se programó un recordatorio diario a las ${formatted} para revisar tus tareas.`, 'success');
+    } else {
+      showAlert('Error', 'No se pudo programar el recordatorio. Verifica tus permisos.', 'error');
+    }
+  };
+
+  const handleCancelTimePicker = () => {
+    setShowTimePicker(false);
+  };
 
   const { data: profile, isLoading: isProfileLoading } = useQuery({
-    queryKey: ['profile'],
+    queryKey: queryKeys.user.profile,
     queryFn: UserService.getProfile,
   });
 
-  const [editUsername, setEditUsername] = useState('');
-  const [editEmail, setEditEmail] = useState('');
-  const [editPhone, setEditPhone] = useState('');
-  const [editWeight, setEditWeight] = useState('');
-  const [editHeight, setEditHeight] = useState('');
-
-  useEffect(() => {
-    if (profile) {
-      setEditUsername(profile.username || '');
-      setEditEmail(profile.email || '');
-      setEditPhone(profile.phoneNumber || '');
-      setEditWeight(profile.weight ? profile.weight.toString() : '');
-      setEditHeight(profile.height ? profile.height.toString() : '');
-    }
-  }, [profile]);
-
-  const mutation = useMutation({
-    mutationFn: UserService.updateProfile,
-    onSuccess: async () => {
-      queryClient.invalidateQueries({ queryKey: ['profile'] });
-      
-      if (accessToken && refreshToken) {
-        try {
-          const apiUrl = getApiUrl();
-          const response = await fetch(`${apiUrl}/api/auth/refresh`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token: accessToken, refreshToken })
-          });
-          if (response.ok) {
-            const data = await response.json();
-            const newToken = data.content?.token || data.token || data.content?.accessToken || data.accessToken;
-            const newRefreshToken = data.content?.refreshToken || data.refreshToken;
-            
-            if (newToken && newRefreshToken) {
-              await updateTokens(newToken, newRefreshToken);
-            } else if (newToken) {
-              await updateAccessToken(newToken);
-            }
-          }
-        } catch (e) {
-          console.error('Error refreshing token after profile update', e);
-        }
-      }
-      
-      setProfileModalVisible(false);
-    },
-    onError: (e) => {
-      console.error('Error updating profile:', e);
-      showAlert('Error', 'No se pudo guardar el perfil');
-    }
-  });
-
-  const handleSave = () => {
-    mutation.mutate({
-      username: editUsername,
-      email: editEmail,
-      phoneNumber: editPhone,
-      weight: editWeight ? parseFloat(editWeight) : undefined,
-      height: editHeight ? parseFloat(editHeight) : undefined,
-    });
-  };
-
-
-
-  const testNotification = async () => {
-    if (!Device.isDevice) {
-      showAlert('Error', 'Las notificaciones push requieren un dispositivo físico');
-      return;
-    }
-
-    if (Constants.appOwnership === 'expo') {
-      showAlert('Aviso', 'Las notificaciones no están disponibles en Expo Go en SDK 53+');
-      return;
-    }
-
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-    
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-    
-    if (finalStatus !== 'granted') {
-      showAlert('Error', 'No se otorgaron permisos para notificaciones');
-      return;
-    }
-
-    try {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "¡Hola desde Nexodus! 🚀",
-          body: "Esta es una notificación de prueba para verificar que el sistema funciona.",
-          data: { test: 'true' },
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-          seconds: 2,
-        },
-      });
-      showAlert('Éxito', 'La notificación se mostrará en 2 segundos', 'success');
-    } catch (e: any) {
-      showAlert('Error', `Fallo al programar notificación: ${e.message}`);
-    }
-  };
-
   const handleCheckUpdates = async () => {
+    if (isCheckingUpdates) return;
+    setIsCheckingUpdates(true);
+
     try {
       if (__DEV__) {
         showAlert('Aviso', 'Las actualizaciones OTA no funcionan en modo desarrollo o Expo Go.');
+        return;
+      }
+
+      if (!Updates.isEnabled) {
+        const channel = Updates.channel || 'ninguno';
+        const runtime = Updates.runtimeVersion || 'desconocido';
+        showAlert(
+          'Actualizaciones no disponibles',
+          `Las actualizaciones OTA no están habilitadas en esta compilación.\n\n• Canal: ${channel}\n• Runtime: ${runtime}\n• Tipo: Build local / debug`
+        );
         return;
       }
       
@@ -159,7 +123,7 @@ export const SettingsScreen = () => {
       if (update.isAvailable) {
         useAlertStore.getState().showAlert({
           title: 'Actualización disponible',
-          message: 'Hay una nueva versión de Nexodus. ¿Deseas descargarla ahora?',
+          message: 'Hay una nueva versión de Nexodus disponible. ¿Deseas descargarla e instalarla ahora?',
           type: 'info',
           buttons: [
             { text: 'Cancelar', style: 'cancel', onPress: () => useAlertStore.getState().hideAlert() },
@@ -187,10 +151,19 @@ export const SettingsScreen = () => {
           ]
         });
       } else {
-        showAlert('Al día', 'Estás usando la versión más reciente de Nexodus.', 'success');
+        const channel = Updates.channel || 'preview';
+        const runtime = Updates.runtimeVersion || 'desconocido';
+        const updateId = Updates.updateId ? `${Updates.updateId.substring(0, 8)}...` : 'Build nativa embebida';
+        showAlert(
+          'Al día', 
+          `Estás usando la versión más reciente compatible con tu compilación.\n\n• Canal: ${channel}\n• Runtime: ${runtime}\n• Update ID: ${updateId}`,
+          'success'
+        );
       }
     } catch (error: any) {
       showAlert('Error', `No se pudo comprobar actualizaciones: ${error.message}`);
+    } finally {
+      setIsCheckingUpdates(false);
     }
   };
 
@@ -208,7 +181,12 @@ export const SettingsScreen = () => {
         <View style={{ width: 24 }} />
       </View>
 
-      <View style={styles.content}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Profile Section */}
         <View style={styles.profileSection}>
           <View style={styles.profileAvatar}>
@@ -241,8 +219,74 @@ export const SettingsScreen = () => {
               onValueChange={toggleTheme}
               trackColor={{ false: theme.colors.slate600, true: theme.colors.neonCyan }}
               thumbColor={theme.colors.white}
+              accessibilityRole="switch"
+              accessibilityLabel="Alternar tema oscuro"
             />
           </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.row}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={styles.rowTitle}>Recordatorio Global de Tareas</Text>
+            </View>
+            
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              {globalReminderEnabled && (
+                <TouchableOpacity
+                  style={styles.timeBadge}
+                  onPress={() => {
+                    const [h, m] = globalReminderTime.split(':').map(Number);
+                    const d = new Date();
+                    d.setHours(h || 20, m || 0, 0, 0);
+                    setTimePickerDate(d);
+                    setShowTimePicker(true);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Hora de recordatorio configurada: ${globalReminderTime}. Presiona para cambiar.`}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Clock color={theme.colors.neonCyan} size={14} style={{ marginRight: 5 }} />
+                  <Text style={styles.timeBadgeText}>{globalReminderTime}</Text>
+                </TouchableOpacity>
+              )}
+
+              <Switch
+                value={globalReminderEnabled}
+                onValueChange={handleToggleGlobalReminder}
+                trackColor={{ false: theme.colors.slate600, true: theme.colors.neonCyan }}
+                thumbColor={theme.colors.white}
+                accessibilityRole="switch"
+                accessibilityLabel="Activar recordatorio global de tareas"
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* Gym Equipment Configuration */}
+        <View style={[styles.sectionHeader, { marginTop: 24 }]}>
+          <Text style={styles.sectionHeaderText}>ENTRENAMIENTO & GYM</Text>
+        </View>
+
+        <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.gymRow}
+            onPress={() => setEquipmentModalVisible(true)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Configurar equipamiento de gimnasio"
+          >
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <Dumbbell size={16} color={theme.colors.neonCyan} />
+                <Text style={styles.rowTitle}>Mi Equipamiento</Text>
+              </View>
+              <Text style={styles.rowSubtitle}>
+                {activeProfile.name} • {activeProfile.availableEquipment.length} equipos activos
+              </Text>
+            </View>
+            <ChevronRight size={18} color={theme.colors.mutedText} />
+          </TouchableOpacity>
         </View>
         
         {__DEV__ && isTester && (
@@ -318,19 +362,27 @@ export const SettingsScreen = () => {
 
         <View style={[styles.card, { marginTop: 16 }]}>
           <TouchableOpacity 
-            style={[styles.logoutButton, { backgroundColor: theme.colors.surfaceLight, marginTop: 0, borderColor: theme.colors.neonCyan, borderWidth: 1 }]} 
-            activeOpacity={0.8}
-            onPress={testNotification}
-          >
-            <Text style={[styles.logoutText, { color: theme.colors.neonCyan }]}>Probar Notificación Push</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.logoutButton, { backgroundColor: theme.colors.surfaceLight, marginTop: 12, borderColor: theme.colors.neonCyan, borderWidth: 1 }]} 
+            style={[
+              styles.logoutButton, 
+              { 
+                backgroundColor: theme.colors.surfaceLight, 
+                marginTop: 0, 
+                borderColor: theme.colors.neonCyan, 
+                borderWidth: 1,
+                opacity: isCheckingUpdates ? 0.7 : 1
+              }
+            ]} 
             activeOpacity={0.8}
             onPress={handleCheckUpdates}
+            disabled={isCheckingUpdates}
+            accessibilityRole="button"
+            accessibilityLabel="Buscar actualizaciones del sistema"
           >
-            <Text style={[styles.logoutText, { color: theme.colors.neonCyan }]}>Buscar Actualizaciones</Text>
+            {isCheckingUpdates ? (
+              <ActivityIndicator color={theme.colors.neonCyan} size="small" />
+            ) : (
+              <Text style={[styles.logoutText, { color: theme.colors.neonCyan }]}>Buscar Actualizaciones</Text>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -339,106 +391,29 @@ export const SettingsScreen = () => {
           <Text style={styles.logoutText}>Cerrar sesión</Text>
         </TouchableOpacity>
 
-        <Text style={styles.versionText}>v{Constants.expoConfig?.version || '0.0.2'}</Text>
-      </View>
+        <Text style={styles.versionText}>v{Constants.expoConfig?.version || '0.0.10'}</Text>
+      </ScrollView>
 
       {/* Edit Profile Modal */}
-      <Modal
+      <ProfileEditModal
         visible={isProfileModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setProfileModalVisible(false)}
-      >
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
-          <TouchableWithoutFeedback onPress={() => setProfileModalVisible(false)}>
-            <View style={styles.modalOverlayBackground} />
-          </TouchableWithoutFeedback>
-          <ScrollView 
-            contentContainerStyle={styles.scrollContainer}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Editar Perfil</Text>
-            
-            <View style={styles.modalAvatarContainer}>
-              <View style={styles.modalAvatar}>
-                <Svg width={40} height={40} viewBox="0 0 24 24" fill="none" stroke={theme.colors.mutedText} strokeWidth={1.5}>
-                  <Path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                </Svg>
-              </View>
-            </View>
+        onClose={() => setProfileModalVisible(false)}
+        profile={profile}
+      />
 
-            <Text style={styles.inputLabel}>Nombre</Text>
-            <TextInput 
-              style={styles.modalInput}
-              value={editUsername}
-              onChangeText={setEditUsername}
-              placeholder="Tu Nombre"
-              placeholderTextColor={theme.colors.slate500}
-            />
+      {/* Gym Equipment Modal */}
+      <EquipmentModal
+        visible={isEquipmentModalVisible}
+        onClose={() => setEquipmentModalVisible(false)}
+      />
 
-            <Text style={styles.inputLabel}>Correo Electrónico</Text>
-            <TextInput 
-              style={styles.modalInput}
-              value={editEmail}
-              onChangeText={setEditEmail}
-              placeholder="tu@correo.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              placeholderTextColor={theme.colors.slate500}
-            />
-
-            <Text style={styles.inputLabel}>Número de Teléfono</Text>
-            <TextInput 
-              style={styles.modalInput}
-              value={editPhone}
-              onChangeText={setEditPhone}
-              placeholder="Teléfono"
-              keyboardType="phone-pad"
-              placeholderTextColor={theme.colors.slate500}
-            />
-
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.inputLabel}>Peso (kg)</Text>
-                <TextInput 
-                  style={styles.modalInput}
-                  value={editWeight}
-                  onChangeText={setEditWeight}
-                  placeholder="70.5"
-                  keyboardType="numeric"
-                  placeholderTextColor={theme.colors.slate500}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.inputLabel}>Altura (m)</Text>
-                <TextInput 
-                  style={styles.modalInput}
-                  value={editHeight}
-                  onChangeText={setEditHeight}
-                  placeholder="1.75"
-                  keyboardType="numeric"
-                  placeholderTextColor={theme.colors.slate500}
-                />
-              </View>
-            </View>
-            
-            <TouchableOpacity 
-              style={[styles.saveButton, mutation.isPending && styles.saveButtonDisabled]} 
-              onPress={handleSave}
-              activeOpacity={0.8}
-              disabled={mutation.isPending}
-            >
-              <Text style={styles.saveButtonText}>{mutation.isPending ? 'Guardando...' : 'Guardar'}</Text>
-            </TouchableOpacity>
-          </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </Modal>
+      {/* Global Reminder Time Picker Modal */}
+      <CustomTimePicker
+        visible={showTimePicker}
+        value={timePickerDate}
+        onClose={handleCancelTimePicker}
+        onConfirm={handleConfirmTime}
+      />
     </SafeAreaView>
   );
 };
@@ -465,8 +440,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: 18,
     color: colors.text,
   },
+  scrollView: {
+    flex: 1,
+  },
   content: {
     padding: 20,
+    paddingBottom: 40,
   },
   card: {
     backgroundColor: colors.surface,
@@ -474,6 +453,26 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderGlow,
     padding: 20,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.borderGlow,
+    marginVertical: 16,
+  },
+  timeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 240, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: colors.neonCyan,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  timeBadgeText: {
+    fontFamily: 'JetBrainsMono_500Medium',
+    fontSize: 13,
+    color: colors.neonCyan,
   },
   row: {
     flexDirection: 'row',
@@ -490,6 +489,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: 'JetBrainsMono_400Regular',
     fontSize: 11,
     color: colors.slate400,
+  },
+  gymRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
   },
   profileSection: {
     flexDirection: 'row',
@@ -554,82 +559,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: 'JetBrainsMono_400Regular',
     fontSize: 10,
     letterSpacing: 1,
-  },
-  modalOverlay: {
-    flex: 1,
-  },
-  scrollContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  modalOverlayBackground: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(13, 14, 17, 0.8)',
-  },
-  modalContent: {
-    width: '85%',
-    backgroundColor: colors.surface,
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: colors.borderGlow,
-  },
-  modalTitle: {
-    fontFamily: 'Geist_700Bold',
-    fontSize: 20,
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  modalAvatarContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  modalAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.surfaceLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.borderGlow,
-  },
-  inputLabel: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 12,
-    color: colors.slate400,
-    marginBottom: 8,
-  },
-  modalInput: {
-    backgroundColor: colors.surfaceLight,
-    borderRadius: 12,
-    padding: 14,
-    color: colors.text,
-    fontFamily: 'Geist_500Medium',
-    fontSize: 14,
-    borderWidth: 1,
-    borderColor: colors.borderGlow,
-    marginBottom: 16,
-  },
-  saveButton: {
-    backgroundColor: colors.neonCyan,
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  saveButtonDisabled: {
-    opacity: 0.5,
-  },
-  saveButtonText: {
-    fontFamily: 'Geist_600SemiBold',
-    fontSize: 16,
-    color: colors.obsidian,
   },
 });

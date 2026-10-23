@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacit
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
-import { theme } from '../../utils/theme';
+import { useTheme } from '../../utils/ThemeContext';
+import { ThemeColors, ThemeTypography, ThemeMetrics } from '../../utils/theme';
 import { AuthService } from '../../services/auth.service';
 import { useAuthStore } from '../../store/authStore';
 import { useNavigation } from '@react-navigation/native';
@@ -18,6 +19,8 @@ export const RegisterScreen = () => {
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const theme = useTheme();
+  const styles = createStyles(theme.colors, theme.typography, theme.metrics);
   
   const login = useAuthStore(state => state.login);
   const navigation = useNavigation();
@@ -143,10 +146,10 @@ export const RegisterScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, typography: ThemeTypography, metrics: ThemeMetrics) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: theme.colors.obsidian,
+    backgroundColor: colors.obsidian,
   },
   container: {
     flex: 1,
@@ -154,25 +157,25 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: theme.metrics.marginHorizontal,
+    paddingHorizontal: metrics.marginHorizontal,
     paddingVertical: 40,
-    paddingBottom: 80, // added extra bottom padding
+    paddingBottom: 80,
   },
   header: {
     marginBottom: 40,
     alignItems: 'center',
   },
   title: {
-    fontFamily: theme.typography.fontFamilyBold,
+    fontFamily: typography.fontFamilyBold,
     fontSize: 40,
-    color: theme.colors.white,
+    color: colors.text,
     letterSpacing: -1.2,
     marginBottom: 8,
   },
   subtitle: {
-    fontFamily: theme.typography.fontMono,
+    fontFamily: typography.fontMono,
     fontSize: 13,
-    color: theme.colors.neonCyan,
+    color: colors.neonCyan,
     letterSpacing: 1.1,
     textTransform: 'uppercase',
   },
@@ -183,8 +186,8 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   errorText: {
-    color: '#ffb4ab',
-    fontFamily: theme.typography.fontFamily,
+    color: colors.error,
+    fontFamily: typography.fontFamily,
     fontSize: 14,
     textAlign: 'center',
     marginTop: 8,
@@ -195,8 +198,8 @@ const styles = StyleSheet.create({
     bottom: 24,
     width: '100%',
     textAlign: 'center',
-    color: theme.colors.slate500,
-    fontFamily: theme.typography.fontMono,
+    color: colors.slate500,
+    fontFamily: typography.fontMono,
     fontSize: 10,
     letterSpacing: 1,
   },
@@ -207,13 +210,13 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   loginText: {
-    color: theme.colors.slate400,
-    fontFamily: theme.typography.fontFamily,
+    color: colors.slate400,
+    fontFamily: typography.fontFamily,
     fontSize: 14,
   },
   loginLink: {
-    color: theme.colors.neonCyan,
-    fontFamily: theme.typography.fontFamilyBold,
+    color: colors.neonCyan,
+    fontFamily: typography.fontFamilyBold,
     fontSize: 14,
     textDecorationLine: 'underline',
   }

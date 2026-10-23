@@ -6,6 +6,7 @@ import { NoteDto } from '../../../services/journal.service';
 import { CheckCircle2, Circle, Plus, X } from 'lucide-react-native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import journalService from '../../../services/journal.service';
+import { queryKeys } from '../../../services/queryKeys';
 
 interface IdeaDetailsModalProps {
   visible: boolean;
@@ -46,7 +47,7 @@ export const IdeaDetailsModal = ({ visible, onClose, idea }: IdeaDetailsModalPro
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notes'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.journal.notes });
     }
   });
 
@@ -77,14 +78,20 @@ export const IdeaDetailsModal = ({ visible, onClose, idea }: IdeaDetailsModalPro
     >
       <KeyboardAvoidingView 
         style={styles.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
         
         <View style={styles.content}>
           <View style={styles.headerRow}>
             <Text style={styles.title} numberOfLines={2}>{idea.title}</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeIcon}>
+            <TouchableOpacity 
+              onPress={onClose} 
+              style={styles.closeIcon}
+              accessibilityRole="button"
+              accessibilityLabel="Cerrar modal de detalles de idea"
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
               <X color={theme.colors.mutedText} size={24} />
             </TouchableOpacity>
           </View>
@@ -98,7 +105,14 @@ export const IdeaDetailsModal = ({ visible, onClose, idea }: IdeaDetailsModalPro
             <ScrollView style={styles.scrollArea} keyboardShouldPersistTaps="handled">
               {localChecklist.map((item) => (
                 <View key={item.id} style={styles.checklistItem}>
-                  <TouchableOpacity onPress={() => handleToggleItem(item.id)} style={styles.checkbox}>
+                  <TouchableOpacity 
+                    onPress={() => handleToggleItem(item.id)} 
+                    style={styles.checkbox}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: !!item.isCompleted }}
+                    accessibilityLabel={`Marcar ${item.text} como ${item.isCompleted ? 'pendiente' : 'completado'}`}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
                     {item.isCompleted ? (
                       <CheckCircle2 color={theme.colors.neonCyan} size={20} />
                     ) : (

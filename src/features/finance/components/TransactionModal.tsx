@@ -7,7 +7,8 @@ import { ActionSheet } from '../../../components/ActionSheet';
 import { Category, CategoryService } from '../../../services/category.service';
 import { CategoryModal } from './CategoryModal';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAlertStore } from '../../../store/alertStore';
+import { useAlertStore, AlertState } from '../../../store/alertStore';
+import { queryKeys } from '../../../services/queryKeys';
 
 interface TransactionModalProps {
   visible: boolean;
@@ -43,7 +44,7 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
   const [showModal, setShowModal] = useState(visible);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  const { showAlert } = useAlertStore();
+  const showAlert = useAlertStore((state: AlertState) => state.showAlert);
 
   useEffect(() => {
     if (visible) {
@@ -87,13 +88,13 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
       }
     },
     onMutate: async (newTx) => {
-      await queryClient.cancelQueries({ queryKey: ['financeTransactions'] });
-      await queryClient.cancelQueries({ queryKey: ['financeSummary'] });
+      await queryClient.cancelQueries({ queryKey: queryKeys.finance.transactions });
+      await queryClient.cancelQueries({ queryKey: queryKeys.finance.summary });
 
-      const previousTransactions = queryClient.getQueryData(['financeTransactions']);
-      const previousSummary = queryClient.getQueryData(['financeSummary']);
+      const previousTransactions = queryClient.getQueryData(queryKeys.finance.transactions);
+      const previousSummary = queryClient.getQueryData(queryKeys.finance.summary);
 
-      queryClient.setQueryData(['financeTransactions'], (old: any) => {
+      queryClient.setQueryData(queryKeys.finance.transactions, (old: any) => {
         const tx = {
           id: editingTransaction ? editingTransaction.id : Math.random().toString(),
           ...newTx,
@@ -108,13 +109,13 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
       return { previousTransactions, previousSummary };
     },
     onError: (err: any, newTx, context) => {
-      queryClient.setQueryData(['financeTransactions'], context?.previousTransactions);
-      queryClient.setQueryData(['financeSummary'], context?.previousSummary);
-      showAlert('Error', err.message || (editingTransaction ? 'No se pudo actualizar la transacción' : 'No se pudo crear la transacción'));
+      queryClient.setQueryData(queryKeys.finance.transactions, context?.previousTransactions);
+      queryClient.setQueryData(queryKeys.finance.summary, context?.previousSummary);
+      showAlert('Error', err.message || (editingTransaction ? 'No se pudo actualizar la transacción' : 'No se pudo crear la transacción'), 'error');
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['financeTransactions'] });
-      queryClient.invalidateQueries({ queryKey: ['financeSummary'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.finance.transactions });
+      queryClient.invalidateQueries({ queryKey: queryKeys.finance.summary });
     },
     onSuccess: () => {
       if (onSuccess) onSuccess();
@@ -168,26 +169,26 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
       await CategoryService.delete(categoryId);
     },
     onMutate: async (categoryId) => {
-      await queryClient.cancelQueries({ queryKey: ['categories'] });
-      await queryClient.cancelQueries({ queryKey: ['financeTransactions'] });
+      await queryClient.cancelQueries({ queryKey: queryKeys.finance.categories });
+      await queryClient.cancelQueries({ queryKey: queryKeys.finance.transactions });
 
-      const previousCategories = queryClient.getQueryData(['categories']);
-      const previousTransactions = queryClient.getQueryData(['financeTransactions']);
+      const previousCategories = queryClient.getQueryData(queryKeys.finance.categories);
+      const previousTransactions = queryClient.getQueryData(queryKeys.finance.transactions);
 
-      queryClient.setQueryData(['categories'], (old: any) => old?.filter((c: any) => c.id !== categoryId));
-      queryClient.setQueryData(['financeTransactions'], (old: any) => old?.filter((t: any) => t.categoryId !== categoryId));
+      queryClient.setQueryData(queryKeys.finance.categories, (old: any) => old?.filter((c: any) => c.id !== categoryId));
+      queryClient.setQueryData(queryKeys.finance.transactions, (old: any) => old?.filter((t: any) => t.categoryId !== categoryId));
 
       return { previousCategories, previousTransactions };
     },
     onError: (err, variables, context) => {
-      queryClient.setQueryData(['categories'], context?.previousCategories);
-      queryClient.setQueryData(['financeTransactions'], context?.previousTransactions);
-      showAlert('Error', 'No se pudo eliminar la categoría o sus transacciones');
+      queryClient.setQueryData(queryKeys.finance.categories, context?.previousCategories);
+      queryClient.setQueryData(queryKeys.finance.transactions, context?.previousTransactions);
+      showAlert('Error', 'No se pudo eliminar la categoría o sus transacciones', 'error');
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
-      queryClient.invalidateQueries({ queryKey: ['financeTransactions'] });
-      queryClient.invalidateQueries({ queryKey: ['financeSummary'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.finance.categories });
+      queryClient.invalidateQueries({ queryKey: queryKeys.finance.transactions });
+      queryClient.invalidateQueries({ queryKey: queryKeys.finance.summary });
     },
     onSuccess: () => {
       if (selectedCategory === actionCategory?.id) setSelectedCategory(null);
@@ -211,7 +212,13 @@ export const TransactionModal = ({ visible, onClose, categories = [], transactio
             <TouchableOpacity activeOpacity={1} style={[styles.content, { maxHeight: '90%' }]} onPress={() => {}}>
               <View style={styles.header}>
                 <Text style={styles.title}>{editingTransaction ? 'Editar Transaccion' : 'Nueva Transaccion'}</Text>
-                <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                <TouchableOpacity 
+                  onPress={onClose} 
+                  style={styles.closeBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cerrar modal de transacción"
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
                   <Text style={styles.closeText}>✕</Text>
                 </TouchableOpacity>
               </View>

@@ -6,6 +6,7 @@ import { ThemeColors } from '../../utils/theme';
 import { useQuery } from '@tanstack/react-query';
 import { FinanceService, FinanceSummary, FinanceTransaction } from '../../services/finance.service';
 import { CategoryService, Category } from '../../services/category.service';
+import { queryKeys } from '../../services/queryKeys';
 
 import { Header } from '../../components/Header';
 import { NetWorthCard } from './components/NetWorthCard';
@@ -21,17 +22,17 @@ export const FinanceScreen = () => {
   const [modalVisible, setModalVisible] = useState(false);
   
   const { data: summary = null, isLoading: loadingSummary, refetch: refetchSummary } = useQuery({
-    queryKey: ['financeSummary'],
+    queryKey: queryKeys.finance.summary,
     queryFn: FinanceService.getSummary,
   });
 
   const { data: transactions = [], isLoading: loadingTransactions, refetch: refetchTransactions } = useQuery({
-    queryKey: ['financeTransactions'],
+    queryKey: queryKeys.finance.transactions,
     queryFn: FinanceService.getAll,
   });
 
   const { data: categories = [], isLoading: loadingCategories, refetch: refetchCategories } = useQuery({
-    queryKey: ['categories'],
+    queryKey: queryKeys.finance.categories,
     queryFn: CategoryService.getAll,
   });
 

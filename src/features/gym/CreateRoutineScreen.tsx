@@ -1,30 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, FlatList } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useTheme } from '../../utils/ThemeContext';
 import { ThemeColors } from '../../utils/theme';
-import { ArrowLeft, Plus, Save, Trash2, X, CheckCircle2 } from 'lucide-react-native';
-import { useAlertStore } from '../../store/alertStore';
+import { ArrowLeft, Plus, Save } from 'lucide-react-native';
+import { useAlertStore, AlertState } from '../../store/alertStore';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { gymService, Exercise } from '../../services/gym.service';
-import { Image } from 'expo-image';
-import { Skeleton } from '../../components/Skeleton';
-
-type Difficulty = 'Principiante' | 'Intermedio' | 'Avanzado';
-
-interface RoutineExerciseForm {
-  id: string; // temp ID for UI
-  exerciseId: string;
-  name: string;
-  sets: number;
-  reps: number;
-  weight?: number;
-  restTimeInSeconds: number;
-  thumbUrl?: string;
-}
+import { gymService, Exercise, CreateRoutineRequest } from '../../services/gym.service';
+import { UserService } from '../../services/user.service';
+import { calculateRecommendedWeight } from '../../utils/weightRecommendation';
+import { ExercisePickerModal } from './components/ExercisePickerModal';
+import { RoutineExerciseItem, RoutineExerciseForm } from './components/RoutineExerciseItem';
+import { queryKeys } from '../../services/queryKeys';
 
 const generateTempId = () => Math.random().toString(36).substring(7);
+
+const DAYS = [
+  { label: 'L', value: 1 },
+  { label: 'M', value: 2 },
+  { label: 'X', value: 3 },
+  { label: 'J', value: 4 },
+  { label: 'V', value: 5 },
+  { label: 'S', value: 6 },
+  { label: 'D', value: 7 },
+];
 
 export const CreateRoutineScreen = () => {
   const theme = useTheme();
@@ -33,41 +33,30 @@ export const CreateRoutineScreen = () => {
   const route = useRoute<RouteProp<{ params: { routineId?: string } }>>();
   const routineId = route.params?.routineId;
   
-  const showAlert = useAlertStore((state: any) => state.showAlert);
+  const showAlert = useAlertStore((state: AlertState) => state.showAlert);
   const queryClient = useQueryClient();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [exercises, setExercises] = useState<RoutineExerciseForm[]>([]);
   const [showExercisePicker, setShowExercisePicker] = useState(false);
-  const [selectedForAddition, setSelectedForAddition] = useState<Set<string>>(new Set());
-  const [selectedBodyPart, setSelectedBodyPart] = useState<string>('All');
   const [targetDay, setTargetDay] = useState<number | undefined>(undefined);
 
-  const DAYS = [
-    { label: 'L', value: 1 },
-    { label: 'M', value: 2 },
-    { label: 'X', value: 3 },
-    { label: 'J', value: 4 },
-    { label: 'V', value: 5 },
-    { label: 'S', value: 6 },
-    { label: 'D', value: 7 },
-  ];
-
-  // Fetch all available exercises with caching
-  const { data: availableExercises = [], isLoading: isLoadingExercises } = useQuery({
-    queryKey: ['exercises'],
-    queryFn: gymService.getExercises,
-    staleTime: 1000 * 60 * 60, // 1 hour cache
+  // Fetch available exercises to hydrate existing routine exercise names/thumbnails
+  const { data: availableExercises = [] } = useQuery({
+    queryKey: queryKeys.gym.exercises,
+    queryFn: () => gymService.getAllExercises(),
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
-  const bodyParts = ['All', ...Array.from(new Set(availableExercises.map((e: Exercise) => e.bodyPart || 'Otro').filter(Boolean)))];
-  const filteredExercises = availableExercises.filter(
-    (e: Exercise) => selectedBodyPart === 'All' || (e.bodyPart || 'Otro') === selectedBodyPart
-  );
+  const { data: profile } = useQuery({
+    queryKey: queryKeys.gym.profile,
+    queryFn: UserService.getProfile,
+  });
 
-  const { data: existingRoutine, isLoading: isLoadingRoutine } = useQuery({
-    queryKey: ['routine', routineId],
+  const { data: existingRoutine } = useQuery({
+    queryKey: queryKeys.gym.routine(routineId),
     queryFn: () => gymService.getRoutineById(routineId!),
     enabled: !!routineId,
   });
@@ -82,28 +71,30 @@ export const CreateRoutineScreen = () => {
         return {
           id: ex.id || generateTempId(),
           exerciseId: ex.exerciseId,
-          name: foundEx?.name || ex.exercise?.name || 'Cargando...',
+          name: foundEx?.name || ex.exercise?.name || 'Ejercicio',
           thumbUrl: foundEx?.thumbUrl || foundEx?.gifUrl,
           sets: ex.sets,
           reps: ex.reps,
           weight: ex.weight || 0,
-          restTimeInSeconds: ex.restTimeInSeconds
+          restTimeInSeconds: ex.restTimeInSeconds,
+          muscle: foundEx?.muscle || ex.exercise?.muscle || foundEx?.targetMuscleGroup,
+          bodyPart: foundEx?.bodyPart || ex.exercise?.bodyPart
         };
       }));
     }
   }, [existingRoutine, availableExercises]);
 
   const saveMutation = useMutation({
-    mutationFn: (data: any) => routineId 
+    mutationFn: (data: CreateRoutineRequest) => routineId 
       ? gymService.updateRoutine(routineId, data)
       : gymService.createRoutine(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['routines'] });
-      queryClient.invalidateQueries({ queryKey: ['routine', routineId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gym.routines });
+      queryClient.invalidateQueries({ queryKey: queryKeys.gym.routine(routineId) });
       showAlert('Guardado', routineId ? 'Rutina actualizada.' : 'Rutina creada correctamente.', 'success');
       navigation.goBack();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       showAlert('Error', error.message || 'Ocurrió un error al guardar.', 'error');
     }
   });
@@ -137,134 +128,57 @@ export const CreateRoutineScreen = () => {
     });
   };
 
-  const toggleExerciseSelection = (exerciseId: string) => {
-    const newSet = new Set(selectedForAddition);
-    if (newSet.has(exerciseId)) {
-      newSet.delete(exerciseId);
-    } else {
-      newSet.add(exerciseId);
-    }
-    setSelectedForAddition(newSet);
-  };
-
-  const handleConfirmAddExercises = () => {
-    const selectedList = availableExercises.filter(ex => selectedForAddition.has(ex.id));
-    
-    // Solo añadimos los que no están ya en la rutina
+  const handleConfirmAddExercises = (selectedList: Exercise[]) => {
     const newExercises = selectedList
       .filter(ex => !exercises.some(e => e.exerciseId === ex.id))
-      .map(ex => ({
-        id: generateTempId(),
-        exerciseId: ex.id,
-        name: ex.name,
-        thumbUrl: ex.thumbUrl || ex.gifUrl,
-        sets: 4,
-        reps: 12,
-        weight: 0,
-        restTimeInSeconds: 90
-      }));
+      .map(ex => {
+        const rec = calculateRecommendedWeight(
+          ex,
+          profile?.weight,
+          profile?.height,
+          'Beginner'
+        );
 
-    setExercises([...exercises, ...newExercises]);
-    setShowExercisePicker(false);
-  };
+        return {
+          id: generateTempId(),
+          exerciseId: ex.id,
+          name: ex.name,
+          thumbUrl: ex.thumbUrl || ex.gifUrl,
+          sets: rec.suggestedSets || 4,
+          reps: rec.suggestedReps || 12,
+          weight: rec.weight,
+          restTimeInSeconds: 90,
+          muscle: ex.muscle || ex.targetMuscleGroup,
+          bodyPart: ex.bodyPart,
+          equipment: ex.equipment,
+        };
+      });
 
-  const openPicker = () => {
-    setSelectedForAddition(new Set(exercises.map(e => e.exerciseId)));
-    setShowExercisePicker(true);
+    setExercises(prev => [...prev, ...newExercises]);
   };
 
   const updateExercise = (id: string, field: keyof RoutineExerciseForm, value: number) => {
-    setExercises(exercises.map(e => e.id === id ? { ...e, [field]: value } : e));
+    setExercises(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e));
   };
 
   const removeExercise = (id: string) => {
-    setExercises(exercises.filter(e => e.id !== id));
+    setExercises(prev => prev.filter(e => e.id !== id));
   };
-
-  if (showExercisePicker) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => setShowExercisePicker(false)} style={styles.backButton}>
-            <ArrowLeft color={theme.colors.text} size={24} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Selecciona tus Ejercicios</Text>
-          <TouchableOpacity onPress={handleConfirmAddExercises}>
-            <Text style={{ color: theme.colors.neonCyan, fontFamily: 'Geist_600SemiBold' }}>Listo</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.colors.borderGlow }}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
-            {bodyParts.map(bp => (
-              <TouchableOpacity 
-                key={bp as string} 
-                style={[styles.filterChip, selectedBodyPart === bp && styles.filterChipActive]}
-                onPress={() => setSelectedBodyPart(bp as string)}
-              >
-                <Text style={[styles.filterChipText, selectedBodyPart === bp && styles.filterChipTextActive]}>{bp as string}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {isLoadingExercises ? (
-          <View style={{ padding: 20 }}>
-            <Skeleton width="100%" height={80} borderRadius={16} style={{ marginBottom: 12 }} />
-            <Skeleton width="100%" height={80} borderRadius={16} style={{ marginBottom: 12 }} />
-            <Skeleton width="100%" height={80} borderRadius={16} style={{ marginBottom: 12 }} />
-            <Skeleton width="100%" height={80} borderRadius={16} style={{ marginBottom: 12 }} />
-          </View>
-        ) : (
-          <FlatList
-            data={filteredExercises}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.scrollContent}
-            initialNumToRender={10}
-            maxToRenderPerBatch={10}
-            windowSize={5}
-            extraData={selectedForAddition}
-            ListEmptyComponent={
-              <Text style={styles.emptyText}>No hay ejercicios disponibles.</Text>
-            }
-            renderItem={({ item: ex }) => {
-              const isSelected = selectedForAddition.has(ex.id);
-              const imgUrl = ex.thumbUrl || ex.gifUrl;
-              return (
-                <TouchableOpacity 
-                  style={[styles.exerciseOptionCard, isSelected && { borderColor: theme.colors.neonCyan }]} 
-                  onPress={() => toggleExerciseSelection(ex.id)}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.exerciseOptionName}>{ex.name}</Text>
-                    <Text style={styles.exerciseOptionTarget}>{ex.muscle || ex.targetMuscleGroup} • {ex.equipment}</Text>
-                  </View>
-                  {imgUrl && (
-                    <Image source={{ uri: imgUrl }} style={styles.exerciseThumb} />
-                  )}
-                  {isSelected && (
-                    <View style={{ position: 'absolute', top: 10, right: 10 }}>
-                      <CheckCircle2 color={theme.colors.neonCyan} size={20} />
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            }}
-          />
-        )}
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView 
         style={styles.container} 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <TouchableOpacity 
+            onPress={() => navigation.goBack()} 
+            style={styles.backButton}
+            accessibilityRole="button"
+            accessibilityLabel="Volver a la pantalla de gimnasio"
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
             <ArrowLeft color={theme.colors.text} size={24} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{routineId ? 'Editar Rutina' : 'Crear Rutina'}</Text>
@@ -290,23 +204,23 @@ export const CreateRoutineScreen = () => {
               placeholder="Ej. Rutina enfocada en pecho y tríceps..."
               placeholderTextColor={theme.colors.mutedText}
               multiline
-              textAlignVertical="top"
+              numberOfLines={3}
               value={description}
               onChangeText={setDescription}
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>DÍA</Text>
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-              {DAYS.map((day, idx) => (
+            <Text style={styles.label}>DÍA DE LA SEMANA</Text>
+            <View style={styles.daysRow}>
+              {DAYS.map(day => (
                 <TouchableOpacity
-                  key={idx}
+                  key={day.value}
                   style={[
                     styles.dayPill,
                     targetDay === day.value && styles.dayPillActive
                   ]}
-                  onPress={() => setTargetDay(targetDay === day.value ? undefined : day.value)}
+                  onPress={() => setTargetDay(day.value)}
                 >
                   <Text style={[
                     styles.dayPillText,
@@ -321,109 +235,29 @@ export const CreateRoutineScreen = () => {
             <Text style={styles.label}>EJERCICIOS ({exercises.length})</Text>
           </View>
 
-          {exercises.map((ex, index) => (
-            <View key={ex.id} style={styles.exerciseCard}>
-              <View style={styles.exCardTop}>
-                {ex.thumbUrl && (
-                  <Image source={{ uri: ex.thumbUrl }} style={{ width: 40, height: 40, borderRadius: 8, marginRight: 12 }} />
-                )}
-                <Text style={styles.exCardTitle}>{index + 1}. {ex.name}</Text>
-                <TouchableOpacity onPress={() => removeExercise(ex.id)} style={{ marginLeft: 'auto' }}>
-                  <Trash2 color={theme.colors.error} size={18} />
-                </TouchableOpacity>
-              </View>
-              
-              <View style={styles.exMetricsRow}>
-                <View style={styles.metricControl}>
-                  <Text style={styles.metricLabel}>SETS</Text>
-                  <View style={styles.metricInputContainer}>
-                    <TouchableOpacity onPress={() => updateExercise(ex.id, 'sets', Math.max(1, ex.sets - 1))}><Text style={styles.metricBtn}>-</Text></TouchableOpacity>
-                    <TextInput
-                      style={[styles.metricValue, { padding: 0, flex: 1, textAlign: 'center' }]}
-                      value={ex.sets.toString()}
-                      keyboardType="numeric"
-                      onChangeText={(text) => {
-                        const parsed = parseInt(text, 10);
-                        if (!isNaN(parsed) && parsed > 0) {
-                          updateExercise(ex.id, 'sets', parsed);
-                        } else if (text === '') {
-                          updateExercise(ex.id, 'sets', 1);
-                        }
-                      }}
-                    />
-                    <TouchableOpacity onPress={() => updateExercise(ex.id, 'sets', ex.sets + 1)}><Text style={styles.metricBtn}>+</Text></TouchableOpacity>
-                  </View>
-                </View>
-                
-                <View style={styles.metricControl}>
-                  <Text style={styles.metricLabel}>REPS</Text>
-                  <View style={styles.metricInputContainer}>
-                    <TouchableOpacity onPress={() => updateExercise(ex.id, 'reps', Math.max(1, ex.reps - 1))}><Text style={styles.metricBtn}>-</Text></TouchableOpacity>
-                    <TextInput
-                      style={[styles.metricValue, { padding: 0, flex: 1, textAlign: 'center' }]}
-                      value={ex.reps.toString()}
-                      keyboardType="numeric"
-                      onChangeText={(text) => {
-                        const parsed = parseInt(text, 10);
-                        if (!isNaN(parsed) && parsed > 0) {
-                          updateExercise(ex.id, 'reps', parsed);
-                        } else if (text === '') {
-                          updateExercise(ex.id, 'reps', 1);
-                        }
-                      }}
-                    />
-                    <TouchableOpacity onPress={() => updateExercise(ex.id, 'reps', ex.reps + 1)}><Text style={styles.metricBtn}>+</Text></TouchableOpacity>
-                  </View>
-                </View>
+          {exercises.map((ex, index) => {
+            const foundEx = availableExercises.find((e: Exercise) => e.id === ex.exerciseId);
+            const rec = calculateRecommendedWeight(
+              foundEx || ex,
+              profile?.weight,
+              profile?.height,
+              'Beginner'
+            );
 
-                <View style={styles.metricControl}>
-                  <Text style={styles.metricLabel}>REST (s)</Text>
-                  <View style={styles.metricInputContainer}>
-                    <TouchableOpacity onPress={() => updateExercise(ex.id, 'restTimeInSeconds', Math.max(0, ex.restTimeInSeconds - 15))}><Text style={styles.metricBtn}>-</Text></TouchableOpacity>
-                    <TextInput
-                      style={[styles.metricValue, { padding: 0, flex: 1, textAlign: 'center' }]}
-                      value={ex.restTimeInSeconds.toString()}
-                      keyboardType="numeric"
-                      onChangeText={(text) => {
-                        const parsed = parseInt(text, 10);
-                        if (!isNaN(parsed)) {
-                          updateExercise(ex.id, 'restTimeInSeconds', parsed);
-                        } else if (text === '') {
-                          updateExercise(ex.id, 'restTimeInSeconds', 0);
-                        }
-                      }}
-                    />
-                    <TouchableOpacity onPress={() => updateExercise(ex.id, 'restTimeInSeconds', ex.restTimeInSeconds + 15)}><Text style={styles.metricBtn}>+</Text></TouchableOpacity>
-                  </View>
-                </View>
-              </View>
+            return (
+              <RoutineExerciseItem
+                key={ex.id}
+                exercise={ex}
+                index={index}
+                onUpdate={updateExercise}
+                onRemove={removeExercise}
+                recommendedWeight={rec.weight}
+                recommendationRationale={rec.rationale}
+              />
+            );
+          })}
 
-              <View style={[styles.exMetricsRow, { marginTop: 12, justifyContent: 'flex-start' }]}>
-                <View style={styles.metricControl}>
-                  <Text style={styles.metricLabel}>PESO (kg)</Text>
-                  <View style={styles.metricInputContainer}>
-                    <TouchableOpacity onPress={() => updateExercise(ex.id, 'weight', Math.max(0, (ex.weight || 0) - 0.5))}><Text style={styles.metricBtn}>-</Text></TouchableOpacity>
-                    <TextInput
-                      style={[styles.metricValue, { padding: 0, flex: 1, textAlign: 'center' }]}
-                      value={ex.weight?.toString() || '0'}
-                      keyboardType="numeric"
-                      onChangeText={(text) => {
-                        const parsed = parseFloat(text.replace(',', '.'));
-                        if (!isNaN(parsed)) {
-                          updateExercise(ex.id, 'weight', parsed);
-                        } else if (text === '') {
-                          updateExercise(ex.id, 'weight', 0);
-                        }
-                      }}
-                    />
-                    <TouchableOpacity onPress={() => updateExercise(ex.id, 'weight', (ex.weight || 0) + 0.5)}><Text style={styles.metricBtn}>+</Text></TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            </View>
-          ))}
-
-          <TouchableOpacity style={styles.addExerciseBtn} onPress={openPicker}>
+          <TouchableOpacity style={styles.addExerciseBtn} onPress={() => setShowExercisePicker(true)}>
             <Plus color={theme.colors.neonCyan} size={20} />
             <Text style={styles.addExerciseText}>Añadir Ejercicio</Text>
           </TouchableOpacity>
@@ -432,18 +266,29 @@ export const CreateRoutineScreen = () => {
         </ScrollView>
       </KeyboardAvoidingView>
 
-        <View style={styles.footer}>
-          <TouchableOpacity 
-            style={[styles.saveButton, saveMutation.isPending && { opacity: 0.7 }]} 
-            onPress={handleSave}
-            disabled={saveMutation.isPending}
-          >
-            <Save color={theme.colors.obsidian} size={20} />
-            <Text style={styles.saveButtonText}>
-              {saveMutation.isPending ? 'Guardando...' : 'Guardar Rutina'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+      <View style={styles.footer}>
+        <TouchableOpacity 
+          style={[styles.saveButton, saveMutation.isPending && { opacity: 0.7 }]} 
+          onPress={handleSave}
+          disabled={saveMutation.isPending}
+        >
+          {saveMutation.isPending ? (
+            <ActivityIndicator color={theme.colors.obsidian} />
+          ) : (
+            <>
+              <Save color={theme.colors.obsidian} size={20} />
+              <Text style={styles.saveButtonText}>Guardar Rutina</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <ExercisePickerModal
+        visible={showExercisePicker}
+        onClose={() => setShowExercisePicker(false)}
+        onConfirm={handleConfirmAddExercises}
+        initialSelectedIds={exercises.map(e => e.exerciseId)}
+      />
     </SafeAreaView>
   );
 };
@@ -496,10 +341,14 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: 'Geist_400Regular',
     fontSize: 15,
   },
+  daysRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
   dayPill: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: colors.surfaceLight,
     borderWidth: 1,
     borderColor: colors.borderGlow,
@@ -529,7 +378,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0, 240, 255, 0.1)',
+    backgroundColor: 'rgba(0, 240, 255, 0.08)',
     borderWidth: 1,
     borderColor: colors.neonCyan,
     borderRadius: 12,
@@ -541,121 +390,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: 'Geist_600SemiBold',
     fontSize: 14,
     color: colors.neonCyan,
-  },
-  exerciseCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.borderGlow,
-  },
-  exCardTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  exCardTitle: {
-    fontFamily: 'Geist_600SemiBold',
-    fontSize: 15,
-    color: colors.text,
-    flex: 1,
-  },
-  exMetricsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  metricControl: {
-    flex: 1,
-    alignItems: 'center',
-    backgroundColor: colors.obsidian,
-    borderRadius: 8,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: colors.borderGlow,
-  },
-  metricLabel: {
-    fontFamily: 'JetBrainsMono_400Regular',
-    fontSize: 9,
-    color: colors.mutedText,
-    marginBottom: 4,
-  },
-  metricInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-    paddingHorizontal: 8,
-  },
-  metricBtn: {
-    fontFamily: 'JetBrainsMono_400Regular',
-    fontSize: 16,
-    color: colors.text,
-    paddingHorizontal: 6,
-  },
-  metricValue: {
-    fontFamily: 'JetBrainsMono_700Bold',
-    fontSize: 14,
-    color: colors.text,
-  },
-  exerciseOptionCard: {
-    backgroundColor: colors.surface,
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.borderGlow,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  exerciseThumb: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    backgroundColor: colors.surfaceLight,
-    marginLeft: 12,
-  },
-  filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: colors.surfaceLight,
-    borderWidth: 1,
-    borderColor: colors.borderGlow,
-  },
-  filterChipActive: {
-    backgroundColor: colors.neonCyan,
-    borderColor: colors.neonCyan,
-  },
-  filterChipText: {
-    fontFamily: 'Geist_500Medium',
-    fontSize: 13,
-    color: colors.mutedText,
-  },
-  filterChipTextActive: {
-    color: colors.obsidian,
-    fontFamily: 'Geist_600SemiBold',
-  },
-  exerciseOptionName: {
-    fontFamily: 'Geist_600SemiBold',
-    fontSize: 15,
-    color: colors.text,
-    marginBottom: 4,
-  },
-  exerciseOptionTarget: {
-    fontFamily: 'JetBrainsMono_400Regular',
-    fontSize: 11,
-    color: colors.neonCyan,
-  },
-  emptyText: {
-    fontFamily: 'Geist_400Regular',
-    fontSize: 14,
-    color: colors.mutedText,
-    textAlign: 'center',
-    marginTop: 40,
   },
   footer: {
     padding: 20,

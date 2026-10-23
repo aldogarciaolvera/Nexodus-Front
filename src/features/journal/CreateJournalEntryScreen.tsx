@@ -5,9 +5,10 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTheme } from '../../utils/ThemeContext';
 import { ThemeColors } from '../../utils/theme';
 import { ArrowLeft, CheckCircle2, Circle, Plus, Save } from 'lucide-react-native';
-import { useAlertStore } from '../../store/alertStore';
+import { useAlertStore, AlertState } from '../../store/alertStore';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import journalService from '../../services/journal.service';
+import journalService, { CreateNoteDto, UpdateNoteDto, NoteDto } from '../../services/journal.service';
+import { queryKeys } from '../../services/queryKeys';
 
 type EntryType = 'idea' | 'diario';
 
@@ -30,10 +31,10 @@ export const CreateJournalEntryScreen = () => {
   const styles = createStyles(theme.colors);
   const navigation = useNavigation();
   const route = useRoute<any>();
-  const showAlert = useAlertStore((state: any) => state.showAlert);
+  const showAlert = useAlertStore((state: AlertState) => state.showAlert);
   const queryClient = useQueryClient();
 
-  const editNote = route.params?.editNote;
+  const editNote = route.params?.editNote as NoteDto | undefined;
   const initialType = route.params?.initialType || 'idea';
 
   const [entryType, setEntryType] = useState<EntryType>(editNote?.type || initialType);
@@ -42,7 +43,7 @@ export const CreateJournalEntryScreen = () => {
   
   const [checklist, setChecklist] = useState<ChecklistItem[]>(
     editNote?.checklist?.length 
-      ? editNote.checklist.map((item: any) => ({ ...item, id: item.id || generateUUID() }))
+      ? editNote.checklist.map((item) => ({ ...item, id: item.id || generateUUID() }))
       : [{ id: generateUUID(), text: '', isCompleted: false }]
   );
 
@@ -59,18 +60,18 @@ export const CreateJournalEntryScreen = () => {
   };
 
   const saveMutation = useMutation({
-    mutationFn: (data: any) => {
+    mutationFn: (data: CreateNoteDto | UpdateNoteDto) => {
       if (editNote) {
-        return journalService.update(editNote.id, data);
+        return journalService.update(editNote.id, data as UpdateNoteDto);
       }
-      return journalService.create(data);
+      return journalService.create(data as CreateNoteDto);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notes'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.journal.notes });
       showAlert('Guardado', 'Entrada guardada correctamente.', 'success');
       navigation.goBack();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       showAlert('Error', error.message || 'Ocurrió un error al guardar.', 'error');
     }
   });
@@ -86,7 +87,8 @@ export const CreateJournalEntryScreen = () => {
       return;
     }
 
-    const payload: any = {
+    const payload: CreateNoteDto = {
+      type: entryType,
       title: entryType === 'idea' ? title : '',
       content: entryType === 'diario' ? content : '',
       checklist: entryType === 'idea' ? checklist.filter(c => c.text.trim().length > 0) : [],

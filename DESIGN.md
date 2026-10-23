@@ -151,13 +151,13 @@ Vertical rhythm relies on tight, mathematical nesting: cards internally space he
 
 ## Elevation & Depth
 
-This design system rejects heavy, muddy drop shadows in favor of **tonal layering**, **specular micro-borders**, and **glass translucency**:
+This design system rejects heavy, muddy drop shadows in favor of **tonal layering**, **specular micro-borders**, and **glass translucency**, with full support for Dark (Obsidian Cyan) and Light modes:
 
-1. **Surface 0 (Canvas)**: `#0D0E11` pure base.
-2. **Surface 1 (Primary Container)**: `#171922` bounded by a `1px` solid outline of `#252836`.
-3. **Surface 2 (Elevated & Active States)**: `#1B1E28` framed by `#2E3245`.
-4. **Docked Overlays & Floating Navigation**: 75% opacity `#12141A` with a 24px background blur (`backdrop-filter: blur(24px)`), crowned by a hairline `1px` top edge of `rgba(255, 255, 255, 0.08)`.
-5. **Cyan Glow**: Reserved strictly for high-priority or live statuses—a diffused drop blur of `0 0 16px rgba(0, 240, 255, 0.25)` applied to indicator dots or critical action triggers.
+1. **Surface 0 (Canvas)**: `#0B0D11` base in dark mode (`#F8FAFC` in light mode).
+2. **Surface 1 (Primary Container)**: `#14171F` bounded by a `1px` solid outline of `#222836` (`#FFFFFF` with `#E2E8F0` border in light mode).
+3. **Surface 2 (Elevated & Active States)**: `#1B202A` (`#F1F5F9` in light mode).
+4. **Docked Overlays & Floating Navigation**: Translucent obsidian glass backdrop (`rgba(16, 19, 26, 0.85)` with 24px blur), crowned by a hairline `1px` border of `#222836`.
+5. **Cyan Glow**: Reserved strictly for high-priority or live statuses—a diffused glow of `rgba(0, 240, 255, 0.25)` or `#38BDF8` applied to indicator dots or critical action triggers.
 
 ## Shapes
 
