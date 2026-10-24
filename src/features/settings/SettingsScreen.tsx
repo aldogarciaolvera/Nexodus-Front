@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Switch, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
-import { Clock, Dumbbell, ChevronRight } from 'lucide-react-native';
+import { Clock, Dumbbell, ChevronRight, Flame } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../utils/ThemeContext';
 import { ThemeColors } from '../../utils/theme';
@@ -18,6 +18,8 @@ import { ProfileEditModal } from './components/ProfileEditModal';
 import { CustomTimePicker } from '../../components/CustomTimePicker';
 import { useEquipmentStore } from '../../store/equipmentStore';
 import { EquipmentModal } from '../gym/components/EquipmentModal';
+import { useDietStore } from '../../store/dietStore';
+import { DietSetupModal } from '../diet/components/DietSetupModal';
 import { 
   getGlobalReminderConfig, 
   scheduleGlobalReminder, 
@@ -33,8 +35,10 @@ export const SettingsScreen = () => {
   const { logout, user, accessToken, refreshToken, updateTokens, updateAccessToken, apiEnv, setApiEnv, getApiUrl } = useAuthStore();
   const [isProfileModalVisible, setProfileModalVisible] = useState(false);
   const [isEquipmentModalVisible, setEquipmentModalVisible] = useState(false);
+  const [isDietModalVisible, setDietModalVisible] = useState(false);
   const { getActiveProfile } = useEquipmentStore();
   const activeProfile = getActiveProfile();
+  const { dietProfile, isConfigured: isDietConfigured } = useDietStore();
   const showAlert = useAlertStore((state: AlertState) => state.showAlert);
 
   const [globalReminderEnabled, setGlobalReminderEnabled] = useState(false);
@@ -288,6 +292,34 @@ export const SettingsScreen = () => {
             <ChevronRight size={18} color={theme.colors.mutedText} />
           </TouchableOpacity>
         </View>
+
+        {/* Nutrition & Diet Configuration */}
+        <View style={[styles.sectionHeader, { marginTop: 24 }]}>
+          <Text style={styles.sectionHeaderText}>NUTRICIÓN & DIETA</Text>
+        </View>
+
+        <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.gymRow}
+            onPress={() => setDietModalVisible(true)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Configurar plan nutricional y metas calóricas"
+          >
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <Flame size={16} color={theme.colors.neonCyan} />
+                <Text style={styles.rowTitle}>Plan Nutricional & Metas</Text>
+              </View>
+              <Text style={styles.rowSubtitle}>
+                {isDietConfigured && dietProfile
+                  ? `${dietProfile.targetCalories.toLocaleString()} kcal • P: ${dietProfile.proteinGrams}g C: ${dietProfile.carbsGrams}g G: ${dietProfile.fatGrams}g`
+                  : 'Sin configurar • Toca para activar tu plan'}
+              </Text>
+            </View>
+            <ChevronRight size={18} color={theme.colors.mutedText} />
+          </TouchableOpacity>
+        </View>
         
         {__DEV__ && isTester && (
           <View style={[styles.card, { marginTop: 16 }]}>
@@ -405,6 +437,12 @@ export const SettingsScreen = () => {
       <EquipmentModal
         visible={isEquipmentModalVisible}
         onClose={() => setEquipmentModalVisible(false)}
+      />
+
+      {/* Diet Setup & Nutrition Goals Modal */}
+      <DietSetupModal
+        visible={isDietModalVisible}
+        onClose={() => setDietModalVisible(false)}
       />
 
       {/* Global Reminder Time Picker Modal */}

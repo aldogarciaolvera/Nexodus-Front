@@ -6,6 +6,7 @@ export interface UserProfile {
   phoneNumber: string;
   weight?: number;
   height?: number;
+  dieta?: boolean;
 }
 
 export const UserService = {

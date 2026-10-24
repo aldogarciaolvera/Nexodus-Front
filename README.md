@@ -36,6 +36,69 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
 
 ## 🆕 Últimos Cambios
 
+- **Simplificación y Claridad en el Onboarding de Dieta (`DietOnboardingView.tsx` & `DietHelpModal.tsx`):**
+  - **Eliminación de Estimación de Peso & Alertas Intrusivas:** Se retiró la opción y lógica de "Estimar peso por altura" tanto del paso 1 como de la guía de ayuda, y se eliminó el modal/alerta de confirmación de cálculo al guardar, permitiendo una transición limpia e inmediata al completar el plan.
+  - **Guía Práctica con Ejemplos en Protocolos de Alimentación (Paso 4):** Se rediseñó el bloque de ayuno intermitente (`16:8`, `18:6`, `Tradicional`) para contrastar visualmente el horario en el que **SÍ se puede comer** (ej. 12:00 PM a 08:00 PM para 16:8) y el horario de **ayuno estricto** sin calorías (ej. 08:00 PM a 12:00 PM del día siguiente), con lineamientos claros sobre hidratación permitida.
+  - **Glosario Educativo de BMR & TDEE:** En la tarjeta de "Recomendación en tiempo real", debajo de la meta de agua, se incorporó una sección dedicada explicando con precisión qué es la **Tasa Metabólica Basal (BMR)** (calorías mínimas en reposo absoluto para vivir) y el **Gasto Energético Total Diario (TDEE)** (BMR + actividad física/entrenamiento, base para calcular el superávit o déficit calórico).
+  - **Limpieza y Remoción Total de Autodetección:** Remoción definitiva de los botones y lógica de autodetección de rutinas de Gym tanto en el paso 2 como en la guía de ayuda (`DietHelpModal.tsx`), manteniendo la selección manual directa, limpia y uniforme.
+
+- **Homologación de Iconografía en Dashboard y Barra de Navegación:**
+  - **Rutina de Gym en Dashboard (`WorkoutCard.tsx`):** Sustitución del icono SVG por el icono `Dumbbell` de `lucide-react-native` con color de acento `#38BDF8` (`neonCyan`), coincidiendo con el icono de "Mi Equipamiento" de la pantalla de Ajustes.
+  - **Dieta & Macros en Dashboard (`DietCard.tsx`):** Sustitución del icono SVG por el icono `Flame` de `lucide-react-native` con color de acento `#38BDF8` (`neonCyan`), coincidiendo con el icono de "Plan Nutricional & Metas" de la pantalla de Ajustes.
+  - **Pestaña Fit en Barra de Navegación Flotante (`BottomNav.tsx`):** Actualización del icono de la pestaña `Fit` en la barra de navegación flotante inferior para usar el icono `Flame` de `lucide-react-native`, manteniendo la coherencia semántica y visual entre navegación, dashboard y configuraciones.
+
+- **Refactorización Modular de Dieta, Integración de `user.dieta` & Cronómetro Decreciente de Ayuno:**
+  - **Integración del Flag `dieta` de Usuario (`user.service.ts` & `PUT /api/user/me`):**
+    - Se incorporó la propiedad booleana `dieta` en `UserProfile`.
+    - La vista de Dieta (`DietView.tsx`) y la tarjeta del Dashboard (`DietCard.tsx`) evalúan reactivamente `profile?.dieta`: si se encuentra en `false`, presentan en primera instancia el onboarding (`DietOnboardingView`) para crear el plan nutricional; una vez completado, se despacha la actualización a `/api/user/me` con `dieta: true` y se despliega la pantalla principal de nutrición.
+  - **Desacoplamiento Modular y Depuración Visual (Clean Architecture & FSD):**
+    - Se descompuso el monolito de `DietView` (reduciendo de 1022 a menos de 400 líneas) en subcomponentes modulares e independientes en `src/features/diet/components/`:
+      - `DietMacrosCard.tsx`: Resumen calórico con calibre SVG circular Obsidian Cyan y barras de macronutrientes (Proteína, Carbos, Grasas) con números monospace `JetBrains Mono`.
+      - `HydrationCard.tsx`: Módulo dedicado de hidratación diaria con barra de progreso tonal y botones de suma rápida (`+ 250ml`, `+ 500ml`).
+      - `MealItemCard.tsx`: Tarjeta individual de comidas con badges semánticos (`Completado` / `Planeado`), horarios, desglose de ingredientes y macros.
+    - **Remoción del Botón de Metas en Dieta:** Se retiró el botón "Metas" de la cabecera de `DietView` para evitar redundancia y amontonamiento, centralizando la configuración de metas nutricionales de forma exclusiva en la sección **Ajustes** (`SettingsScreen.tsx` -> `DietSetupModal`).
+  - **Cronómetro de Ayuno Intermitente con Conteo Regresivo Local (`FastingCard.tsx`):**
+    - Se eliminó el sondeo periódico de red (`refetchInterval: false`), realizando una consulta única al cargar el componente o al interactuar con las mutaciones de inicio/fin.
+    - Se guarda la hora de inicio (`startTime`) y se ejecuta un cálculo de conteo regresivo que disminuye segundo a segundo contra el reloj local del dispositivo (`Date.now()`), garantizando exactitud absoluta sin desfases ni saturación de peticiones al backend.
+  - **Alineación Visual y Estados de la Tarjeta del Dashboard (`DietCard.tsx`):**
+    - Homologación estética con `WorkoutCard`: en estado inactivo/sin plan se retiró la rueda circular recargada, mostrando únicamente el subtítulo "Sin Plan Alimenticio", la leyenda explicativa para configurar metas y el estado "Pendiente" en el pie. Una vez que el usuario activa su plan, se retira por completo el pie de estado y la tarjeta muestra únicamente la cabecera, subtítulo con calorías del día, el calibre circular de macros y el desglose de nutrientes.
+
+- **Blindaje de Reglas de Hooks & Cómputo de Fecha Local en Dashboard:**
+  - **Corrección de Orden Incondicional de Hooks (`DietCard.tsx`):** Se reubicó la invocación de `useQuery` al inicio del componente, antes de cualquier guarda o retorno temprano condicional (`if (!isConfigured) return ...`), utilizando la bandera reactiva `enabled: isConfigured`. Esto elimina de raíz la excepción en caliente `Rendered more hooks than during the previous render` que ocurría al rehidratarse el perfil nutricional desde `expo-secure-store`.
+  - **Manejo Determinista de Fechas Locales:** Sustitución de `toISOString().split('T')[0]` por `getLocalDateString()` en consultas de dieta y bitácoras, previniendo desfases horarios de medianoche en zonas horarias UTC-6.
+
+- **Fases de Dietas y Nutrición Completa (`src/features/diet/` & `src/services/diet.service.ts`):**
+  - **Servicio y Contratos de Nutrición (`src/services/diet.service.ts`):**
+    - Integración completa con los 16 endpoints del backend (`/api/diet/*`) para:
+      - Metas nutricionales (`GET/PUT /api/diet/target`, `POST /api/diet/calculate-target`).
+      - Resumen diario y bitácora de comidas (`GET /api/diet/daily?date=YYYY-MM-DD`, `POST/PUT/DELETE /api/diet/meals`).
+      - Catálogo de alimentos (`GET /api/diet/foods/search`, `GET /api/diet/foods/barcode/{barcode}`, `POST /api/diet/foods`).
+      - Hidratación inteligente (`GET/POST /api/diet/water`, `PUT /api/diet/water/set`).
+      - Ayuno intermitente (`GET /api/diet/fasting/status`, `POST /api/diet/fasting/start`, `POST /api/diet/fasting/stop`).
+  - **Catálogo de Alimentos y Código de Barras (`FoodSearchModal.tsx` & `CreateFoodModal.tsx`):**
+    - Búsqueda en tiempo real con debounce por nombre o descripción de alimentos.
+    - Consulta instantánea por código de barras de productos comerciales.
+    - Modal de creación de alimentos personalizados con desglose de macros (proteína, carbohidratos, grasas, sodio, potasio) y porción base.
+    - Selector dinámico de cantidad al agregar alimentos a la comida con recálculo proporcional en vivo de calorías y macros.
+  - **Registro y Edición de Comidas (`MealFormModal.tsx`):**
+    - Creación y edición de comidas clasificadas por tipo (Desayuno, Comida, Cena, Snack).
+    - Asignación de hora de ingesta, estado (Completado / Planeado) y lista de alimentos agregados.
+    - Tarjeta resumen con sumatoria instantánea de calorías y macronutrientes totales de la comida.
+  - **Temporizador de Ayuno Intermitente en Vivo (`FastingCard.tsx`):**
+    - Widget reactivo sincronizado con el backend que muestra el protocolo activo (16:8), estado (En Ayuno / Ventana de Alimentación) y cronómetro con recálculo segundo a segundo.
+    - Barra de progreso porcentual hacia la meta horaria y acciones seguras para Iniciar o Concluir el ayuno con alertas confirmatorias.
+  - **Dashboard Diario de Nutrición (`DietView.tsx`):**
+    - Selector de fecha para navegar entre días históricos, el día de hoy y futuros.
+    - Anillo de progreso calórico con calorías consumidas, objetivo y calorías restantes.
+    - Registro de hidratación con sumas rápidas de agua (`+ 250ml`).
+    - Lista cronológica de comidas con badges de estado, desglose de ingredientes, macros y opciones de edición y eliminación directa.
+    - Integración en tiempo real con la tarjeta `DietCard` del Dashboard principal.
+  - **Onboarding Biométrico, Ayudas y Modificación desde Ajustes (`DietOnboardingView.tsx`, `DietHelpModal.tsx`, `SettingsScreen.tsx`):**
+    - Configuración guiada con cálculo de TDEE y BMR mediante fórmula de Mifflin-St Jeor.
+    - Modal de ayuda con técnicas caseras de medición para peso y altura.
+    - Auto-estimación de peso por altura (IMC 22.5) y auto-detección del nivel de actividad según la cantidad de rutinas registradas en Gym.
+    - Modificación de metas en cualquier momento desde la sección de Ajustes o directamente en la pantalla de Dieta.
+
 - **Motor de Recomendación Biomecánica de Pesos y Sistema de Equipamiento de Gym:**
   - **Motor Biomecánico Inteligente (`src/utils/weightRecommendation.ts`):**
     - Calcula recomendaciones realistas de carga de trabajo inicial según la relación peso/altura del perfil del usuario (`UserService.getProfile`) y la dificultad asignada a la rutina (`Principiante`, `Intermedio`, `Avanzado`).

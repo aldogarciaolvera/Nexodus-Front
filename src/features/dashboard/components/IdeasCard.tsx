@@ -79,14 +79,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 2,
     marginBottom: 8,
   },
   iconContainer: {
     width: 24,
     height: 24,
     borderRadius: 6,
-    backgroundColor: 'rgba(0, 240, 255, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
