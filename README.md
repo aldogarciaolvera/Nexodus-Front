@@ -42,6 +42,7 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
   - **Config Plugins en `app.json`:** Se añadieron los plugins declarativos requeridos por SDK 58 (`@react-native-community/datetimepicker`, `expo-font`, `expo-secure-store`, `expo-status-bar`).
   - **Tipado Fuerte de `ScrollView` (`CustomTimePicker.tsx`):** Con la evolución de tipos en React Native 0.88 para componentes funcionales y referencias imperativas, se tiparon las referencias de desplazamiento usando `ScrollViewInstance` (`useRef<ScrollViewInstance>(null)`), garantizando compatibilidad total y 0 errores de compilación TypeScript.
   - **Verificación Completa:** Aprobación del 100% (20/20 comprobaciones) en `npx expo-doctor@latest` y compilación estricta limpia con `pnpm tsc --noEmit`.
+  - **Auditoría de Seguridad y Resolución de Vulnerabilidades (`pnpm audit`):** Resolución completa de 22 vulnerabilidades de dependencias transitivas mediante `overrides` en `pnpm-workspace.yaml` (`brace-expansion`, `compression`, `decode-uri-component`, `glob`, `minimatch`, `node-forge`, `shell-quote`, `source-map-js`), logrando **0 vulnerabilidades detectadas** en `pnpm audit`.
 
 - **Fase 2: HUD de Entrenamiento en Vivo & Recuperación Muscular (`src/features/gym/`):**
   - **HUD de Sesión Activa (`ActiveWorkoutScreen.tsx`):**
