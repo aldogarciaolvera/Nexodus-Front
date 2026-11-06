@@ -1,10 +1,10 @@
 # Nexodus
 
-Nexodus es una aplicación móvil desarrollada con **React Native** y **Expo (v57)**, diseñada con un enfoque minimalista, técnico y de lujo (Stealth Luxury) conocido como **Obsidian Cyan**.
+Nexodus es una aplicación móvil desarrollada con **React Native** y **Expo (v58)**, diseñada con un enfoque minimalista, técnico y de lujo (Stealth Luxury) conocido como **Obsidian Cyan**.
 
 ## 🛠 Stack Tecnológico
 
-- **Framework:** React Native / Expo (v57)
+- **Framework:** React Native (0.88.1) / Expo (v58)
 - **Lenguaje:** TypeScript
 - **Navegación:** React Navigation v7 (Bottom Tabs, Native Stack)
 - **Manejo de Estado:** Zustand
@@ -35,6 +35,42 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
 *Referencia: [`DESIGN.md`](./DESIGN.md)*
 
 ## 🆕 Últimos Cambios
+
+- **Migración y Actualización a Expo SDK 58:**
+  - **Actualización de Runtime y Core:** Se migró de Expo SDK 57 a **Expo SDK 58** (`expo@^58.0.23`), actualizando el runtime a **React Native 0.88.1** y **React 19.3.0** (`@types/react@~19.3.0`).
+  - **Alineación de Módulos Nativos:** Todas las dependencias nativas se actualizaron a sus versiones certificadas para SDK 58 (`expo-blur`, `expo-build-properties`, `expo-constants`, `expo-dev-client`, `expo-device`, `expo-font`, `expo-image`, `expo-notifications`, `expo-secure-store`, `expo-status-bar`, `expo-updates`, `react-native-safe-area-context`, `react-native-screens`, `react-native-svg`, `@react-native-community/datetimepicker`).
+  - **Config Plugins en `app.json`:** Se añadieron los plugins declarativos requeridos por SDK 58 (`@react-native-community/datetimepicker`, `expo-font`, `expo-secure-store`, `expo-status-bar`).
+  - **Tipado Fuerte de `ScrollView` (`CustomTimePicker.tsx`):** Con la evolución de tipos en React Native 0.88 para componentes funcionales y referencias imperativas, se tiparon las referencias de desplazamiento usando `ScrollViewInstance` (`useRef<ScrollViewInstance>(null)`), garantizando compatibilidad total y 0 errores de compilación TypeScript.
+  - **Verificación Completa:** Aprobación del 100% (20/20 comprobaciones) en `npx expo-doctor@latest` y compilación estricta limpia con `pnpm tsc --noEmit`.
+
+- **Fase 2: HUD de Entrenamiento en Vivo & Recuperación Muscular (`src/features/gym/`):**
+  - **HUD de Sesión Activa (`ActiveWorkoutScreen.tsx`):**
+    - Cronómetro en vivo de entrenamiento en `JetBrains Mono` con soporte de pausa/reanudación y sincronización con el backend.
+    - Carrusel de ejercicios con indicadores de avance (dots), navegación anterior/siguiente y visor colapsable de técnica en GIF (S3).
+    - Grid de series con inputs para peso (kg) y repeticiones, insignia de tipo de serie (`W`, `N`, `D`, `F`, `T`), indicador de récord anterior y botón de completitud que dispara automáticamente el temporizador de descanso.
+    - Botón de adición dinámica de series y botón de finalización que despliega el resumen del entrenamiento.
+  - **Insignias Dinámicas de Serie (`SetTypeBadge.tsx`):**
+    - Selector interactivo de tipos de serie con código de color Obsidian Cyan:
+      - `W` (Calentamiento / Warmup) - Ámbar
+      - `N` (Normal) - Cyan
+      - `D` (Drop Set) - Púrpura
+      - `F` (Al Fallo / Failure) - Coral
+      - `T` (Por Tiempo / Timed) - Esmeralda
+  - **Temporizador de Descanso Flotante (`RestTimerOverlay.tsx`):**
+    - Overlay translúcido flotante en la parte inferior durante los descansos entre series.
+    - Cuenta regresiva segundo a segundo en `JetBrains Mono`, barra de progreso y acciones rápidas (`+30s`, `Omitir`).
+  - **Calculadora de Discos para Barra Olímpica (`PlateCalculatorModal.tsx`):**
+    - Desglose exacto de discos por lado para barra olímpica (20kg estándar, 15kg o 10kg) utilizando discos de 25, 20, 15, 10, 5, 2.5 y 1.25 kg.
+    - Ajustes rápidos de peso (+5kg, -5kg) y aviso de residuos no divisibles.
+  - **Resumen y Cierre de Entrenamiento (`WorkoutSummaryModal.tsx`):**
+    - Modal de consolidación post-entrenamiento: duración total, volumen neto levantado (omitiendo calentamiento), repeticiones, series completadas y cálculo de Nexodus XP (`+NXP`).
+    - Campo de notas para sensaciones de la sesión y confirmación final hacia la API.
+  - **Radar de Recuperación y Fatiga Muscular (`MuscleRecoveryCard.tsx`):**
+    - Integrado en `GymView.tsx`: mapa visual de los 6 grupos musculares principales (Pecho, Espalda, Hombros, Piernas, Brazos, Core).
+    - Barras de porcentaje de recuperación basadas en el modelo de decaimiento exponencial de 48-72h y estados semánticos (`Listo`, `Recuperando`, `Fatigado`).
+  - **Store de Sesión y Servicios API (`workoutStore.ts` & `gym.service.ts`):**
+    - Integración transparente con los endpoints `/api/gym/sessions/*` (`start`, `active`, `sets`, `finish`, `cancel`, `recovery/muscle-status`, `records`).
+    - Reanudación automática de sesiones activas al iniciar o recargar la app (`initFromBackend`).
 
 - **Simplificación y Claridad en el Onboarding de Dieta (`DietOnboardingView.tsx` & `DietHelpModal.tsx`):**
   - **Eliminación de Estimación de Peso & Alertas Intrusivas:** Se retiró la opción y lógica de "Estimar peso por altura" tanto del paso 1 como de la guía de ayuda, y se eliminó el modal/alerta de confirmación de cálculo al guardar, permitiendo una transición limpia e inmediata al completar el plan.

@@ -61,6 +61,80 @@ export interface WorkoutLog {
   routine?: Routine;
 }
 
+export type SetType = 'Normal' | 'Warmup' | 'DropSet' | 'Failure' | 'Timed';
+
+export interface WorkoutSetDto {
+  id: string;
+  workoutSessionId: string;
+  exerciseId: string;
+  setOrder: number;
+  type: SetType;
+  weightKg: number;
+  reps: number;
+  rpe?: number;
+  durationSeconds?: number;
+  calculatedOneRepMax: number;
+  isCompleted: boolean;
+  completedAt?: string;
+  exercise?: Exercise;
+}
+
+export interface WorkoutSessionDto {
+  id: string;
+  userId: string;
+  routineId?: string;
+  name: string;
+  startTime: string;
+  endTime?: string;
+  durationSeconds: number;
+  totalVolumeKg: number;
+  totalReps: number;
+  completedSetsCount: number;
+  xpEarned: number;
+  isActive: boolean;
+  notes?: string;
+  sets: WorkoutSetDto[];
+  routine?: Routine;
+}
+
+export interface StartWorkoutSessionRequest {
+  routineId?: string;
+  name?: string;
+}
+
+export interface LogWorkoutSetRequest {
+  setId?: string;
+  exerciseId: string;
+  setOrder: number;
+  type?: SetType;
+  weightKg: number;
+  reps: number;
+  rpe?: number;
+  durationSeconds?: number;
+  isCompleted?: boolean;
+}
+
+export interface FinishWorkoutSessionRequest {
+  notes?: string;
+}
+
+export interface MuscleRecoveryDto {
+  muscleGroup: string;
+  hoursSinceLastTrained?: number;
+  fatigueScore: number;
+  recoveryPercentage: number;
+  status: 'Ready' | 'Recovering' | 'Fatigued';
+  estimatedFullRecoveryHours: number;
+}
+
+export interface ExerciseRecordDto {
+  exerciseId: string;
+  maxWeightKg: number;
+  maxReps: number;
+  bestCalculatedOneRepMax: number;
+  maxVolumeInSingleSet: number;
+}
+
 export const gymService = {
   // Exercises
   getExercisesPage: async (page = 1, pageSize = 100): Promise<{ items: Exercise[]; totalPages?: number; totalCount?: number }> => {
@@ -213,5 +287,73 @@ export const gymService = {
     if (response.status !== 204) {
       return handleResponse(response);
     }
+  },
+
+  // Workout Sessions (Live HUD)
+  startWorkoutSession: async (data: StartWorkoutSessionRequest): Promise<WorkoutSessionDto> => {
+    const response = await apiFetch('/api/gym/sessions/start', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return handleResponse(response);
+  },
+
+  getActiveWorkoutSession: async (): Promise<WorkoutSessionDto | null> => {
+    const response = await apiFetch('/api/gym/sessions/active');
+    return handleResponse(response);
+  },
+
+  getWorkoutSessionById: async (id: string): Promise<WorkoutSessionDto> => {
+    const response = await apiFetch(`/api/gym/sessions/${id}`);
+    return handleResponse(response);
+  },
+
+  getUserWorkoutSessions: async (limit = 20): Promise<WorkoutSessionDto[]> => {
+    const response = await apiFetch(`/api/gym/sessions?limit=${limit}`);
+    return handleResponse(response);
+  },
+
+  logWorkoutSet: async (sessionId: string, data: LogWorkoutSetRequest): Promise<WorkoutSetDto> => {
+    const response = await apiFetch(`/api/gym/sessions/${sessionId}/sets`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return handleResponse(response);
+  },
+
+  deleteWorkoutSet: async (sessionId: string, setId: string): Promise<void> => {
+    const response = await apiFetch(`/api/gym/sessions/${sessionId}/sets/${setId}`, {
+      method: 'DELETE',
+    });
+    if (response.status !== 204) {
+      return handleResponse(response);
+    }
+  },
+
+  finishWorkoutSession: async (sessionId: string, data: FinishWorkoutSessionRequest): Promise<WorkoutSessionDto> => {
+    const response = await apiFetch(`/api/gym/sessions/${sessionId}/finish`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return handleResponse(response);
+  },
+
+  cancelWorkoutSession: async (sessionId: string): Promise<void> => {
+    const response = await apiFetch(`/api/gym/sessions/${sessionId}`, {
+      method: 'DELETE',
+    });
+    if (response.status !== 204) {
+      return handleResponse(response);
+    }
+  },
+
+  getMuscleRecoveryStatus: async (): Promise<MuscleRecoveryDto[]> => {
+    const response = await apiFetch('/api/gym/sessions/recovery/muscle-status');
+    return handleResponse(response);
+  },
+
+  getExerciseRecords: async (exerciseId: string): Promise<ExerciseRecordDto> => {
+    const response = await apiFetch(`/api/gym/sessions/exercises/${exerciseId}/records`);
+    return handleResponse(response);
   }
 };

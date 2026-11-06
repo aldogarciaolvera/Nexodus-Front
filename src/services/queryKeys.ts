@@ -10,6 +10,11 @@ export const queryKeys = {
     exercise: (id?: string) => ['exercise', id] as const,
     workouts: ['workouts'] as const,
     workout: (id?: string) => ['workout', id] as const,
+    activeSession: ['activeSession'] as const,
+    sessions: ['sessions'] as const,
+    session: (id?: string) => ['session', id] as const,
+    muscleRecovery: ['muscleRecovery'] as const,
+    exerciseRecords: (id?: string) => ['exerciseRecords', id] as const,
   },
   finance: {
     summary: ['financeSummary'] as const,

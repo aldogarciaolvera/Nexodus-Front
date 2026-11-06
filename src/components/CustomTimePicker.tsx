@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, Animated, Platform } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, Animated, Platform, ScrollViewInstance } from 'react-native';
 import { useTheme } from '../utils/ThemeContext';
 import { ThemeColors } from '../utils/theme';
 
@@ -28,9 +28,9 @@ export const CustomTimePicker = ({ visible, value, onClose, onConfirm }: CustomT
   const [selectedMinute, setSelectedMinute] = useState(value.getMinutes());
   const [selectedPeriod, setSelectedPeriod] = useState(isPM ? 'PM' : 'AM');
 
-  const hourScrollRef = useRef<ScrollView>(null);
-  const minuteScrollRef = useRef<ScrollView>(null);
-  const periodScrollRef = useRef<ScrollView>(null);
+  const hourScrollRef = useRef<ScrollViewInstance>(null);
+  const minuteScrollRef = useRef<ScrollViewInstance>(null);
+  const periodScrollRef = useRef<ScrollViewInstance>(null);
 
   useEffect(() => {
     if (visible) {
@@ -68,7 +68,7 @@ export const CustomTimePicker = ({ visible, value, onClose, onConfirm }: CustomT
     data: T[],
     selectedValue: T,
     onValueChange: (val: T) => void,
-    scrollRef: React.RefObject<ScrollView | null>,
+    scrollRef: React.RefObject<ScrollViewInstance | null>,
     width: number = 80
   ) => {
     return (
