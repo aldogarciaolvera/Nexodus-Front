@@ -1,3 +1,16 @@
+## [0.1.0] - 2026-11-06
+
+### Features
+
+- feat: Fase 2 del plan radical de evolucion y actualizacion a SDK 58 de expo
+- feat: implementacion de Dieta
+- feat: Correxion de pantallas y botones
+- feat: Cambio de version actual y de canal
+
+### Bug Fixes
+
+- fix: restaurar appVersion policy para evitar discrepancia de rutas pnpm entre Windows y Linux
+
 ## [0.0.10] - 2026-10-22
 
 ### Features
