@@ -1,701 +1,529 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
-import { Search, Camera, ScanBarcode, Droplet, Clock } from 'lucide-react-native';
+import { 
+  Search, 
+  ScanBarcode, 
+  Sparkles, 
+  Plus, 
+  ChevronLeft, 
+  ChevronRight, 
+  Utensils 
+} from 'lucide-react-native';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { UserService } from '../../../services/user.service';
+import { queryKeys } from '../../../services/queryKeys';
+import { useDietStore } from '../../../store/dietStore';
+import { dietService, Meal, MealItem } from '../../../services/diet.service';
+import { useAlertStore } from '../../../store/alertStore';
+import { DietOnboardingView } from './DietOnboardingView';
+import { Skeleton } from '../../../components/Skeleton';
+import { MealFormModal } from './MealFormModal';
+import { FoodSearchModal } from './FoodSearchModal';
+import { FastingCard } from './FastingCard';
+import { DietMacrosCard } from './DietMacrosCard';
+import { HydrationCard } from './HydrationCard';
+import { MealItemCard } from './MealItemCard';
+
+const getLocalDateString = (d: Date = new Date()): string => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 export const DietView = () => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
+  const queryClient = useQueryClient();
+  const showAlert = useAlertStore((state) => state.showAlert);
+
+  const { dietProfile, consumedWaterMl, addWater } = useDietStore();
+
+  // Selected Date Management (YYYY-MM-DD)
+  const [selectedDate, setSelectedDate] = useState(() => getLocalDateString());
+
+  // Modals state
+  const [showMealModal, setShowMealModal] = useState(false);
+  const [mealToEdit, setMealToEdit] = useState<Meal | null>(null);
+  const [initialMealItems, setInitialMealItems] = useState<MealItem[]>([]);
+  const [showFoodSearchModal, setShowFoodSearchModal] = useState(false);
+
+  // Profile Query
+  const { data: profile, isLoading: isProfileLoading } = useQuery({
+    queryKey: queryKeys.user.profile,
+    queryFn: UserService.getProfile,
+  });
+
+  const isDietActive = Boolean(profile?.dieta ?? (profile as any)?.Dieta);
+
+  // Backend Target Query
+  const { data: backendTarget } = useQuery({
+    queryKey: queryKeys.diet.target,
+    queryFn: dietService.getTarget,
+    enabled: isDietActive,
+  });
+
+  // Daily Summary Query
+  const { data: dailySummary, isLoading: isDailyLoading } = useQuery({
+    queryKey: queryKeys.diet.daily(selectedDate),
+    queryFn: () => dietService.getDailySummary(selectedDate),
+    enabled: isDietActive,
+  });
+
+  // Water Query
+  const { data: waterData } = useQuery({
+    queryKey: queryKeys.diet.water(selectedDate),
+    queryFn: () => dietService.getWater(selectedDate),
+    enabled: isDietActive,
+  });
+
+  // Water Mutation
+  const addWaterMutation = useMutation({
+    mutationFn: (amount: number) => dietService.addWater(selectedDate, amount),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.diet.water(selectedDate) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.diet.daily(selectedDate) });
+      addWater(250);
+    },
+    onError: () => {
+      addWater(250); // Fallback local
+    },
+  });
+
+  // Delete Meal Mutation
+  const deleteMealMutation = useMutation({
+    mutationFn: (mealId: string) => dietService.deleteMeal(mealId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.diet.daily(selectedDate) });
+      showAlert('Comida Eliminada', 'Se eliminó el registro de la comida.', 'success');
+    },
+    onError: (e: any) => {
+      showAlert('Error', e.message || 'No se pudo eliminar la comida.', 'error');
+    },
+  });
+
+  if (isProfileLoading) {
+    return (
+      <View style={{ gap: 16 }}>
+        <Skeleton width="50%" height={24} style={{ marginBottom: 8 }} />
+        <Skeleton width="100%" height={160} borderRadius={16} />
+        <Skeleton width="100%" height={80} borderRadius={16} />
+        <Skeleton width="100%" height={120} borderRadius={16} />
+      </View>
+    );
+  }
+
+  // Si la dieta está en false en el perfil del usuario, mostrar pantalla de onboarding / creación de plan
+  if (!isDietActive) {
+    return (
+      <DietOnboardingView 
+        profile={profile} 
+        isEditing={false} 
+        onCompleted={() => {
+          queryClient.invalidateQueries({ queryKey: queryKeys.user.profile });
+          queryClient.invalidateQueries({ queryKey: queryKeys.diet.target });
+          queryClient.invalidateQueries({ queryKey: queryKeys.diet.daily(selectedDate) });
+        }} 
+      />
+    );
+  }
+
+  // Consolidated Targets
+  const targetCals = backendTarget?.targetCalories || dietProfile?.targetCalories || 2200;
+  const targetProtein = backendTarget?.proteinGrams || dietProfile?.proteinGrams || 160;
+  const targetCarbs = backendTarget?.carbsGrams || dietProfile?.carbsGrams || 220;
+  const targetFat = backendTarget?.fatGrams || dietProfile?.fatGrams || 70;
+  const targetWaterMl = backendTarget?.waterTargetMl || dietProfile?.waterTargetMl || 3000;
+
+  // Daily Consumed Metrics
+  const meals: Meal[] = dailySummary?.meals || [];
+  const consumedCals = dailySummary?.consumedCalories ?? meals.reduce((sum, m) => sum + (m.calories || 0), 0);
+  const consumedProtein = dailySummary?.consumedProtein ?? meals.reduce((sum, m) => sum + (m.protein || 0), 0);
+  const consumedCarbs = dailySummary?.consumedCarbs ?? meals.reduce((sum, m) => sum + (m.carbs || 0), 0);
+  const consumedFat = dailySummary?.consumedFat ?? meals.reduce((sum, m) => sum + (m.fat || 0), 0);
+
+  const currentWater = waterData?.consumedWaterMl ?? waterData?.totalMl ?? dailySummary?.consumedWaterMl ?? consumedWaterMl;
+
+  // Date Navigation Handlers
+  const handleShiftDate = (days: number) => {
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d + days);
+    setSelectedDate(getLocalDateString(dateObj));
+  };
+
+  const isToday = selectedDate === getLocalDateString();
+
+  const formatDisplayDate = (dateStr: string) => {
+    if (dateStr === getLocalDateString()) return 'Hoy';
+    const [y, m, d] = dateStr.split('-');
+    const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    return `${d} ${months[parseInt(m, 10) - 1]}`;
+  };
+
+  const handleToggleMealComplete = async (meal: Meal) => {
+    try {
+      await dietService.updateMeal(meal.id, {
+        date: meal.date,
+        mealType: meal.mealType,
+        name: meal.name,
+        time: meal.time,
+        isCompleted: !meal.isCompleted,
+        items: meal.items,
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.diet.daily(selectedDate) });
+    } catch (e: any) {
+      showAlert('Error', e.message || 'No se pudo actualizar el estado de la comida.', 'error');
+    }
+  };
+
+  const handleDeleteMeal = (meal: Meal) => {
+    showAlert({
+      title: '¿Eliminar Comida?',
+      message: `¿Deseas eliminar "${meal.name}" del registro?`,
+      type: 'error',
+      buttons: [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Eliminar', style: 'destructive', onPress: () => deleteMealMutation.mutate(meal.id) },
+      ],
+    });
+  };
+
+  const getGoalLabel = () => {
+    if (dietProfile?.goal === 'fat_loss') return 'DEFINICIÓN';
+    if (dietProfile?.goal === 'muscle_gain') return 'VOLUMEN';
+    return 'MANTENIMIENTO';
+  };
 
   return (
     <View style={styles.container}>
-      {/* Macros Summary */}
-      <View style={styles.macrosCard}>
-        <View style={styles.caloriesRow}>
-          <View style={styles.progressCircle}>
-            <Text style={styles.consumedLabel}>CONSUMED</Text>
-            <Text style={styles.consumedValue}>1,800</Text>
-            <Text style={styles.consumedPct}>72%</Text>
-          </View>
-          <View style={styles.caloriesInfo}>
-            <View style={styles.calRow}>
-              <Text style={styles.calLabel}>DAILY TARGET</Text>
-              <Text style={styles.calValue}>2,500 <Text style={styles.calUnit}>kcal</Text></Text>
-            </View>
-            <View style={styles.calRow}>
-              <Text style={styles.calLabel}>REMAINING</Text>
-              <Text style={styles.calValueCyan}>700 <Text style={styles.calUnit}>kcal</Text></Text>
-            </View>
-            <Text style={styles.paceText}>⚡ Pace: Optimal (+140 kcal surplus cap)</Text>
-          </View>
-        </View>
-
-        <View style={styles.macrosBars}>
-          <View style={styles.macroCol}>
-            <View style={styles.macroTopRow}>
-              <Text style={styles.macroLabel}>PROTEIN</Text>
-              <Text style={styles.macroPct}>79%</Text>
-            </View>
-            <Text style={styles.macroValues}>150<Text style={styles.macroTarget}>/190g</Text></Text>
-            <View style={styles.macroBarBg}><View style={[styles.macroBarFill, { width: '79%' }]}/></View>
-            <Text style={styles.macroDesc}>Muscle Preserv.</Text>
-          </View>
-          <View style={styles.macroCol}>
-            <View style={styles.macroTopRow}>
-              <Text style={styles.macroLabel}>CARBS</Text>
-              <Text style={[styles.macroPct, { color: theme.colors.warning }]}>78%</Text>
-            </View>
-            <Text style={styles.macroValues}>220<Text style={styles.macroTarget}>/280g</Text></Text>
-            <View style={styles.macroBarBg}><View style={[styles.macroBarFill, { width: '78%', backgroundColor: theme.colors.warning }]}/></View>
-            <Text style={styles.macroDesc}>Glycogen Replen.</Text>
-          </View>
-          <View style={styles.macroCol}>
-            <View style={styles.macroTopRow}>
-              <Text style={styles.macroLabel}>FATS</Text>
-              <Text style={[styles.macroPct, { color: theme.colors.mutedText }]}>86%</Text>
-            </View>
-            <Text style={styles.macroValues}>65<Text style={styles.macroTarget}>/75g</Text></Text>
-            <View style={styles.macroBarBg}><View style={[styles.macroBarFill, { width: '86%', backgroundColor: theme.colors.mutedText }]}/></View>
-            <Text style={styles.macroDesc}>Endocrine Bal.</Text>
-          </View>
-        </View>
-
-        <View style={styles.hydrationRow}>
-          <View style={styles.hydrationLeft}>
-            <Droplet color={theme.colors.neonCyan} size={16} />
-            <View style={{ marginLeft: 8 }}>
-              <Text style={styles.hydrationLabel}>HYDRATION METRIC</Text>
-              <Text style={styles.hydrationValue}>2.4L <Text style={styles.hydrationTarget}>/ 3.2L Target</Text></Text>
-            </View>
-          </View>
+      {/* Top Header Actions (Date selector + Goal pill, sin botón de metas) */}
+      <View style={styles.topBarActions}>
+        {/* Date Selector Pill */}
+        <View style={styles.dateSelector}>
           <TouchableOpacity 
-            style={styles.addWaterBtn}
-            activeOpacity={0.8}
+            style={styles.dateArrow}
+            onPress={() => handleShiftDate(-1)}
             accessibilityRole="button"
-            accessibilityLabel="Agregar 250 mililitros de agua"
+            accessibilityLabel="Día anterior"
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Text style={styles.addWaterText}>+ 250ml</Text>
+            <ChevronLeft size={16} color={theme.colors.mutedText} />
           </TouchableOpacity>
+
+          <Text style={styles.dateText}>{formatDisplayDate(selectedDate)}</Text>
+
+          <TouchableOpacity 
+            style={styles.dateArrow}
+            onPress={() => handleShiftDate(1)}
+            accessibilityRole="button"
+            accessibilityLabel="Día siguiente"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <ChevronRight size={16} color={theme.colors.mutedText} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Goal Badge Pill */}
+        <View style={styles.goalBadge}>
+          <Sparkles size={11} color={theme.colors.neonCyan} />
+          <Text style={styles.goalBadgeText}>{getGoalLabel()}</Text>
         </View>
       </View>
 
-      {/* Search Input */}
-      <View style={styles.searchInputContainer}>
+      {/* 1. Macros & Calories Summary Card */}
+      <DietMacrosCard
+        targetCals={targetCals}
+        consumedCals={consumedCals}
+        targetProtein={targetProtein}
+        consumedProtein={consumedProtein}
+        targetCarbs={targetCarbs}
+        consumedCarbs={consumedCarbs}
+        targetFat={targetFat}
+        consumedFat={consumedFat}
+      />
+
+      {/* 2. Hydration Dedicated Card */}
+      <HydrationCard
+        currentWaterMl={currentWater}
+        targetWaterMl={targetWaterMl}
+        onAddWater={(amount) => addWaterMutation.mutate(amount)}
+        isPending={addWaterMutation.isPending}
+      />
+
+      {/* 3. Intermittent Fasting Widget (Single-query with countdown) */}
+      <FastingCard fastingProtocol={backendTarget?.fastingProtocol || dietProfile?.fastingProtocol || '16:8'} />
+
+      {/* 4. Quick Search & Barcode Trigger */}
+      <TouchableOpacity
+        style={styles.searchInputContainer}
+        onPress={() => setShowFoodSearchModal(true)}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel="Abrir buscador de alimentos o código de barras"
+      >
         <Search color={theme.colors.mutedText} size={18} />
-        <TextInput 
-          placeholder="Buscar alimento, código de barras o receta"
-          placeholderTextColor={theme.colors.mutedText}
-          style={styles.searchInput}
-          accessibilityLabel="Buscar alimento"
-        />
-        <TouchableOpacity 
-          style={styles.scanBtn}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Escanear código de barras"
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <ScanBarcode color={theme.colors.mutedText} size={16}/>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.cameraBtn}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Abrir cámara para reconocer comida"
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Camera color={theme.colors.mutedText} size={16}/>
-        </TouchableOpacity>
-      </View>
+        <Text style={styles.searchPlaceholder}>Buscar alimento o código de barras...</Text>
+        <View style={styles.scanBtn}>
+          <ScanBarcode color={theme.colors.neonCyan} size={16} />
+        </View>
+      </TouchableOpacity>
 
-      {/* Scheduled Feedings */}
+      {/* 5. Scheduled Feedings Header */}
       <View style={styles.feedingsHeader}>
-        <Text style={styles.sectionTitle}>SCHEDULED FEEDINGS</Text>
-        <Text style={styles.feedingsSummary}>3 Registradas • 1 Restante</Text>
+        <View>
+          <Text style={styles.sectionTitle}>COMIDAS DEL DÍA</Text>
+          <Text style={styles.feedingsSummary}>
+            {meals.filter((m) => m.isCompleted).length} Completadas • {meals.filter((m) => !m.isCompleted).length} Planeadas
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={styles.addMealBtn}
+          onPress={() => {
+            setMealToEdit(null);
+            setShowMealModal(true);
+          }}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Registrar nueva comida"
+        >
+          <Plus size={14} color={theme.colors.obsidian} />
+          <Text style={styles.addMealBtnText}>+ Comida</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Breakfast */}
-      <View style={styles.mealCard}>
-        <View style={styles.mealTop}>
-          <View style={styles.mealTitleRow}>
-            <View style={styles.dotCyan} />
-            <Text style={styles.mealTime}>BREAKFAST • 08:15 AM</Text>
-          </View>
-          <Text style={styles.mealStatus}>Completado</Text>
+      {/* 6. Meals List */}
+      {isDailyLoading ? (
+        <View style={{ gap: 12 }}>
+          <Skeleton width="100%" height={90} borderRadius={14} />
+          <Skeleton width="100%" height={90} borderRadius={14} />
         </View>
-        <View style={styles.mealContent}>
-          <View style={styles.mealImgPlaceholder} />
-          <View style={styles.mealInfo}>
-            <Text style={styles.mealName}>Overnight Oats & Whey Isolate</Text>
-            <Text style={styles.mealDesc} numberOfLines={1}>Avena, leche de almendras, arándanos, scoop de whey...</Text>
-          </View>
-        </View>
-        <View style={styles.mealMacros}>
-          <Text style={styles.mealCals}>580 <Text style={styles.mealCalUnit}>kcal</Text></Text>
-          <Text style={styles.mealMacroList}>P: 45g   C: 68g   F: 12g</Text>
-        </View>
-      </View>
-
-      {/* Lunch */}
-      <View style={styles.mealCard}>
-        <View style={styles.mealTop}>
-          <View style={styles.mealTitleRow}>
-            <View style={styles.dotCyan} />
-            <Text style={styles.mealTime}>LUNCH / POST-WORKOUT • 01:15 PM</Text>
-          </View>
-          <Text style={styles.mealStatus}>Completado</Text>
-        </View>
-        <View style={styles.mealContent}>
-          <View style={styles.mealImgPlaceholder} />
-          <View style={styles.mealInfo}>
-            <Text style={styles.mealName}>Wild Salmon Bowl & Quinoa</Text>
-            <Text style={styles.mealDesc} numberOfLines={1}>200g Salmón salvaje al grill, espárragos, aguacate...</Text>
-          </View>
-        </View>
-        <View style={styles.mealMacros}>
-          <Text style={styles.mealCals}>740 <Text style={styles.mealCalUnit}>kcal</Text></Text>
-          <Text style={styles.mealMacroList}>P: 58g   C: 72g   F: 22g</Text>
-        </View>
-      </View>
-
-      {/* Recovery Snack */}
-      <View style={styles.mealCard}>
-        <View style={styles.mealTop}>
-          <View style={styles.mealTitleRow}>
-            <View style={styles.dotCyan} />
-            <Text style={styles.mealTime}>RECOVERY SNACK • 04:30 PM</Text>
-          </View>
-          <Text style={styles.mealStatus}>Completado</Text>
-        </View>
-        <View style={styles.mealContent}>
-          <View style={styles.mealImgPlaceholder} />
-          <View style={styles.mealInfo}>
-            <Text style={styles.mealName}>Greek Yogurt & Raw Honey</Text>
-            <Text style={styles.mealDesc} numberOfLines={1}>Yogur griego 0%, nueces trituradas, miel cruda...</Text>
-          </View>
-        </View>
-        <View style={styles.mealMacros}>
-          <Text style={styles.mealCals}>480 <Text style={styles.mealCalUnit}>kcal</Text></Text>
-          <Text style={styles.mealMacroList}>P: 47g   C: 80g   F: 31g</Text>
-        </View>
-      </View>
-
-      {/* Dinner (Planned) */}
-      <View style={styles.mealCardPlanned}>
-        <View style={styles.mealTop}>
-          <View style={styles.mealTitleRow}>
-            <View style={styles.dotYellow} />
-            <Text style={styles.mealTime}>DINNER • NEXT TARGET • 07:45 PM</Text>
-          </View>
-          <View style={styles.plannedBadge}><Text style={styles.plannedBadgeText}>Planeado</Text></View>
-        </View>
-        <View style={styles.mealInfoPlanned}>
-          <Text style={styles.mealName}>Grass-Fed Flank Steak & Sweet Potato</Text>
-          <Text style={styles.mealDesc}>220g Filete de res alimentado con pasto, batata dulce, broccolini</Text>
-        </View>
-        <View style={styles.mealMacrosPlanned}>
-          <Text style={styles.mealCalsYellow}>~700 <Text style={styles.mealCalUnit}>kcal objetivo</Text></Text>
-          <Text style={styles.mealMacroList}>P: 40g   C: 60g   F: 10g</Text>
-        </View>
-        <View style={styles.plannedActions}>
-          <TouchableOpacity 
-            style={styles.confirmBtn}
-            activeOpacity={0.8}
+      ) : meals.length === 0 ? (
+        <View style={styles.emptyMealsCard}>
+          <Utensils size={32} color={theme.colors.slate600} />
+          <Text style={styles.emptyMealsTitle}>Sin comidas registradas</Text>
+          <Text style={styles.emptyMealsSub}>
+            No has registrado alimentos para {isToday ? 'el día de hoy' : selectedDate}. Presiona el botón para agregar una comida.
+          </Text>
+          <TouchableOpacity
+            style={styles.emptyAddBtn}
+            onPress={() => {
+              setMealToEdit(null);
+              setShowMealModal(true);
+            }}
             accessibilityRole="button"
-            accessibilityLabel="Confirmar registro de cena"
+            accessibilityLabel="Registrar primera comida"
           >
-            <Text style={styles.confirmBtnText}>✓ Confirmar Registro</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.editBtn}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Editar cena"
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={{ color: theme.colors.mutedText }}>✎</Text>
+            <Plus size={14} color={theme.colors.neonCyan} />
+            <Text style={styles.emptyAddBtnText}>Registrar Comida</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      ) : (
+        <View style={styles.mealsList}>
+          {meals.map((meal) => (
+            <MealItemCard
+              key={meal.id}
+              meal={meal}
+              onToggleComplete={handleToggleMealComplete}
+              onEdit={(m) => {
+                setMealToEdit(m);
+                setShowMealModal(true);
+              }}
+              onDelete={handleDeleteMeal}
+            />
+          ))}
+        </View>
+      )}
 
-      {/* 16:8 Protocol */}
-      <View style={styles.protocolCard}>
-        <View style={styles.protocolTop}>
-          <View style={styles.protocolTitleRow}>
-            <Clock color={theme.colors.neonCyan} size={14} />
-            <Text style={styles.protocolTitle}>16:8 PROTOCOL STATUS</Text>
-          </View>
-          <Text style={styles.protocolPhase}>Feeding Phase</Text>
-        </View>
-        <View style={styles.protocolTimeRow}>
-          <Text style={styles.protocolCloses}>Ventana cierra en: <Text style={{ color: theme.colors.text }}>2h 15m</Text> (09:00 PM)</Text>
-          <Text style={styles.protocolStarted}>Inició 12:00 PM</Text>
-        </View>
-        <View style={styles.protocolBarBg}>
-          <View style={[styles.protocolBarFill, { width: '80%' }]} />
-        </View>
+      {/* Modals */}
+      <MealFormModal
+        visible={showMealModal}
+        onClose={() => {
+          setShowMealModal(false);
+          setMealToEdit(null);
+          setInitialMealItems([]);
+        }}
+        onMealSaved={() => {
+          queryClient.invalidateQueries({ queryKey: queryKeys.diet.daily(selectedDate) });
+        }}
+        mealToEdit={mealToEdit}
+        initialDate={selectedDate}
+        initialItems={initialMealItems}
+      />
 
-        <View style={styles.microRow}>
-          <View style={styles.microItem}>
-            <Text style={styles.microLabel}>SODIUM</Text>
-            <Text style={styles.microValue}>2,100mg</Text>
-            <Text style={styles.microStatus}>Controlado</Text>
-          </View>
-          <View style={styles.microItem}>
-            <Text style={styles.microLabel}>FIBER</Text>
-            <Text style={styles.microValue}>34g</Text>
-            <Text style={styles.microStatus}>Meta Cumplida</Text>
-          </View>
-          <View style={styles.microItem}>
-            <Text style={styles.microLabel}>POTASSIUM</Text>
-            <Text style={styles.microValue}>3,250mg</Text>
-            <Text style={styles.microStatus}>Óptimo</Text>
-          </View>
-        </View>
-      </View>
+      <FoodSearchModal
+        visible={showFoodSearchModal}
+        onClose={() => setShowFoodSearchModal(false)}
+        onSelectFood={(food, qty) => {
+          const ratio = qty / (food.servingSize || 100);
+          const item: MealItem = {
+            foodId: food.id || null,
+            foodName: food.name,
+            quantity: qty,
+            unit: food.servingUnit || 'g',
+            calories: Math.round(food.calories * ratio),
+            protein: Math.round(food.protein * ratio * 10) / 10,
+            carbs: Math.round(food.carbs * ratio * 10) / 10,
+            fat: Math.round(food.fat * ratio * 10) / 10,
+          };
+          setInitialMealItems([item]);
+          setShowFoodSearchModal(false);
+          setMealToEdit(null);
+          setShowMealModal(true);
+        }}
+      />
     </View>
   );
 };
 
-const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  container: {
-    width: '100%',
-  },
-  macrosCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: colors.borderGlow,
-  },
-  caloriesRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  progressCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 4,
-    borderColor: colors.neonCyan,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 20,
-  },
-  consumedLabel: {
-    fontFamily: 'JetBrainsMono_400Regular',
-    fontSize: 8,
-    color: colors.mutedText,
-  },
-  consumedValue: {
-    fontFamily: 'Geist_700Bold',
-    fontSize: 18,
-    color: colors.text,
-  },
-  consumedPct: {
-    fontFamily: 'JetBrainsMono_400Regular',
-    fontSize: 9,
-    color: colors.neonCyan,
-  },
-  caloriesInfo: {
-    flex: 1,
-  },
-  calRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginBottom: 8,
-  },
-  calLabel: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 10,
-    color: colors.mutedText,
-    letterSpacing: 0.5,
-  },
-  calValue: {
-    fontFamily: 'JetBrainsMono_600SemiBold',
-    fontSize: 14,
-    color: colors.text,
-  },
-  calValueCyan: {
-    fontFamily: 'JetBrainsMono_600SemiBold',
-    fontSize: 14,
-    color: colors.neonCyan,
-  },
-  calUnit: {
-    fontFamily: 'Geist_400Regular',
-    fontSize: 11,
-    color: colors.mutedText,
-  },
-  paceText: {
-    fontFamily: 'JetBrainsMono_400Regular',
-    fontSize: 10,
-    color: colors.mutedText,
-    marginTop: 4,
-  },
-  macrosBars: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 20,
-  },
-  macroCol: {
-    flex: 1,
-  },
-  macroTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  macroLabel: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 9,
-    color: colors.mutedText,
-  },
-  macroPct: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 9,
-    color: colors.neonCyan,
-  },
-  macroValues: {
-    fontFamily: 'JetBrainsMono_600SemiBold',
-    fontSize: 13,
-    color: colors.text,
-    marginBottom: 6,
-  },
-  macroTarget: {
-    fontSize: 10,
-    color: colors.mutedText,
-    fontFamily: 'JetBrainsMono_400Regular',
-  },
-  macroBarBg: {
-    height: 4,
-    backgroundColor: colors.surfaceLight,
-    borderRadius: 2,
-    marginBottom: 6,
-  },
-  macroBarFill: {
-    height: 4,
-    backgroundColor: colors.neonCyan,
-    borderRadius: 2,
-  },
-  macroDesc: {
-    fontFamily: 'Geist_400Regular',
-    fontSize: 9,
-    color: colors.mutedText,
-  },
-  hydrationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderGlow,
-  },
-  hydrationLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  hydrationLabel: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 9,
-    color: colors.mutedText,
-    marginBottom: 2,
-  },
-  hydrationValue: {
-    fontFamily: 'JetBrainsMono_600SemiBold',
-    fontSize: 13,
-    color: colors.text,
-  },
-  hydrationTarget: {
-    fontFamily: 'Geist_400Regular',
-    fontSize: 11,
-    color: colors.mutedText,
-  },
-  addWaterBtn: {
-    backgroundColor: 'rgba(0, 240, 255, 0.1)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  addWaterText: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 11,
-    color: colors.neonCyan,
-  },
-  searchInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: colors.borderGlow,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 12,
-    fontFamily: 'Geist_400Regular',
-    fontSize: 13,
-    color: colors.text,
-  },
-  scanBtn: {
-    padding: 4,
-    marginRight: 8,
-  },
-  cameraBtn: {
-    padding: 4,
-  },
-  feedingsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 11,
-    color: colors.text,
-    letterSpacing: 1,
-  },
-  feedingsSummary: {
-    fontFamily: 'JetBrainsMono_400Regular',
-    fontSize: 10,
-    color: colors.mutedText,
-  },
-  mealCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-  },
-  mealTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  mealTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  dotCyan: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.neonCyan,
-    marginRight: 8,
-  },
-  dotYellow: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.warning,
-    marginRight: 8,
-  },
-  mealTime: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 10,
-    color: colors.text,
-    letterSpacing: 0.5,
-  },
-  mealStatus: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 10,
-    color: colors.mutedText,
-  },
-  mealContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  mealImgPlaceholder: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    backgroundColor: colors.surfaceLight,
-    marginRight: 12,
-  },
-  mealInfo: {
-    flex: 1,
-  },
-  mealName: {
-    fontFamily: 'Geist_600SemiBold',
-    fontSize: 14,
-    color: colors.text,
-    marginBottom: 4,
-  },
-  mealDesc: {
-    fontFamily: 'Geist_400Regular',
-    fontSize: 12,
-    color: colors.mutedText,
-  },
-  mealMacros: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderGlow,
-  },
-  mealCals: {
-    fontFamily: 'JetBrainsMono_600SemiBold',
-    fontSize: 13,
-    color: colors.neonCyan,
-  },
-  mealCalUnit: {
-    fontFamily: 'JetBrainsMono_400Regular',
-    fontSize: 10,
-    color: colors.mutedText,
-  },
-  mealMacroList: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 11,
-    color: colors.mutedText,
-    letterSpacing: 1,
-  },
-  mealCardPlanned: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: colors.borderGlow,
-  },
-  plannedBadge: {
-    backgroundColor: colors.warning,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  plannedBadgeText: {
-    fontFamily: 'JetBrainsMono_600SemiBold',
-    fontSize: 10,
-    color: colors.obsidian,
-  },
-  mealInfoPlanned: {
-    marginBottom: 12,
-  },
-  mealMacrosPlanned: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  mealCalsYellow: {
-    fontFamily: 'JetBrainsMono_600SemiBold',
-    fontSize: 13,
-    color: colors.warning,
-  },
-  plannedActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  confirmBtn: {
-    flex: 1,
-    backgroundColor: colors.surfaceLight,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  confirmBtnText: {
-    fontFamily: 'Geist_600SemiBold',
-    fontSize: 13,
-    color: colors.neonCyan,
-  },
-  editBtn: {
-    width: 44,
-    height: 44,
-    backgroundColor: colors.surfaceLight,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  protocolCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: colors.borderGlow,
-  },
-  protocolTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  protocolTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  protocolTitle: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 11,
-    color: colors.text,
-    letterSpacing: 1,
-    marginLeft: 8,
-  },
-  protocolPhase: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 10,
-    color: colors.neonCyan,
-  },
-  protocolTimeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  protocolCloses: {
-    fontFamily: 'Geist_400Regular',
-    fontSize: 11,
-    color: colors.mutedText,
-  },
-  protocolStarted: {
-    fontFamily: 'Geist_400Regular',
-    fontSize: 11,
-    color: colors.mutedText,
-  },
-  protocolBarBg: {
-    height: 4,
-    backgroundColor: colors.surfaceLight,
-    borderRadius: 2,
-    marginBottom: 16,
-  },
-  protocolBarFill: {
-    height: 4,
-    backgroundColor: colors.neonCyan,
-    borderRadius: 2,
-  },
-  microRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderGlow,
-  },
-  microItem: {
-    alignItems: 'center',
-  },
-  microLabel: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 9,
-    color: colors.mutedText,
-    marginBottom: 4,
-  },
-  microValue: {
-    fontFamily: 'JetBrainsMono_600SemiBold',
-    fontSize: 13,
-    color: colors.text,
-    marginBottom: 4,
-  },
-  microStatus: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 9,
-    color: colors.neonCyan,
-  }
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      width: '100%',
+      paddingBottom: 40,
+    },
+    topBarActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 16,
+    },
+    dateSelector: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.borderGlow,
+      paddingHorizontal: 6,
+      paddingVertical: 5,
+      gap: 12,
+    },
+    dateArrow: {
+      padding: 4,
+    },
+    dateText: {
+      fontFamily: 'JetBrainsMono_600SemiBold',
+      fontSize: 12,
+      color: colors.text,
+      minWidth: 64,
+      textAlign: 'center',
+    },
+    goalBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor: 'rgba(0, 240, 255, 0.08)',
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: 'rgba(0, 240, 255, 0.25)',
+    },
+    goalBadgeText: {
+      fontFamily: 'JetBrainsMono_600SemiBold',
+      fontSize: 10,
+      color: colors.neonCyan,
+      letterSpacing: 0.5,
+    },
+    searchInputContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.borderGlow,
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      marginBottom: 20,
+    },
+    searchPlaceholder: {
+      fontFamily: 'Geist_400Regular',
+      fontSize: 13,
+      color: colors.mutedText,
+      marginLeft: 10,
+      flex: 1,
+    },
+    scanBtn: {
+      padding: 6,
+      backgroundColor: colors.surfaceLight,
+      borderRadius: 8,
+    },
+    feedingsHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 12,
+    },
+    sectionTitle: {
+      fontFamily: 'JetBrainsMono_600SemiBold',
+      fontSize: 12,
+      color: colors.text,
+      letterSpacing: 0.8,
+    },
+    feedingsSummary: {
+      fontFamily: 'Geist_400Regular',
+      fontSize: 11,
+      color: colors.mutedText,
+      marginTop: 2,
+    },
+    addMealBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: colors.neonCyan,
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      borderRadius: 10,
+    },
+    addMealBtnText: {
+      fontFamily: 'Geist_700Bold',
+      fontSize: 12,
+      color: colors.obsidian,
+    },
+    emptyMealsCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.borderGlow,
+      padding: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    emptyMealsTitle: {
+      fontFamily: 'Geist_600SemiBold',
+      fontSize: 14,
+      color: colors.text,
+      marginTop: 4,
+    },
+    emptyMealsSub: {
+      fontFamily: 'Geist_400Regular',
+      fontSize: 12,
+      color: colors.mutedText,
+      textAlign: 'center',
+      lineHeight: 18,
+    },
+    emptyAddBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: colors.surfaceLight,
+      borderWidth: 1,
+      borderColor: colors.borderGlow,
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      borderRadius: 10,
+      marginTop: 6,
+    },
+    emptyAddBtnText: {
+      fontFamily: 'Geist_600SemiBold',
+      fontSize: 12,
+      color: colors.neonCyan,
+    },
+    mealsList: {
+      gap: 2,
+    },
+  });

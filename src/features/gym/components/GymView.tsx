@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
@@ -11,6 +11,7 @@ import { useAlertStore, AlertState } from '../../../store/alertStore';
 import { Skeleton } from '../../../components/Skeleton';
 import { useWorkoutStore } from '../../../store/workoutStore';
 import { GymOnboardingModal } from './GymOnboardingModal';
+import { MuscleRecoveryCard } from './MuscleRecoveryCard';
 import { AppNavigationProp } from '../../../utils/navigation';
 import { queryKeys } from '../../../services/queryKeys';
 
@@ -26,7 +27,12 @@ export const GymView = () => {
     elapsedSeconds, 
     currentExerciseIndex,
     startWorkout, 
+    initFromBackend,
   } = useWorkoutStore();
+
+  useEffect(() => {
+    initFromBackend();
+  }, [initFromBackend]);
 
   const formatTime = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
@@ -207,11 +213,11 @@ export const GymView = () => {
           <TouchableOpacity 
             style={styles.resumeButton}
             activeOpacity={0.8}
-            onPress={() => {
-              if (isActive && activeRoutine) {
+            onPress={async () => {
+              if (isActive) {
                 navigation.navigate('ActiveWorkout');
               } else if (todayRoutine) {
-                startWorkout(todayRoutine);
+                await startWorkout(todayRoutine);
                 navigation.navigate('ActiveWorkout');
               }
             }}
@@ -278,6 +284,9 @@ export const GymView = () => {
           </View>
         </View>
       </View>
+
+      {/* Muscular Recovery Status */}
+      <MuscleRecoveryCard />
 
       {/* Routine List */}
       {routines.sort((a, b) => (a.targetDay || 0) - (b.targetDay || 0)).map((routine, idx) => {

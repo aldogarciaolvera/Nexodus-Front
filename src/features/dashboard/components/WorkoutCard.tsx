@@ -10,6 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { gymService, Routine } from '../../../services/gym.service';
 import { Skeleton } from '../../../components/Skeleton';
 import { AppNavigationProp } from '../../../utils/navigation';
+import { Dumbbell } from 'lucide-react-native';
 import { queryKeys } from '../../../services/queryKeys';
 
 const EMPTY_ROUTINES: Routine[] = [];
@@ -87,9 +88,7 @@ export const WorkoutCard = () => {
     >
       <View>
         <View style={styles.header}>
-          <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={theme.colors.neonCyan} strokeWidth={1.8}>
-            <Path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9v6m3-8.25v10.5m0-10.5h1.5a1.5 1.5 0 011.5 1.5v7.5a1.5 1.5 0 01-1.5 1.5h-1.5m10.5-10.5v10.5m0-10.5h-1.5a1.5 1.5 0 00-1.5 1.5v7.5a1.5 1.5 0 001.5 1.5h1.5m3-8.25v6" />
-          </Svg>
+          <Dumbbell size={16} color={theme.colors.neonCyan} />
           <Text style={styles.headerTitle} numberOfLines={1}>
             {isActive ? 'Entrenamiento Activo' : 'Rutina Gym'}
           </Text>
@@ -187,7 +186,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     marginBottom: 10,
   },
   headerTitle: {

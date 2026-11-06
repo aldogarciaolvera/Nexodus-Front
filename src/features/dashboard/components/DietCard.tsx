@@ -5,11 +5,85 @@ import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
 import { AppNavigationProp } from '../../../utils/navigation';
+import { useDietStore } from '../../../store/dietStore';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '../../../services/queryKeys';
+import { dietService } from '../../../services/diet.service';
+import { Flame } from 'lucide-react-native';
+import { UserService } from '../../../services/user.service';
 
 export const DietCard = () => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
   const navigation = useNavigation<AppNavigationProp>();
+  const { dietProfile, isConfigured } = useDietStore();
+
+  const { data: profile } = useQuery({
+    queryKey: queryKeys.user.profile,
+    queryFn: UserService.getProfile,
+  });
+
+  const isDietActive = Boolean(profile?.dieta ?? (profile as any)?.Dieta ?? isConfigured);
+
+  const today = (() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  })();
+
+  const { data: dailySummary } = useQuery({
+    queryKey: queryKeys.diet.daily(today),
+    queryFn: () => dietService.getDailySummary(today),
+    enabled: isDietActive,
+  });
+
+  if (!isDietActive) {
+    return (
+      <TouchableOpacity 
+        style={styles.card}
+        activeOpacity={0.8}
+        onPress={() => navigation.navigate('Fit', { initialTab: 'diet' })}
+        accessibilityRole="button"
+        accessibilityLabel="Configurar plan de dieta y macronutrientes"
+      >
+        <View>
+          <View style={styles.header}>
+            <Flame size={16} color={theme.colors.neonCyan} />
+            <Text style={styles.headerTitle} numberOfLines={1}>Dieta & Macros</Text>
+          </View>
+
+          <Text style={styles.subtitle} numberOfLines={1}>Sin Plan Alimenticio</Text>
+
+          <Text style={styles.emptyLegend}>
+            Toca para configurar tus metas calóricas y biométricas
+          </Text>
+        </View>
+        
+        <View style={styles.footer}>
+          <Text style={styles.footerLabel}>Estado</Text>
+          <Text style={[styles.footerValue, { color: theme.colors.neonCyan }]}>Pendiente</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
+  const meals = dailySummary?.meals || [];
+  const targetCals = dailySummary?.targetCalories || dietProfile?.targetCalories || 2200;
+  const consumedCals = dailySummary?.consumedCalories ?? meals.reduce((sum, m) => sum + (m.calories || 0), 0);
+  const pct = targetCals > 0 ? Math.min(1, consumedCals / targetCals) : 0;
+  const strokeDashoffset = 150 * (1 - pct);
+  const targetReachedPct = Math.round(pct * 100);
+
+  const targetProtein = dailySummary?.targetProtein || dietProfile?.proteinGrams || 160;
+  const consumedProtein = dailySummary?.consumedProtein ?? meals.reduce((sum, m) => sum + (m.protein || 0), 0);
+
+  const targetCarbs = dailySummary?.targetCarbs || dietProfile?.carbsGrams || 220;
+  const consumedCarbs = dailySummary?.consumedCarbs ?? meals.reduce((sum, m) => sum + (m.carbs || 0), 0);
+
+  const targetFat = dailySummary?.targetFat || dietProfile?.fatGrams || 70;
+  const consumedFat = dailySummary?.consumedFat ?? meals.reduce((sum, m) => sum + (m.fat || 0), 0);
 
   return (
     <TouchableOpacity 
@@ -21,15 +95,17 @@ export const DietCard = () => {
     >
       <View>
         <View style={styles.header}>
-          <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={theme.colors.neonCyan} strokeWidth={1.8}>
-            <Path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
-          </Svg>
-          <Text style={styles.headerTitle}>Diet & Macros</Text>
+          <Flame size={16} color={theme.colors.neonCyan} />
+          <Text style={styles.headerTitle} numberOfLines={1}>Dieta & Macros</Text>
         </View>
+
+        <Text style={styles.subtitle} numberOfLines={1}>
+          Hoy: {consumedCals.toLocaleString()} / {targetCals.toLocaleString()} kcal
+        </Text>
         
         <View style={styles.contentRow}>
           <View style={styles.gaugeContainer}>
-            <Svg width={64} height={64} viewBox="0 0 60 60" style={{ transform: [{ rotate: '-90deg' }] }}>
+            <Svg width={54} height={54} viewBox="0 0 60 60" style={{ transform: [{ rotate: '-90deg' }] }}>
               <Circle cx={30} cy={30} r={24} fill="none" stroke={theme.colors.surfaceLight} strokeWidth={3.5} />
               <Circle 
                 cx={30} cy={30} r={24} fill="none" 
@@ -37,36 +113,30 @@ export const DietCard = () => {
                 strokeWidth={3.5} 
                 strokeLinecap="round"
                 strokeDasharray={150} 
-                strokeDashoffset={45} 
+                strokeDashoffset={strokeDashoffset} 
               />
             </Svg>
             <View style={styles.gaugeTextContainer}>
-              <Text style={styles.gaugeLabel}>Calories</Text>
-              <Text style={styles.gaugeValue}>1800</Text>
-              <Text style={styles.gaugeTotal}>/2500</Text>
+              <Text style={styles.gaugeLabel}>Kcal</Text>
+              <Text style={styles.gaugeValue}>{targetReachedPct}%</Text>
             </View>
           </View>
           
           <View style={styles.macrosList}>
             <View style={styles.macroItem}>
               <View style={[styles.macroBullet, { backgroundColor: theme.colors.neonCyan }]} />
-              <Text style={[styles.macroText, { color: theme.colors.slate200 }]}>P: 150g</Text>
+              <Text style={[styles.macroText, { color: theme.colors.slate200 }]}>P: {consumedProtein}/{targetProtein}g</Text>
             </View>
             <View style={styles.macroItem}>
               <View style={[styles.macroBullet, { backgroundColor: theme.colors.slate400 }]} />
-              <Text style={[styles.macroText, { color: theme.colors.slate300 }]}>C: 220g</Text>
+              <Text style={[styles.macroText, { color: theme.colors.slate300 }]}>C: {consumedCarbs}/{targetCarbs}g</Text>
             </View>
             <View style={styles.macroItem}>
               <View style={[styles.macroBullet, { backgroundColor: theme.colors.slate600 }]} />
-              <Text style={[styles.macroText, { color: theme.colors.slate400 }]}>F: 65g</Text>
+              <Text style={[styles.macroText, { color: theme.colors.slate400 }]}>F: {consumedFat}/{targetFat}g</Text>
             </View>
           </View>
         </View>
-      </View>
-      
-      <View style={styles.footer}>
-        <Text style={styles.footerLabel}>Target Reached</Text>
-        <Text style={styles.footerValue}>72%</Text>
       </View>
     </TouchableOpacity>
   );
@@ -84,14 +154,29 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   headerTitle: {
-    fontSize: 11,
+    fontSize: 10.5,
     letterSpacing: 0.5,
     color: colors.mutedText,
     textTransform: 'uppercase',
     fontFamily: 'JetBrainsMono_500Medium',
+  },
+  subtitle: {
+    fontSize: 13,
+    color: colors.white,
+    letterSpacing: -0.5,
+    marginBottom: 8,
+    fontFamily: 'Geist_500Medium',
+  },
+  emptyLegend: {
+    fontFamily: 'Geist_400Regular',
+    fontSize: 12,
+    color: colors.mutedText,
+    lineHeight: 18,
+    marginTop: 2,
+    marginBottom: 4,
   },
   contentRow: {
     flexDirection: 'row',

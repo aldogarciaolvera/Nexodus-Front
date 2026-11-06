@@ -5,6 +5,7 @@ import { useTheme } from '../utils/ThemeContext';
 import { ThemeColors } from '../utils/theme';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { BlurView } from 'expo-blur';
+import { Flame } from 'lucide-react-native';
 
 const ICONS = {
   Dashboard: (active: boolean, colors: ThemeColors) => (
@@ -18,9 +19,11 @@ const ICONS = {
     </Svg>
   ),
   Fit: (active: boolean, colors: ThemeColors) => (
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={active ? colors.neonCyan : "currentColor"} color={colors.mutedText} strokeWidth={active ? 1.8 : 1.6}>
-      <Path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9v6m3-8.25v10.5m0-10.5h1.5a1.5 1.5 0 011.5 1.5v7.5a1.5 1.5 0 01-1.5 1.5h-1.5m10.5-10.5v10.5m0-10.5h-1.5a1.5 1.5 0 00-1.5 1.5v7.5a1.5 1.5 0 001.5 1.5h1.5m3-8.25v6" />
-    </Svg>
+    <Flame 
+      size={20} 
+      color={active ? colors.neonCyan : colors.mutedText} 
+      strokeWidth={active ? 1.8 : 1.6} 
+    />
   ),
   Gym: (active: boolean, colors: ThemeColors) => (
     <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={active ? colors.neonCyan : "currentColor"} color={colors.mutedText} strokeWidth={active ? 1.8 : 1.6}>
