@@ -1,22 +1,27 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Modal,
   TouchableOpacity,
-  ScrollView,
   TextInput,
-  ActivityIndicator,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { X, Search, ScanBarcode, Plus, Sparkles, Utensils, Check } from 'lucide-react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { X, Search, ScanBarcode, Plus, Utensils, Check, Camera } from 'lucide-react-native';
+import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
 import { dietService, Food } from '../../../services/diet.service';
+import { openFoodFactsService } from '../../../services/openFoodFacts.service';
+import { queryKeys } from '../../../services/queryKeys';
 import { useAlertStore } from '../../../store/alertStore';
-import { CreateFoodModal } from './CreateFoodModal';
+import { requestCameraPermissions } from '../../../utils/camera';
+import { CreateFoodModal, InitialFoodData } from './CreateFoodModal';
+import { BarcodeScannerModal } from './BarcodeScannerModal';
 import { Skeleton } from '../../../components/Skeleton';
 
 interface FoodSearchModalProps {
@@ -25,6 +30,13 @@ interface FoodSearchModalProps {
   onSelectFood: (food: Food, quantity: number) => void;
 }
 
+const normalizeText = (text: string) =>
+  text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
 export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
   visible,
   onClose,
@@ -32,72 +44,206 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
 }) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
+  const insets = useSafeAreaInsets();
   const showAlert = useAlertStore((state) => state.showAlert);
 
   const [query, setQuery] = useState('');
-  const [foods, setFoods] = useState<Food[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [isBarcodeSearch, setIsBarcodeSearch] = useState(false);
   const [barcodeQuery, setBarcodeQuery] = useState('');
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [barcodeFoods, setBarcodeFoods] = useState<Food[]>([]);
+  const [isBarcodeLoading, setIsBarcodeLoading] = useState(false);
 
-  // Selected food state for quantity confirmation
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showScannerModal, setShowScannerModal] = useState(false);
+  const [openFoodFactsData, setOpenFoodFactsData] = useState<InitialFoodData | null>(null);
+
+  // Alimentos añadidos o sincronizados durante la sesión activa
+  const [customAddedFoods, setCustomAddedFoods] = useState<Food[]>([]);
+
+  // Caché de códigos de barras en memoria
+  const barcodeCacheRef = useRef<Map<string, Food>>(new Map());
+
+  // Alimento seleccionado para confirmar porción
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [quantity, setQuantity] = useState('100');
 
-  // Debounced search
-  useEffect(() => {
-    if (!visible) return;
-    if (isBarcodeSearch) return;
+  // Consulta optimizada del catálogo general de alimentos de la BD con React Query
+  const { data: catalogFoods = [], isLoading: isLoadingCatalog } = useQuery({
+    queryKey: queryKeys.diet.foods('all'),
+    queryFn: async () => {
+      const res = await dietService.searchFoods('', 1, 100);
+      return res.items || [];
+    },
+    enabled: visible,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+  });
 
-    if (!query.trim()) {
-      // Default common foods query
-      loadFoods('pollo');
-      return;
+  // Consolidar catálogo completo deduplicando por ID o nombre
+  const allAvailableFoods = useMemo(() => {
+    const map = new Map<string, Food>();
+
+    // Primero los añadidos en la sesión para que aparezcan arriba
+    customAddedFoods.forEach((item) => {
+      const key = item.id || item.name.toLowerCase();
+      map.set(key, item);
+    });
+
+    // Luego los alimentos del catálogo de la BD
+    catalogFoods.forEach((item) => {
+      const key = item.id || item.name.toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, item);
+      }
+    });
+
+    return Array.from(map.values());
+  }, [catalogFoods, customAddedFoods]);
+
+  // Filtrado reactivo e instantáneo en memoria a 60 FPS
+  const filteredNameFoods = useMemo(() => {
+    const q = normalizeText(query);
+    if (!q) {
+      return allAvailableFoods;
     }
+    return allAvailableFoods.filter((item) => {
+      const nameMatch = normalizeText(item.name).includes(q);
+      const brandMatch = item.brand ? normalizeText(item.brand).includes(q) : false;
+      return nameMatch || brandMatch;
+    });
+  }, [query, allAvailableFoods]);
 
-    const timer = setTimeout(() => {
-      loadFoods(query);
-    }, 350);
+  // Búsqueda remota complementaria si se escribe un término poco común
+  useEffect(() => {
+    if (!visible || isBarcodeSearch) return;
+    const trimmed = query.trim();
+    if (!trimmed || trimmed.length < 2) return;
+
+    // Si ya contamos con suficientes coincidencias locales, no saturamos la red
+    if (filteredNameFoods.length >= 4) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await dietService.searchFoods(trimmed, 1, 30);
+        if (res.items && res.items.length > 0) {
+          setCustomAddedFoods((prev) => {
+            const existingKeys = new Set(prev.map((p) => p.id || p.name.toLowerCase()));
+            const toAdd = res.items.filter(
+              (item) => !existingKeys.has(item.id || item.name.toLowerCase())
+            );
+            return toAdd.length > 0 ? [...toAdd, ...prev] : prev;
+          });
+        }
+      } catch {
+        // Fallback silencioso
+      }
+    }, 400);
 
     return () => clearTimeout(timer);
-  }, [query, visible, isBarcodeSearch]);
+  }, [query, visible, isBarcodeSearch, filteredNameFoods.length]);
 
-  const loadFoods = async (searchStr: string) => {
-    try {
-      setIsLoading(true);
-      const res = await dietService.searchFoods(searchStr);
-      setFoods(res.items);
-    } catch {
-      // Graceful fallback to empty or offline list
-      setFoods([]);
-    } finally {
-      setIsLoading(false);
+  // Reset al cerrar o cambiar visibilidad
+  useEffect(() => {
+    if (!visible) {
+      setSelectedFood(null);
+      setQuantity('100');
+      setQuery('');
+      setBarcodeQuery('');
+      setBarcodeFoods([]);
+      setIsBarcodeSearch(false);
+    }
+  }, [visible]);
+
+  // Validación de permisos de cámara antes de abrir el escáner
+  const handleOpenScanner = async () => {
+    const granted = await requestCameraPermissions();
+    if (!granted) {
+      showAlert(
+        'Permiso de Cámara',
+        'Se requiere acceso a la cámara para escanear códigos de barra. Puedes activarlo en los ajustes de tu dispositivo.',
+        'info'
+      );
+      return;
+    }
+    setShowScannerModal(true);
+  };
+
+  // Verificación y alternancia de selección (marcar / desmarcar)
+  const isItemSelected = (item: Food) => {
+    if (!selectedFood) return false;
+    if (selectedFood.id && item.id) return selectedFood.id === item.id;
+    return selectedFood.name.toLowerCase() === item.name.toLowerCase();
+  };
+
+  const handleToggleSelect = (item: Food) => {
+    if (isItemSelected(item)) {
+      // Si ya está seleccionado, se desmarca
+      setSelectedFood(null);
+    } else {
+      // Si no estaba seleccionado, se marca y se asigna su porción base
+      setSelectedFood(item);
+      setQuantity(item.servingSize?.toString() || '100');
     }
   };
 
-  const handleBarcodeLookup = async () => {
-    if (!barcodeQuery.trim()) {
-      showAlert('Código Requerido', 'Ingresa un código de barras para buscar.', 'info');
+  // Consulta por código de barras
+  const processBarcodeLookup = async (code: string) => {
+    const cleanCode = code.trim();
+    if (!cleanCode) {
+      showAlert('Código Requerido', 'Ingresa o escanea un código de barras para buscar.', 'info');
+      return;
+    }
+
+    setBarcodeQuery(cleanCode);
+
+    // 1. Caché local en memoria
+    if (barcodeCacheRef.current.has(cleanCode)) {
+      const cached = barcodeCacheRef.current.get(cleanCode)!;
+      setBarcodeFoods([cached]);
+      setSelectedFood(cached);
+      setQuantity(cached.servingSize?.toString() || '100');
+      showAlert('Alimento Encontrado', `Se encontró "${cached.name}".`, 'success');
       return;
     }
 
     try {
-      setIsLoading(true);
-      const food = await dietService.getFoodByBarcode(barcodeQuery.trim());
+      setIsBarcodeLoading(true);
+
+      // 2. Buscar en la BD interna
+      const food = await dietService.getFoodByBarcode(cleanCode);
       if (food) {
-        setFoods([food]);
+        barcodeCacheRef.current.set(cleanCode, food);
+        setBarcodeFoods([food]);
+        setCustomAddedFoods((prev) => [food, ...prev]);
         setSelectedFood(food);
         setQuantity(food.servingSize?.toString() || '100');
         showAlert('Alimento Encontrado', `Se encontró "${food.name}".`, 'success');
-      } else {
-        showAlert('No Encontrado', 'No se encontró un alimento con este código. ¿Deseas crearlo?', 'info');
+        return;
+      }
+
+      // 3. Consultar Open Food Facts
+      const offProduct = await openFoodFactsService.fetchByBarcode(cleanCode);
+      if (offProduct) {
+        setOpenFoodFactsData(offProduct);
         setShowCreateModal(true);
+        showAlert(
+          'Alimento en Open Food Facts',
+          `Se encontraron los datos de "${offProduct.name}". Revisa los datos y guarda el alimento en tu catálogo.`,
+          'info'
+        );
+      } else {
+        setOpenFoodFactsData(null);
+        setShowCreateModal(true);
+        showAlert(
+          'Código no registrado',
+          'El alimento no se encontró en la base de datos ni en Open Food Facts. Puedes registrarlo manualmente.',
+          'info'
+        );
       }
     } catch (e: any) {
       showAlert('Error', e.message || 'Error al consultar código de barras.', 'error');
     } finally {
-      setIsLoading(false);
+      setIsBarcodeLoading(false);
     }
   };
 
@@ -113,243 +259,407 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
-      <SafeAreaView style={styles.safeArea}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Utensils size={18} color={theme.colors.neonCyan} />
-            <Text style={styles.headerTitle}>Catálogo de Alimentos</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.closeBtn}
-            onPress={onClose}
-            accessibilityRole="button"
-            accessibilityLabel="Cerrar catálogo de alimentos"
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <X size={20} color={theme.colors.mutedText} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Search Mode Bar */}
-        <View style={styles.modeTabs}>
-          <TouchableOpacity
-            style={[styles.modeTab, !isBarcodeSearch && styles.modeTabActive]}
-            onPress={() => setIsBarcodeSearch(false)}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: !isBarcodeSearch }}
-          >
-            <Search size={14} color={!isBarcodeSearch ? theme.colors.neonCyan : theme.colors.mutedText} />
-            <Text style={[styles.modeTabText, !isBarcodeSearch && styles.modeTabTextActive]}>
-              Buscar por Nombre
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.modeTab, isBarcodeSearch && styles.modeTabActive]}
-            onPress={() => setIsBarcodeSearch(true)}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: isBarcodeSearch }}
-          >
-            <ScanBarcode size={14} color={isBarcodeSearch ? theme.colors.neonCyan : theme.colors.mutedText} />
-            <Text style={[styles.modeTabText, isBarcodeSearch && styles.modeTabTextActive]}>
-              Código de Barras
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Search Input Container */}
-        <View style={styles.searchBarContainer}>
-          {!isBarcodeSearch ? (
-            <View style={styles.searchInputRow}>
-              <Search size={16} color={theme.colors.mutedText} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Ej. Pechuga, avena, huevo, proteína..."
-                placeholderTextColor={theme.colors.mutedText}
-                value={query}
-                onChangeText={setQuery}
-                autoFocus={true}
-                accessibilityLabel="Buscar alimento por nombre"
-              />
-              {query.length > 0 && (
-                <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <X size={16} color={theme.colors.mutedText} />
-                </TouchableOpacity>
-              )}
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <KeyboardAvoidingView
+          style={styles.keyboardAvoid}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Utensils size={18} color={theme.colors.neonCyan} />
+              <Text style={styles.headerTitle}>Catálogo de Alimentos</Text>
             </View>
-          ) : (
-            <View style={styles.searchInputRow}>
-              <ScanBarcode size={16} color={theme.colors.neonCyan} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Ingresa código (ej. 7501000111222)"
-                placeholderTextColor={theme.colors.mutedText}
-                value={barcodeQuery}
-                onChangeText={setBarcodeQuery}
-                keyboardType="numeric"
-                accessibilityLabel="Buscar por código de barras"
+            <TouchableOpacity
+              style={styles.closeBtn}
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Cerrar catálogo de alimentos"
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <X size={20} color={theme.colors.mutedText} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Search Mode Bar */}
+          <View style={styles.modeTabs}>
+            <TouchableOpacity
+              style={[styles.modeTab, !isBarcodeSearch && styles.modeTabActive]}
+              onPress={() => setIsBarcodeSearch(false)}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: !isBarcodeSearch }}
+            >
+              <Search size={14} color={!isBarcodeSearch ? theme.colors.neonCyan : theme.colors.mutedText} />
+              <Text style={[styles.modeTabText, !isBarcodeSearch && styles.modeTabTextActive]}>
+                Buscar por Nombre
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.modeTab, isBarcodeSearch && styles.modeTabActive]}
+              onPress={() => setIsBarcodeSearch(true)}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isBarcodeSearch }}
+            >
+              <ScanBarcode size={14} color={isBarcodeSearch ? theme.colors.neonCyan : theme.colors.mutedText} />
+              <Text style={[styles.modeTabText, isBarcodeSearch && styles.modeTabTextActive]}>
+                Código de Barras
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Search Input Container */}
+          <View style={styles.searchBarContainer}>
+            {!isBarcodeSearch ? (
+              <View style={styles.searchInputRow}>
+                <Search size={16} color={theme.colors.mutedText} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Buscar en todos los alimentos..."
+                  placeholderTextColor={theme.colors.mutedText}
+                  value={query}
+                  onChangeText={setQuery}
+                  accessibilityLabel="Buscar alimento por nombre"
+                  returnKeyType="search"
+                />
+                {query.length > 0 && (
+                  <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <X size={16} color={theme.colors.mutedText} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : (
+              <View style={styles.searchInputRow}>
+                <ScanBarcode size={16} color={theme.colors.neonCyan} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Ingresa código o escanea con cámara"
+                  placeholderTextColor={theme.colors.mutedText}
+                  value={barcodeQuery}
+                  onChangeText={setBarcodeQuery}
+                  keyboardType="numeric"
+                  accessibilityLabel="Buscar por código de barras"
+                  returnKeyType="search"
+                  onSubmitEditing={() => {
+                    if (barcodeQuery.trim()) {
+                      processBarcodeLookup(barcodeQuery);
+                    }
+                  }}
+                />
+                <TouchableOpacity
+                  style={styles.cameraIconBtn}
+                  onPress={handleOpenScanner}
+                  accessibilityRole="button"
+                  accessibilityLabel="Abrir cámara para escanear código de barras"
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Camera size={18} color={theme.colors.neonCyan} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.searchActionBtn}
+                  onPress={() => {
+                    if (barcodeQuery.trim()) {
+                      processBarcodeLookup(barcodeQuery);
+                    } else {
+                      handleOpenScanner();
+                    }
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Buscar o escanear código de barras"
+                >
+                  <Text style={styles.searchActionBtnText}>
+                    {barcodeQuery.trim() ? 'Buscar' : 'Escanear'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Quick Add Custom Food Button */}
+            <TouchableOpacity
+              style={styles.createFoodBtn}
+              onPress={() => setShowCreateModal(true)}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Crear nuevo alimento en el catálogo"
+            >
+              <Plus size={14} color={theme.colors.neonCyan} />
+              <Text style={styles.createFoodBtnText}>Crear Alimento Personalizado</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Results List Container */}
+          <View style={styles.listContainer}>
+            {isBarcodeSearch ? (
+              isBarcodeLoading ? (
+                <View style={{ paddingHorizontal: 20, gap: 10 }}>
+                  <Skeleton width="100%" height={76} borderRadius={14} />
+                  <Skeleton width="100%" height={76} borderRadius={14} />
+                </View>
+              ) : (
+                <FlatList
+                  data={barcodeFoods}
+                  keyExtractor={(item, index) => item.id || item.barcode || index.toString()}
+                  contentContainerStyle={styles.listContent}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="on-drag"
+                  extraData={selectedFood?.id || selectedFood?.name}
+                  ListEmptyComponent={
+                    <View style={styles.emptyContainer}>
+                      <ScanBarcode size={32} color={theme.colors.slate600} />
+                      <Text style={styles.emptyTitle}>Escaneo por Código de Barras</Text>
+                      <Text style={styles.emptyDesc}>
+                        Ingresa el código numérico o presiona "Escanear" para abrir la cámara y detectarlo automáticamente.
+                      </Text>
+                    </View>
+                  }
+                  renderItem={({ item }) => {
+                    const selected = isItemSelected(item);
+                    return (
+                      <TouchableOpacity
+                        style={[styles.foodCard, selected && styles.foodCardSelected]}
+                        onPress={() => handleToggleSelect(item)}
+                        activeOpacity={0.7}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: selected }}
+                        accessibilityLabel={`${item.name}, ${item.calories} calorías`}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <View style={styles.foodTitleRow}>
+                            <Text style={styles.foodName}>{item.name}</Text>
+                            {item.brand ? <Text style={styles.foodBrand}>• {item.brand}</Text> : null}
+                          </View>
+
+                          <Text style={styles.foodServing}>
+                            Porción: {item.servingSize} {item.servingUnit}
+                          </Text>
+
+                          <View style={styles.macroPillsRow}>
+                            <View style={styles.macroPill}>
+                              <Text style={styles.macroPillText}>{item.calories} kcal</Text>
+                            </View>
+                            <View style={[styles.macroPill, { borderColor: 'rgba(56, 189, 248, 0.3)' }]}>
+                              <Text style={[styles.macroPillText, { color: theme.colors.neonCyan }]}>
+                                P: {item.protein}g
+                              </Text>
+                            </View>
+                            <View style={[styles.macroPill, { borderColor: 'rgba(234, 179, 8, 0.3)' }]}>
+                              <Text style={[styles.macroPillText, { color: theme.colors.warning }]}>
+                                C: {item.carbs}g
+                              </Text>
+                            </View>
+                            <View style={styles.macroPill}>
+                              <Text style={[styles.macroPillText, { color: theme.colors.mutedText }]}>
+                                G: {item.fat}g
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+
+                        <TouchableOpacity
+                          style={[styles.selectIndicator, selected && styles.selectIndicatorActive]}
+                          onPress={() => handleToggleSelect(item)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          accessibilityRole="button"
+                          accessibilityLabel={selected ? `Desmarcar ${item.name}` : `Marcar ${item.name}`}
+                        >
+                          {selected ? (
+                            <Check size={14} color={theme.colors.obsidian} />
+                          ) : (
+                            <Plus size={14} color={theme.colors.mutedText} />
+                          )}
+                        </TouchableOpacity>
+                      </TouchableOpacity>
+                    );
+                  }}
+                />
+              )
+            ) : isLoadingCatalog && allAvailableFoods.length === 0 ? (
+              <View style={{ paddingHorizontal: 20, gap: 10 }}>
+                <Skeleton width="100%" height={76} borderRadius={14} />
+                <Skeleton width="100%" height={76} borderRadius={14} />
+                <Skeleton width="100%" height={76} borderRadius={14} />
+                <Skeleton width="100%" height={76} borderRadius={14} />
+              </View>
+            ) : (
+              <FlatList
+                data={filteredNameFoods}
+                keyExtractor={(item, index) => item.id || item.barcode || `${item.name}-${index}`}
+                contentContainerStyle={styles.listContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                initialNumToRender={12}
+                maxToRenderPerBatch={10}
+                windowSize={5}
+                extraData={selectedFood?.id || selectedFood?.name}
+                ListHeaderComponent={
+                  <View style={styles.resultsHeader}>
+                    <Text style={styles.resultsCount}>
+                      {filteredNameFoods.length}{' '}
+                      {filteredNameFoods.length === 1 ? 'ALIMENTO DISPONIBLE' : 'ALIMENTOS DISPONIBLES'}
+                    </Text>
+                  </View>
+                }
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <Utensils size={32} color={theme.colors.slate600} />
+                    <Text style={styles.emptyTitle}>No se encontraron alimentos</Text>
+                    <Text style={styles.emptyDesc}>
+                      {query
+                        ? `No hay coincidencias para "${query}". Puedes crear un alimento personalizado.`
+                        : 'No hay alimentos registrados en el catálogo.'}
+                    </Text>
+                  </View>
+                }
+                renderItem={({ item }) => {
+                  const selected = isItemSelected(item);
+                  return (
+                    <TouchableOpacity
+                      style={[styles.foodCard, selected && styles.foodCardSelected]}
+                      onPress={() => handleToggleSelect(item)}
+                      activeOpacity={0.7}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: selected }}
+                      accessibilityLabel={`${item.name}, ${item.calories} calorías`}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.foodTitleRow}>
+                          <Text style={styles.foodName}>{item.name}</Text>
+                          {item.brand ? <Text style={styles.foodBrand}>• {item.brand}</Text> : null}
+                        </View>
+
+                        <Text style={styles.foodServing}>
+                          Porción: {item.servingSize} {item.servingUnit}
+                        </Text>
+
+                        <View style={styles.macroPillsRow}>
+                          <View style={styles.macroPill}>
+                            <Text style={styles.macroPillText}>{item.calories} kcal</Text>
+                          </View>
+                          <View style={[styles.macroPill, { borderColor: 'rgba(56, 189, 248, 0.3)' }]}>
+                            <Text style={[styles.macroPillText, { color: theme.colors.neonCyan }]}>
+                              P: {item.protein}g
+                            </Text>
+                          </View>
+                          <View style={[styles.macroPill, { borderColor: 'rgba(234, 179, 8, 0.3)' }]}>
+                            <Text style={[styles.macroPillText, { color: theme.colors.warning }]}>
+                              C: {item.carbs}g
+                            </Text>
+                          </View>
+                          <View style={styles.macroPill}>
+                            <Text style={[styles.macroPillText, { color: theme.colors.mutedText }]}>
+                              G: {item.fat}g
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      <TouchableOpacity
+                        style={[styles.selectIndicator, selected && styles.selectIndicatorActive]}
+                        onPress={() => handleToggleSelect(item)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        accessibilityRole="button"
+                        accessibilityLabel={selected ? `Desmarcar ${item.name}` : `Marcar ${item.name}`}
+                      >
+                        {selected ? (
+                          <Check size={14} color={theme.colors.obsidian} />
+                        ) : (
+                          <Plus size={14} color={theme.colors.mutedText} />
+                        )}
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                  );
+                }}
               />
-              <TouchableOpacity
-                style={styles.searchActionBtn}
-                onPress={handleBarcodeLookup}
-                accessibilityRole="button"
-                accessibilityLabel="Buscar código de barras"
-              >
-                <Text style={styles.searchActionBtnText}>Buscar</Text>
-              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Quantity Confirmation Footer */}
+          {selectedFood && (
+            <View style={[styles.footerSheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+              <View style={styles.footerTop}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.footerFoodName} numberOfLines={1}>
+                    {selectedFood.name}
+                  </Text>
+                  <Text style={styles.footerFoodSub}>
+                    Base: {selectedFood.calories} kcal por {selectedFood.servingSize}
+                    {selectedFood.servingUnit}
+                  </Text>
+                </View>
+
+                <View style={styles.qtyBox}>
+                  <TextInput
+                    style={styles.qtyInput}
+                    value={quantity}
+                    onChangeText={setQuantity}
+                    keyboardType="decimal-pad"
+                    selectTextOnFocus={true}
+                    returnKeyType="done"
+                    accessibilityLabel="Cantidad a consumir"
+                  />
+                  <Text style={styles.qtyUnit}>{selectedFood.servingUnit}</Text>
+                </View>
+              </View>
+
+              {/* Calculated Macros for selected quantity */}
+              {(() => {
+                const qtyNum = parseFloat(quantity) || selectedFood.servingSize || 100;
+                const ratio = qtyNum / (selectedFood.servingSize || 100);
+                const totalKcal = Math.round(selectedFood.calories * ratio);
+                const totalP = Math.round(selectedFood.protein * ratio * 10) / 10;
+                const totalC = Math.round(selectedFood.carbs * ratio * 10) / 10;
+                const totalF = Math.round(selectedFood.fat * ratio * 10) / 10;
+
+                return (
+                  <View style={styles.footerSummaryRow}>
+                    <Text style={styles.footerSummaryText}>
+                      {totalKcal} kcal • P: {totalP}g C: {totalC}g G: {totalF}g
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.confirmSelectBtn}
+                      onPress={handleConfirmSelect}
+                      accessibilityRole="button"
+                      accessibilityLabel="Añadir a la comida"
+                    >
+                      <Text style={styles.confirmSelectBtnText}>Añadir</Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })()}
             </View>
           )}
-
-          {/* Quick Add Custom Food Button */}
-          <TouchableOpacity
-            style={styles.createFoodBtn}
-            onPress={() => setShowCreateModal(true)}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Crear nuevo alimento en el catálogo"
-          >
-            <Plus size={14} color={theme.colors.neonCyan} />
-            <Text style={styles.createFoodBtnText}>+ Crear Alimento Personalizado</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Results List */}
-        {isLoading ? (
-          <View style={{ paddingHorizontal: 20, gap: 10 }}>
-            <Skeleton width="100%" height={76} borderRadius={14} />
-            <Skeleton width="100%" height={76} borderRadius={14} />
-            <Skeleton width="100%" height={76} borderRadius={14} />
-          </View>
-        ) : (
-          <FlatList
-            data={foods}
-            keyExtractor={(item, index) => item.id || item.barcode || index.toString()}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Utensils size={32} color={theme.colors.slate600} />
-                <Text style={styles.emptyTitle}>No se encontraron alimentos</Text>
-                <Text style={styles.emptyDesc}>
-                  Intenta con otro término o presiona el botón para crear un alimento personalizado.
-                </Text>
-              </View>
-            }
-            renderItem={({ item }) => {
-              const isSelected = selectedFood?.id === item.id || selectedFood?.name === item.name;
-              return (
-                <TouchableOpacity
-                  style={[styles.foodCard, isSelected && styles.foodCardSelected]}
-                  onPress={() => {
-                    setSelectedFood(item);
-                    setQuantity(item.servingSize?.toString() || '100');
-                  }}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${item.name}, ${item.calories} calorías`}
-                >
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.foodTitleRow}>
-                      <Text style={styles.foodName}>{item.name}</Text>
-                      {item.brand ? <Text style={styles.foodBrand}>• {item.brand}</Text> : null}
-                    </View>
-
-                    <Text style={styles.foodServing}>
-                      Porción: {item.servingSize} {item.servingUnit}
-                    </Text>
-
-                    <View style={styles.macroPillsRow}>
-                      <View style={styles.macroPill}>
-                        <Text style={styles.macroPillText}>{item.calories} kcal</Text>
-                      </View>
-                      <View style={[styles.macroPill, { borderColor: 'rgba(56, 189, 248, 0.3)' }]}>
-                        <Text style={[styles.macroPillText, { color: theme.colors.neonCyan }]}>
-                          P: {item.protein}g
-                        </Text>
-                      </View>
-                      <View style={[styles.macroPill, { borderColor: 'rgba(234, 179, 8, 0.3)' }]}>
-                        <Text style={[styles.macroPillText, { color: theme.colors.warning }]}>
-                          C: {item.carbs}g
-                        </Text>
-                      </View>
-                      <View style={styles.macroPill}>
-                        <Text style={[styles.macroPillText, { color: theme.colors.mutedText }]}>
-                          G: {item.fat}g
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  <View style={[styles.selectIndicator, isSelected && styles.selectIndicatorActive]}>
-                    {isSelected ? <Check size={14} color={theme.colors.obsidian} /> : <Plus size={14} color={theme.colors.mutedText} />}
-                  </View>
-                </TouchableOpacity>
-              );
-            }}
-          />
-        )}
-
-        {/* Quantity Confirmation Footer */}
-        {selectedFood && (
-          <View style={styles.footerSheet}>
-            <View style={styles.footerTop}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.footerFoodName} numberOfLines={1}>{selectedFood.name}</Text>
-                <Text style={styles.footerFoodSub}>
-                  Base: {selectedFood.calories} kcal por {selectedFood.servingSize}{selectedFood.servingUnit}
-                </Text>
-              </View>
-
-              <View style={styles.qtyBox}>
-                <TextInput
-                  style={styles.qtyInput}
-                  value={quantity}
-                  onChangeText={setQuantity}
-                  keyboardType="numeric"
-                  accessibilityLabel="Cantidad a consumir"
-                />
-                <Text style={styles.qtyUnit}>{selectedFood.servingUnit}</Text>
-              </View>
-            </View>
-
-            {/* Calculated Macros for selected quantity */}
-            {(() => {
-              const qtyNum = parseFloat(quantity) || selectedFood.servingSize || 100;
-              const ratio = qtyNum / (selectedFood.servingSize || 100);
-              const totalKcal = Math.round(selectedFood.calories * ratio);
-              const totalP = Math.round(selectedFood.protein * ratio * 10) / 10;
-              const totalC = Math.round(selectedFood.carbs * ratio * 10) / 10;
-              const totalF = Math.round(selectedFood.fat * ratio * 10) / 10;
-
-              return (
-                <View style={styles.footerSummaryRow}>
-                  <Text style={styles.footerSummaryText}>
-                    {totalKcal} kcal • P: {totalP}g C: {totalC}g G: {totalF}g
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.confirmSelectBtn}
-                    onPress={handleConfirmSelect}
-                    accessibilityRole="button"
-                    accessibilityLabel="Añadir a la comida"
-                  >
-                    <Text style={styles.confirmSelectBtnText}>Añadir Alimento</Text>
-                  </TouchableOpacity>
-                </View>
-              );
-            })()}
-          </View>
-        )}
+        </KeyboardAvoidingView>
 
         {/* Create Food Modal */}
         <CreateFoodModal
           visible={showCreateModal}
-          onClose={() => setShowCreateModal(false)}
+          onClose={() => {
+            setShowCreateModal(false);
+            setOpenFoodFactsData(null);
+          }}
           initialBarcode={barcodeQuery}
+          initialData={openFoodFactsData}
           onFoodCreated={(created) => {
-            setFoods((prev) => [created, ...prev]);
+            setCustomAddedFoods((prev) => [created, ...prev]);
+            if (created.barcode) {
+              barcodeCacheRef.current.set(created.barcode, created);
+              setBarcodeFoods((prev) => [created, ...prev]);
+            }
             setSelectedFood(created);
             setQuantity(created.servingSize?.toString() || '100');
+            setOpenFoodFactsData(null);
+          }}
+        />
+
+        {/* Barcode Scanner Camera Modal */}
+        <BarcodeScannerModal
+          visible={showScannerModal}
+          onClose={() => setShowScannerModal(false)}
+          onBarcodeScanned={(scannedCode) => {
+            processBarcodeLookup(scannedCode);
           }}
         />
       </SafeAreaView>
@@ -362,6 +672,9 @@ const createStyles = (colors: ThemeColors) =>
     safeArea: {
       flex: 1,
       backgroundColor: colors.obsidian,
+    },
+    keyboardAvoid: {
+      flex: 1,
     },
     header: {
       flexDirection: 'row',
@@ -434,6 +747,13 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: 14,
       paddingVertical: 4,
     },
+    cameraIconBtn: {
+      padding: 6,
+      borderRadius: 8,
+      backgroundColor: 'rgba(0, 240, 255, 0.08)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     searchActionBtn: {
       backgroundColor: colors.neonCyan,
       paddingHorizontal: 12,
@@ -461,10 +781,22 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: 12,
       color: colors.neonCyan,
     },
+    listContainer: {
+      flex: 1,
+    },
     listContent: {
       paddingHorizontal: 20,
-      paddingBottom: 100,
+      paddingBottom: 24,
       gap: 10,
+    },
+    resultsHeader: {
+      paddingVertical: 8,
+    },
+    resultsCount: {
+      fontFamily: 'JetBrainsMono_500Medium',
+      fontSize: 11,
+      color: colors.mutedText,
+      letterSpacing: 0.5,
     },
     foodCard: {
       flexDirection: 'row',
@@ -534,17 +866,6 @@ const createStyles = (colors: ThemeColors) =>
       backgroundColor: colors.neonCyan,
       borderColor: colors.neonCyan,
     },
-    loadingContainer: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 12,
-    },
-    loadingText: {
-      fontFamily: 'Geist_400Regular',
-      fontSize: 13,
-      color: colors.mutedText,
-    },
     emptyContainer: {
       alignItems: 'center',
       justifyContent: 'center',
@@ -564,16 +885,11 @@ const createStyles = (colors: ThemeColors) =>
       maxWidth: 260,
     },
     footerSheet: {
-      position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
       backgroundColor: colors.surface,
       borderTopWidth: 1,
       borderTopColor: colors.borderGlow,
       paddingHorizontal: 20,
-      paddingTop: 14,
-      paddingBottom: 24,
+      paddingTop: 12,
       gap: 10,
     },
     footerTop: {
@@ -605,12 +921,13 @@ const createStyles = (colors: ThemeColors) =>
       gap: 4,
     },
     qtyInput: {
-      width: 48,
+      minWidth: 54,
       textAlign: 'center',
       fontFamily: 'JetBrainsMono_600SemiBold',
-      fontSize: 14,
+      fontSize: 15,
       color: colors.neonCyan,
-      padding: 0,
+      paddingVertical: 2,
+      paddingHorizontal: 4,
     },
     qtyUnit: {
       fontFamily: 'JetBrainsMono_400Regular',

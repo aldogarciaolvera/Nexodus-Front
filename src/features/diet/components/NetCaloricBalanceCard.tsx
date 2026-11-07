@@ -43,11 +43,6 @@ export const NetCaloricBalanceCard: React.FC<NetCaloricBalanceCardProps> = React
           <Activity size={14} color={theme.colors.neonCyan} />
           <Text style={styles.headerTitle}>BALANCE CALÓRICO NETO</Text>
         </View>
-        <View style={styles.statusBadge}>
-          <Text style={[styles.statusText, { color: status.color }]}>
-            {status.text}
-          </Text>
-        </View>
       </View>
 
       <View style={styles.equationRow}>
@@ -115,18 +110,6 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: 10,
       color: colors.slate400,
       letterSpacing: 0.8,
-    },
-    statusBadge: {
-      backgroundColor: colors.surfaceLight,
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-      borderRadius: 6,
-      borderWidth: 1,
-      borderColor: colors.borderGlow,
-    },
-    statusText: {
-      fontFamily: 'JetBrainsMono_500Medium',
-      fontSize: 10,
     },
     equationRow: {
       flexDirection: 'row',

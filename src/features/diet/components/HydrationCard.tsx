@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Droplet } from 'lucide-react-native';
 import { useTheme } from '../../../utils/ThemeContext';
@@ -9,6 +9,7 @@ interface HydrationCardProps {
   targetWaterMl: number;
   onAddWater: (amount: number) => void;
   isPending?: boolean;
+  pendingAmount?: number | null;
 }
 
 export const HydrationCard: React.FC<HydrationCardProps> = ({
@@ -16,9 +17,20 @@ export const HydrationCard: React.FC<HydrationCardProps> = ({
   targetWaterMl,
   onAddWater,
   isPending = false,
+  pendingAmount: externalPendingAmount,
 }) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
+  const [localPendingAmount, setLocalPendingAmount] = useState<number | null>(null);
+
+  const activePendingAmount = externalPendingAmount ?? (isPending ? localPendingAmount : null);
+  const is250Pending = isPending && activePendingAmount === 250;
+  const is500Pending = isPending && activePendingAmount === 500;
+
+  const handleAddWater = (amount: number) => {
+    setLocalPendingAmount(amount);
+    onAddWater(amount);
+  };
 
   const currentLiters = (Math.max(0, currentWaterMl) / 1000).toFixed(1);
   const targetLiters = (Math.max(1000, targetWaterMl) / 1000).toFixed(1);
@@ -32,9 +44,9 @@ export const HydrationCard: React.FC<HydrationCardProps> = ({
             <Droplet color={theme.colors.neonCyan} size={16} />
           </View>
           <View>
-            <Text style={styles.cardTitle}>HIDRATACIÓN DIARIA</Text>
+            <Text style={styles.cardTitle}>HIDRATACIÓN</Text>
             <Text style={styles.volumeText}>
-              {currentLiters}L <Text style={styles.targetText}>/ {targetLiters}L Meta</Text>
+              {currentLiters}L <Text style={styles.targetText}>/ {targetLiters}L</Text>
             </Text>
           </View>
         </View>
@@ -42,14 +54,14 @@ export const HydrationCard: React.FC<HydrationCardProps> = ({
         <View style={styles.buttonsGroup}>
           <TouchableOpacity
             style={styles.addBtn}
-            onPress={() => onAddWater(250)}
+            onPress={() => handleAddWater(250)}
             disabled={isPending}
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel="Agregar 250 mililitros de agua"
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            {isPending ? (
+            {is250Pending ? (
               <ActivityIndicator size="small" color={theme.colors.obsidian} />
             ) : (
               <Text style={styles.addBtnText}>+ 250ml</Text>
@@ -58,14 +70,18 @@ export const HydrationCard: React.FC<HydrationCardProps> = ({
 
           <TouchableOpacity
             style={[styles.addBtn, styles.addBtnAlt]}
-            onPress={() => onAddWater(500)}
+            onPress={() => handleAddWater(500)}
             disabled={isPending}
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel="Agregar 500 mililitros de agua"
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Text style={styles.addBtnAltText}>+ 500ml</Text>
+            {is500Pending ? (
+              <ActivityIndicator size="small" color={theme.colors.neonCyan} />
+            ) : (
+              <Text style={styles.addBtnAltText}>+ 500ml</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -130,7 +146,7 @@ const createStyles = (colors: ThemeColors) =>
     },
     buttonsGroup: {
       flexDirection: 'row',
-      gap: 8,
+      gap: 10,
     },
     addBtn: {
       backgroundColor: colors.neonCyan,
@@ -139,6 +155,7 @@ const createStyles = (colors: ThemeColors) =>
       borderRadius: 10,
       alignItems: 'center',
       justifyContent: 'center',
+      minWidth: 68,
     },
     addBtnText: {
       fontFamily: 'Geist_700Bold',

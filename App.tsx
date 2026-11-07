@@ -34,6 +34,7 @@ import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { RootStackParamList, RootTabParamList } from './src/utils/navigation';
 import { setupNotificationChannel, requestNotificationPermissions } from './src/utils/notifications';
+import { requestCameraPermissions } from './src/utils/camera';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<RootTabParamList>();
@@ -73,12 +74,23 @@ function AppInner() {
   useOTAUpdates();
 
   useEffect(() => {
-    const initNotifications = async () => {
-      if (Constants.appOwnership === 'expo') return;
-      await requestNotificationPermissions();
+    const initAppPermissions = async () => {
+      try {
+        if (Constants.appOwnership !== 'expo') {
+          await requestNotificationPermissions();
+        }
+      } catch (e) {
+        console.warn('Error al inicializar permisos de notificación:', e);
+      }
+
+      try {
+        await requestCameraPermissions();
+      } catch (e) {
+        console.warn('Error al inicializar permisos de cámara:', e);
+      }
     };
     
-    initNotifications();
+    initAppPermissions();
     initialize().finally(() => setIsReady(true));
   }, []);
 

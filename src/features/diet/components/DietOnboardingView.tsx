@@ -149,7 +149,7 @@ export const DietOnboardingView: React.FC<DietOnboardingViewProps> = ({
           carbsGrams: calculatedTargets.carbsGrams,
           fatGrams: calculatedTargets.fatGrams,
           waterTargetMl: calculatedTargets.waterTargetMl,
-          fastingProtocol: fastingProtocol === '16:8' ? '16:8' : 'None',
+          fastingProtocol: fastingProtocol === 'none' ? 'None' : fastingProtocol,
           eatingWindowStart: '12:00',
           eatingWindowEnd: '20:00',
         });

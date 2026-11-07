@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,11 +18,26 @@ import { ThemeColors } from '../../../utils/theme';
 import { dietService, Food } from '../../../services/diet.service';
 import { useAlertStore } from '../../../store/alertStore';
 
+export interface InitialFoodData {
+  name?: string;
+  brand?: string;
+  barcode?: string;
+  servingSize?: number;
+  servingUnit?: string;
+  calories?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  sodiumMg?: number;
+  potassiumMg?: number;
+}
+
 interface CreateFoodModalProps {
   visible: boolean;
   onClose: () => void;
   onFoodCreated: (food: Food) => void;
   initialBarcode?: string;
+  initialData?: InitialFoodData | null;
 }
 
 export const CreateFoodModal: React.FC<CreateFoodModalProps> = ({
@@ -30,24 +45,41 @@ export const CreateFoodModal: React.FC<CreateFoodModalProps> = ({
   onClose,
   onFoodCreated,
   initialBarcode = '',
+  initialData = null,
 }) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
   const showAlert = useAlertStore((state) => state.showAlert);
 
-  const [name, setName] = useState('');
-  const [brand, setBrand] = useState('');
-  const [barcode, setBarcode] = useState(initialBarcode);
-  const [servingSize, setServingSize] = useState('100');
-  const [servingUnit, setServingUnit] = useState('g');
-  const [calories, setCalories] = useState('');
-  const [protein, setProtein] = useState('');
-  const [carbs, setCarbs] = useState('');
-  const [fat, setFat] = useState('');
-  const [sodiumMg, setSodiumMg] = useState('');
-  const [potassiumMg, setPotassiumMg] = useState('');
+  const [name, setName] = useState(initialData?.name || '');
+  const [brand, setBrand] = useState(initialData?.brand || '');
+  const [barcode, setBarcode] = useState(initialData?.barcode || initialBarcode);
+  const [servingSize, setServingSize] = useState(initialData?.servingSize?.toString() || '100');
+  const [servingUnit, setServingUnit] = useState(initialData?.servingUnit || 'g');
+  const [calories, setCalories] = useState(initialData?.calories !== undefined ? initialData.calories.toString() : '');
+  const [protein, setProtein] = useState(initialData?.protein !== undefined ? initialData.protein.toString() : '');
+  const [carbs, setCarbs] = useState(initialData?.carbs !== undefined ? initialData.carbs.toString() : '');
+  const [fat, setFat] = useState(initialData?.fat !== undefined ? initialData.fat.toString() : '');
+  const [sodiumMg, setSodiumMg] = useState(initialData?.sodiumMg !== undefined ? initialData.sodiumMg.toString() : '');
+  const [potassiumMg, setPotassiumMg] = useState(initialData?.potassiumMg !== undefined ? initialData.potassiumMg.toString() : '');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setName(initialData?.name || '');
+      setBrand(initialData?.brand || '');
+      setBarcode(initialData?.barcode || initialBarcode || '');
+      setServingSize(initialData?.servingSize?.toString() || '100');
+      setServingUnit(initialData?.servingUnit || 'g');
+      setCalories(initialData?.calories !== undefined ? initialData.calories.toString() : '');
+      setProtein(initialData?.protein !== undefined ? initialData.protein.toString() : '');
+      setCarbs(initialData?.carbs !== undefined ? initialData.carbs.toString() : '');
+      setFat(initialData?.fat !== undefined ? initialData.fat.toString() : '');
+      setSodiumMg(initialData?.sodiumMg !== undefined ? initialData.sodiumMg.toString() : '');
+      setPotassiumMg(initialData?.potassiumMg !== undefined ? initialData.potassiumMg.toString() : '');
+    }
+  }, [visible, initialBarcode, initialData]);
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -119,6 +151,13 @@ export const CreateFoodModal: React.FC<CreateFoodModalProps> = ({
               <X size={20} color={theme.colors.mutedText} />
             </TouchableOpacity>
           </View>
+
+          {initialData?.name && (
+            <View style={styles.autofillBanner}>
+              <Sparkles size={14} color={theme.colors.neonCyan} />
+              <Text style={styles.autofillBannerText}>Datos autocompletados desde Open Food Facts</Text>
+            </View>
+          )}
 
           <ScrollView
             style={styles.scroll}
@@ -405,5 +444,24 @@ const createStyles = (colors: ThemeColors) =>
       fontFamily: 'Geist_600SemiBold',
       fontSize: 14,
       color: colors.obsidian,
+    },
+    autofillBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: 'rgba(0, 240, 255, 0.08)',
+      borderWidth: 1,
+      borderColor: 'rgba(0, 240, 255, 0.25)',
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      marginHorizontal: 20,
+      marginTop: 4,
+      marginBottom: 10,
+    },
+    autofillBannerText: {
+      fontFamily: 'Geist_600SemiBold',
+      fontSize: 11,
+      color: colors.neonCyan,
     },
   });

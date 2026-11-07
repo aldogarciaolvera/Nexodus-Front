@@ -46,7 +46,13 @@
       "@react-native-community/datetimepicker",
       "expo-font",
       "expo-secure-store",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permite a Nexodus acceder a la cámara para escanear códigos de barras de alimentos."
+        }
+      ]
     ]
   }
 }

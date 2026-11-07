@@ -28,6 +28,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
 import { useAlertStore } from '../../../store/alertStore';
+import { requestCameraPermissions } from '../../../utils/camera';
 import { dietService, FoodAnalysisResult, MealItem } from '../../../services/diet.service';
 import { Skeleton } from '../../../components/Skeleton';
 
@@ -67,9 +68,9 @@ export const NexodusLensModal: React.FC<NexodusLensModalProps> = ({
 
   const handleTakePhoto = async () => {
     try {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
-        showAlert('Permiso Requerido', 'Se requiere acceso a la cámara para capturar fotos con Nexodus Lens.', 'info');
+      const granted = await requestCameraPermissions();
+      if (!granted) {
+        showAlert('Permiso Requerido', 'Se requiere acceso a la cámara para capturar fotos con Nexodus Lens. Puedes activarlo desde los ajustes de tu dispositivo.', 'info');
         return;
       }
 

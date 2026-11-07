@@ -49,9 +49,29 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
     - Cálculo de superávit o déficit calórico en tiempo real contra la meta diaria configurada.
     - Integrado de forma reactiva en `DietView.tsx`.
   - **Actualización de la Vista de Dieta (`DietView.tsx`):**
-    - Botón de acceso directo a Nexodus Lens con icono de chispas (`Sparkles`) junto al buscador de alimentos y código de barras.
+    - Fila de acciones principales en Dieta (`DietView.tsx`): reemplazo de la barra rápida de búsqueda por dos botones simétricos de acción inmediata: "Agregar Comida" (botón sólido cyan) y "Nexodus Lens" (botón de superficie con borde reactivo y chispas), optimizando la cabecera de "Comidas del Día".
     - Integración de la tarjeta de balance neto debajo del resumen calórico y de macronutrientes.
     - Actualización del icono de la insignia de meta nutricional a diana/objetivo (`Target`) para mayor precisión semántica.
+    - Estado de carga contextual por botón en hidratación (`HydrationCard.tsx`): visualización precisa del indicador `ActivityIndicator` exclusivamente en el botón presionado (`+250ml` o `+500ml`) con bloqueo preventivo y sincronización de volumen real.
+    - Visibilidad condicional y temporizador de ayuno reactivo (`FastingCard.tsx` & `DietView.tsx`): la sección de ayuno intermitente solo se muestra si el plan nutricional contempla una meta de ayuno (ocultándose en modo tradicional), con inicio inmediato de cuenta regresiva en `JetBrains Mono`, transición automática al botón "Concluir" para prevenir reinicios accidentales, y persistencia sincronizada local/backend.
+    - Optimización y caché en catálogo de alimentos (`FoodSearchModal.tsx`): separación de estados para búsqueda por nombre y código de barras con caché en memoria (`Map`) que evita reconsultas innecesarias a la base de datos al alternar entre pestañas o repetir términos.
+    - **Lista Dinámica y Selección Alternable en Catálogo (`FoodSearchModal.tsx`):**
+      - Carga reactiva del catálogo general de alimentos desde la base de datos con React Query (`queryKeys.diet.foods('all')`), visualizando inmediatamente todos los alimentos disponibles al abrir el modal (similar al selector de ejercicios de gimnasio).
+      - Filtrado dinámico e instantáneo en memoria a 60 FPS sin retrasos de red al escribir en el buscador, con búsqueda remota complementaria debounced para términos no comunes.
+      - Soporte para **marcar y desmarcar alimentos**: presionar un alimento seleccionado o su indicador con check lo desmarca inmediatamente y oculta el panel de confirmación.
+    - **Resolución de Conflictos Visuales y Manejo de Teclado (`FoodSearchModal.tsx`):**
+      - Corrección de corte en el último elemento: reestructuración de la lista en un contenedor flex aislado con `KeyboardAvoidingView` y paddings dinámicos seguros que previenen cualquier superposición o truncamiento.
+      - Elevación de panel sobre el teclado: reubicación del footer de confirmación en el flujo flex nativo, logrando que al enfocar el input de cantidad este se eleve automáticamente por encima del teclado.
+      - Teclado numérico (`decimal-pad`) con selección automática de texto al enfocar (`selectTextOnFocus`) para edición rápida e inmediata.
+  - **Permisos de Cámara Globales y Validación en Modales (`App.tsx`, `camera.ts`, `BarcodeScannerModal.tsx`, `NexodusLensModal.tsx` & `FoodSearchModal.tsx`):**
+    - Solicitud de permisos de cámara al abrir la aplicación junto a los permisos de notificaciones mediante el helper unificado `requestCameraPermissions` (`src/utils/camera.ts`).
+    - Validación proactiva en cada modal que utiliza cámara (`BarcodeScannerModal`, `FoodSearchModal`, `NexodusLensModal`), alertando limpiamente mediante `GlobalAlert` si el usuario aún no los ha otorgado o si requiere habilitarlos en los ajustes.
+  - **Escáner de Códigos de Barra con Cámara y Auto-completado Inteligente (`BarcodeScannerModal.tsx`, `FoodSearchModal.tsx`, `CreateFoodModal.tsx` & `openFoodFacts.service.ts`):**
+    - Integración de escáner en tiempo real con `expo-camera` (`CameraView`) estilizado con retícula Obsidian Cyan, botón de linterna (torch) y detección automática de códigos de barra (EAN-13, EAN-8, UPC-A, UPC-E, Code 128/39).
+    - Flujo de resolución en dos fases:
+      1. Búsqueda directa en la base de datos interna de alimentos por código de barras.
+      2. Si no existe en la base interna, consulta automática al API v2 de **Open Food Facts** (`openFoodFacts.service.ts`) para auto-extraer nombre, marca, calorías, macronutrientes (proteína, carbohidratos, grasas) y tamaño de porción.
+    - Precarga automática en `CreateFoodModal.tsx` con banner visual informativo en Obsidian Cyan para revisión y guardado rápido, o captura manual si el producto no se encuentra catalogado.
   - **Servicios API (`diet.service.ts`):**
     - Tipado y método `analyzeFoodImage` (`POST /api/diet/lens/analyze`).
     - Actualización de `DailySummary` con `burnedCalories` y `netCalories`.

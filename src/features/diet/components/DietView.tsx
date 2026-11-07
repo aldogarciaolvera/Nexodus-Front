@@ -3,9 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
 import { 
-  Search, 
-  ScanBarcode, 
-  Sparkles, 
+  Camera, 
   Target,
   Plus, 
   ChevronLeft, 
@@ -21,7 +19,6 @@ import { useAlertStore } from '../../../store/alertStore';
 import { DietOnboardingView } from './DietOnboardingView';
 import { Skeleton } from '../../../components/Skeleton';
 import { MealFormModal } from './MealFormModal';
-import { FoodSearchModal } from './FoodSearchModal';
 import { FastingCard } from './FastingCard';
 import { DietMacrosCard } from './DietMacrosCard';
 import { HydrationCard } from './HydrationCard';
@@ -51,7 +48,6 @@ export const DietView = () => {
   const [showMealModal, setShowMealModal] = useState(false);
   const [mealToEdit, setMealToEdit] = useState<Meal | null>(null);
   const [initialMealItems, setInitialMealItems] = useState<MealItem[]>([]);
-  const [showFoodSearchModal, setShowFoodSearchModal] = useState(false);
   const [showLensModal, setShowLensModal] = useState(false);
 
   // Profile Query
@@ -86,13 +82,13 @@ export const DietView = () => {
   // Water Mutation
   const addWaterMutation = useMutation({
     mutationFn: (amount: number) => dietService.addWater(selectedDate, amount),
-    onSuccess: () => {
+    onSuccess: (_, amount) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.diet.water(selectedDate) });
       queryClient.invalidateQueries({ queryKey: queryKeys.diet.daily(selectedDate) });
-      addWater(250);
+      addWater(amount);
     },
-    onError: () => {
-      addWater(250); // Fallback local
+    onError: (_, amount) => {
+      addWater(amount); // Fallback local
     },
   });
 
@@ -140,6 +136,16 @@ export const DietView = () => {
   const targetCarbs = backendTarget?.carbsGrams || dietProfile?.carbsGrams || 220;
   const targetFat = backendTarget?.fatGrams || dietProfile?.fatGrams || 70;
   const targetWaterMl = backendTarget?.waterTargetMl || dietProfile?.waterTargetMl || 3000;
+
+  // Protocolo de Ayuno Intermitente (mostrar tarjeta solo si está configurado y no es tradicional)
+  const rawFastingProtocol = dietProfile?.fastingProtocol || backendTarget?.fastingProtocol;
+  const isFastingConfigured = Boolean(
+    rawFastingProtocol &&
+    rawFastingProtocol.trim().toLowerCase() !== 'none' &&
+    rawFastingProtocol.trim().toLowerCase() !== 'tradicional' &&
+    rawFastingProtocol.trim().toLowerCase() !== 'traditional' &&
+    rawFastingProtocol.trim().toLowerCase() !== 'sin ayuno'
+  );
 
   // Daily Consumed Metrics
   const meals: Meal[] = dailySummary?.meals || [];
@@ -256,25 +262,28 @@ export const DietView = () => {
         targetWaterMl={targetWaterMl}
         onAddWater={(amount) => addWaterMutation.mutate(amount)}
         isPending={addWaterMutation.isPending}
+        pendingAmount={addWaterMutation.variables}
       />
 
-      {/* 4. Intermittent Fasting Widget (Single-query with countdown) */}
-      <FastingCard fastingProtocol={backendTarget?.fastingProtocol || dietProfile?.fastingProtocol || '16:8'} />
+      {/* 4. Intermittent Fasting Widget (Solo visible si el plan de dieta tiene una meta de ayuno configurada) */}
+      {isFastingConfigured && (
+        <FastingCard fastingProtocol={rawFastingProtocol || '16:8'} />
+      )}
 
-      {/* 5. Quick Search, Barcode & Nexodus Lens Trigger */}
-      <View style={styles.actionsSearchRow}>
+      {/* 5. Main Diet Actions: Agregar Comida & Nexodus Lens */}
+      <View style={styles.actionsRow}>
         <TouchableOpacity
-          style={styles.searchInputContainer}
-          onPress={() => setShowFoodSearchModal(true)}
+          style={styles.addMealActionBtn}
+          onPress={() => {
+            setMealToEdit(null);
+            setShowMealModal(true);
+          }}
           activeOpacity={0.8}
           accessibilityRole="button"
-          accessibilityLabel="Abrir buscador de alimentos o código de barras"
+          accessibilityLabel="Registrar nueva comida"
         >
-          <Search color={theme.colors.mutedText} size={16} />
-          <Text style={styles.searchPlaceholder} numberOfLines={1}>Buscar o código de barras...</Text>
-          <View style={styles.scanBtn}>
-            <ScanBarcode color={theme.colors.neonCyan} size={15} />
-          </View>
+          <Plus size={16} color={theme.colors.obsidian} />
+          <Text style={styles.addMealActionText}>Agregar Comida</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -284,12 +293,12 @@ export const DietView = () => {
           accessibilityRole="button"
           accessibilityLabel="Abrir Nexodus Lens para escaneo de comida con IA"
         >
-          <Sparkles color={theme.colors.obsidian} size={16} />
-          <Text style={styles.lensTriggerText}>Lens</Text>
+          <Camera color={theme.colors.neonCyan} size={16} />
+          <Text style={styles.lensTriggerText}>Nexodus Lens</Text>
         </TouchableOpacity>
       </View>
 
-      {/* 5. Scheduled Feedings Header */}
+      {/* 6. Scheduled Feedings Header */}
       <View style={styles.feedingsHeader}>
         <View>
           <Text style={styles.sectionTitle}>COMIDAS DEL DÍA</Text>
@@ -297,20 +306,6 @@ export const DietView = () => {
             {meals.filter((m) => m.isCompleted).length} Completadas • {meals.filter((m) => !m.isCompleted).length} Planeadas
           </Text>
         </View>
-
-        <TouchableOpacity
-          style={styles.addMealBtn}
-          onPress={() => {
-            setMealToEdit(null);
-            setShowMealModal(true);
-          }}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel="Registrar nueva comida"
-        >
-          <Plus size={14} color={theme.colors.obsidian} />
-          <Text style={styles.addMealBtnText}>+ Comida</Text>
-        </TouchableOpacity>
       </View>
 
       {/* 6. Meals List */}
@@ -321,23 +316,11 @@ export const DietView = () => {
         </View>
       ) : meals.length === 0 ? (
         <View style={styles.emptyMealsCard}>
-          <Utensils size={32} color={theme.colors.slate600} />
+          <Utensils size={32} color={theme.colors.neonCyan} />
           <Text style={styles.emptyMealsTitle}>Sin comidas registradas</Text>
           <Text style={styles.emptyMealsSub}>
             No has registrado alimentos para {isToday ? 'el día de hoy' : selectedDate}. Presiona el botón para agregar una comida.
           </Text>
-          <TouchableOpacity
-            style={styles.emptyAddBtn}
-            onPress={() => {
-              setMealToEdit(null);
-              setShowMealModal(true);
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Registrar primera comida"
-          >
-            <Plus size={14} color={theme.colors.neonCyan} />
-            <Text style={styles.emptyAddBtnText}>Registrar Comida</Text>
-          </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.mealsList}>
@@ -370,28 +353,6 @@ export const DietView = () => {
         mealToEdit={mealToEdit}
         initialDate={selectedDate}
         initialItems={initialMealItems}
-      />
-
-      <FoodSearchModal
-        visible={showFoodSearchModal}
-        onClose={() => setShowFoodSearchModal(false)}
-        onSelectFood={(food, qty) => {
-          const ratio = qty / (food.servingSize || 100);
-          const item: MealItem = {
-            foodId: food.id || null,
-            foodName: food.name,
-            quantity: qty,
-            unit: food.servingUnit || 'g',
-            calories: Math.round(food.calories * ratio),
-            protein: Math.round(food.protein * ratio * 10) / 10,
-            carbs: Math.round(food.carbs * ratio * 10) / 10,
-            fat: Math.round(food.fat * ratio * 10) / 10,
-          };
-          setInitialMealItems([item]);
-          setShowFoodSearchModal(false);
-          setMealToEdit(null);
-          setShowMealModal(true);
-        }}
       />
 
       {/* Nexodus Lens (AI Vision Modal) */}
@@ -466,48 +427,45 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.neonCyan,
       letterSpacing: 0.5,
     },
-    actionsSearchRow: {
+    actionsRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
+      gap: 12,
       marginBottom: 20,
     },
-    searchInputContainer: {
+    addMealActionBtn: {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.borderGlow,
-      borderRadius: 14,
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.neonCyan,
+      paddingVertical: 12,
       paddingHorizontal: 12,
-      paddingVertical: 10,
+      borderRadius: 14,
+    },
+    addMealActionText: {
+      fontFamily: 'Geist_700Bold',
+      fontSize: 13,
+      color: colors.obsidian,
     },
     lensTriggerBtn: {
+      flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
-      backgroundColor: colors.neonCyan,
-      paddingHorizontal: 14,
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.surfaceLight,
+      borderWidth: 1,
+      borderColor: 'rgba(0, 240, 255, 0.25)',
       paddingVertical: 12,
+      paddingHorizontal: 12,
       borderRadius: 14,
     },
     lensTriggerText: {
       fontFamily: 'Geist_700Bold',
       fontSize: 13,
-      color: colors.obsidian,
-    },
-    searchPlaceholder: {
-      fontFamily: 'Geist_400Regular',
-      fontSize: 13,
-      color: colors.mutedText,
-      marginLeft: 10,
-      flex: 1,
-    },
-    scanBtn: {
-      padding: 6,
-      backgroundColor: colors.surfaceLight,
-      borderRadius: 8,
+      color: colors.neonCyan,
     },
     feedingsHeader: {
       flexDirection: 'row',
@@ -526,20 +484,6 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: 11,
       color: colors.mutedText,
       marginTop: 2,
-    },
-    addMealBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      backgroundColor: colors.neonCyan,
-      paddingVertical: 6,
-      paddingHorizontal: 12,
-      borderRadius: 10,
-    },
-    addMealBtnText: {
-      fontFamily: 'Geist_700Bold',
-      fontSize: 12,
-      color: colors.obsidian,
     },
     emptyMealsCard: {
       backgroundColor: colors.surface,
@@ -563,23 +507,6 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.mutedText,
       textAlign: 'center',
       lineHeight: 18,
-    },
-    emptyAddBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      backgroundColor: colors.surfaceLight,
-      borderWidth: 1,
-      borderColor: colors.borderGlow,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
-      borderRadius: 10,
-      marginTop: 6,
-    },
-    emptyAddBtnText: {
-      fontFamily: 'Geist_600SemiBold',
-      fontSize: 12,
-      color: colors.neonCyan,
     },
     mealsList: {
       gap: 2,
