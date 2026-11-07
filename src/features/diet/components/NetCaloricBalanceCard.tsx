@@ -180,3 +180,4 @@ const createStyles = (colors: ThemeColors) =>
       marginHorizontal: 4,
     },
   });
+
