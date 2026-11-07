@@ -6,6 +6,7 @@ import {
   Search, 
   ScanBarcode, 
   Sparkles, 
+  Target,
   Plus, 
   ChevronLeft, 
   ChevronRight, 
@@ -168,12 +169,7 @@ export const DietView = () => {
   const handleToggleMealComplete = async (meal: Meal) => {
     try {
       await dietService.updateMeal(meal.id, {
-        date: meal.date,
-        mealType: meal.mealType,
-        name: meal.name,
-        time: meal.time,
         isCompleted: !meal.isCompleted,
-        items: meal.items,
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.diet.daily(selectedDate) });
     } catch (e: any) {
@@ -230,7 +226,7 @@ export const DietView = () => {
 
         {/* Goal Badge Pill */}
         <View style={styles.goalBadge}>
-          <Sparkles size={11} color={theme.colors.neonCyan} />
+          <Target size={12} color={theme.colors.neonCyan} />
           <Text style={styles.goalBadgeText}>{getGoalLabel()}</Text>
         </View>
       </View>

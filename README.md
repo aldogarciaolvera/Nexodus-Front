@@ -51,6 +51,7 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
   - **Actualización de la Vista de Dieta (`DietView.tsx`):**
     - Botón de acceso directo a Nexodus Lens con icono de chispas (`Sparkles`) junto al buscador de alimentos y código de barras.
     - Integración de la tarjeta de balance neto debajo del resumen calórico y de macronutrientes.
+    - Actualización del icono de la insignia de meta nutricional a diana/objetivo (`Target`) para mayor precisión semántica.
   - **Servicios API (`diet.service.ts`):**
     - Tipado y método `analyzeFoodImage` (`POST /api/diet/lens/analyze`).
     - Actualización de `DailySummary` con `burnedCalories` y `netCalories`.
