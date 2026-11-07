@@ -36,6 +36,25 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
 
 ## 🆕 Últimos Cambios
 
+- **Fase 4: Frontend Nutrition, Nexodus Lens (AI Vision) & Balance Calórico Neto (`src/features/diet/`):**
+  - **Nexodus Lens Modal (`NexodusLensModal.tsx`):**
+    - Escaneo visual de comidas con soporte de cámara fotográfica y selección desde galería mediante `expo-image-picker`.
+    - Comunicación en tiempo real con el backend `/api/diet/lens/analyze` impulsado por Google Gemini Multimodal Vision.
+    - Estados de carga animados con skeletons estilizados en Obsidian Cyan.
+    - Desglose inteligente de macronutrientes (calorías totales, proteína, carbohidratos, grasas, índice de confianza del modelo).
+    - Desglose granular de ingredientes detectados con porciones estimadas en gramos.
+    - Botón de acción directa para transformar los alimentos detectados en una comida y registrarla en un toque.
+  - **Widget de Balance Calórico Neto (`NetCaloricBalanceCard.tsx`):**
+    - Ecuación visual en vivo: `Ingesta (Consumidas) - Entreno (Quemadas) = Balance Neto`.
+    - Cálculo de superávit o déficit calórico en tiempo real contra la meta diaria configurada.
+    - Integrado de forma reactiva en `DietView.tsx`.
+  - **Actualización de la Vista de Dieta (`DietView.tsx`):**
+    - Botón de acceso directo a Nexodus Lens con icono de chispas (`Sparkles`) junto al buscador de alimentos y código de barras.
+    - Integración de la tarjeta de balance neto debajo del resumen calórico y de macronutrientes.
+  - **Servicios API (`diet.service.ts`):**
+    - Tipado y método `analyzeFoodImage` (`POST /api/diet/lens/analyze`).
+    - Actualización de `DailySummary` con `burnedCalories` y `netCalories`.
+
 - **Migración y Actualización a Expo SDK 58:**
   - **Actualización de Runtime y Core:** Se migró de Expo SDK 57 a **Expo SDK 58** (`expo@^58.0.23`), actualizando el runtime a **React Native 0.88.1** y **React 19.3.0** (`@types/react@~19.3.0`).
   - **Alineación de Módulos Nativos:** Todas las dependencias nativas se actualizaron a sus versiones certificadas para SDK 58 (`expo-blur`, `expo-build-properties`, `expo-constants`, `expo-dev-client`, `expo-device`, `expo-font`, `expo-image`, `expo-notifications`, `expo-secure-store`, `expo-status-bar`, `expo-updates`, `react-native-safe-area-context`, `react-native-screens`, `react-native-svg`, `@react-native-community/datetimepicker`).

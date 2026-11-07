@@ -25,6 +25,8 @@ import { FastingCard } from './FastingCard';
 import { DietMacrosCard } from './DietMacrosCard';
 import { HydrationCard } from './HydrationCard';
 import { MealItemCard } from './MealItemCard';
+import { NexodusLensModal } from './NexodusLensModal';
+import { NetCaloricBalanceCard } from './NetCaloricBalanceCard';
 
 const getLocalDateString = (d: Date = new Date()): string => {
   const year = d.getFullYear();
@@ -49,6 +51,7 @@ export const DietView = () => {
   const [mealToEdit, setMealToEdit] = useState<Meal | null>(null);
   const [initialMealItems, setInitialMealItems] = useState<MealItem[]>([]);
   const [showFoodSearchModal, setShowFoodSearchModal] = useState(false);
+  const [showLensModal, setShowLensModal] = useState(false);
 
   // Profile Query
   const { data: profile, isLoading: isProfileLoading } = useQuery({
@@ -244,7 +247,14 @@ export const DietView = () => {
         consumedFat={consumedFat}
       />
 
-      {/* 2. Hydration Dedicated Card */}
+      {/* 2. Net Caloric Balance Card (Ingesta - Entreno = Balance Neto) */}
+      <NetCaloricBalanceCard
+        consumedCals={consumedCals}
+        burnedCals={dailySummary?.burnedCalories || 0}
+        targetCals={targetCals}
+      />
+
+      {/* 3. Hydration Dedicated Card */}
       <HydrationCard
         currentWaterMl={currentWater}
         targetWaterMl={targetWaterMl}
@@ -252,23 +262,36 @@ export const DietView = () => {
         isPending={addWaterMutation.isPending}
       />
 
-      {/* 3. Intermittent Fasting Widget (Single-query with countdown) */}
+      {/* 4. Intermittent Fasting Widget (Single-query with countdown) */}
       <FastingCard fastingProtocol={backendTarget?.fastingProtocol || dietProfile?.fastingProtocol || '16:8'} />
 
-      {/* 4. Quick Search & Barcode Trigger */}
-      <TouchableOpacity
-        style={styles.searchInputContainer}
-        onPress={() => setShowFoodSearchModal(true)}
-        activeOpacity={0.8}
-        accessibilityRole="button"
-        accessibilityLabel="Abrir buscador de alimentos o código de barras"
-      >
-        <Search color={theme.colors.mutedText} size={18} />
-        <Text style={styles.searchPlaceholder}>Buscar alimento o código de barras...</Text>
-        <View style={styles.scanBtn}>
-          <ScanBarcode color={theme.colors.neonCyan} size={16} />
-        </View>
-      </TouchableOpacity>
+      {/* 5. Quick Search, Barcode & Nexodus Lens Trigger */}
+      <View style={styles.actionsSearchRow}>
+        <TouchableOpacity
+          style={styles.searchInputContainer}
+          onPress={() => setShowFoodSearchModal(true)}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Abrir buscador de alimentos o código de barras"
+        >
+          <Search color={theme.colors.mutedText} size={16} />
+          <Text style={styles.searchPlaceholder} numberOfLines={1}>Buscar o código de barras...</Text>
+          <View style={styles.scanBtn}>
+            <ScanBarcode color={theme.colors.neonCyan} size={15} />
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.lensTriggerBtn}
+          onPress={() => setShowLensModal(true)}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Abrir Nexodus Lens para escaneo de comida con IA"
+        >
+          <Sparkles color={theme.colors.obsidian} size={16} />
+          <Text style={styles.lensTriggerText}>Lens</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* 5. Scheduled Feedings Header */}
       <View style={styles.feedingsHeader}>
@@ -374,6 +397,25 @@ export const DietView = () => {
           setShowMealModal(true);
         }}
       />
+
+      {/* Nexodus Lens (AI Vision Modal) */}
+      <NexodusLensModal
+        visible={showLensModal}
+        onClose={() => setShowLensModal(false)}
+        onAddAnalyzedMeal={(items, mealName) => {
+          setInitialMealItems(items);
+          setMealToEdit({
+            id: '',
+            date: selectedDate,
+            mealType: 'Lunch',
+            name: mealName,
+            time: new Date().toTimeString().slice(0, 5),
+            isCompleted: true,
+            items,
+          });
+          setShowMealModal(true);
+        }}
+      />
     </View>
   );
 };
@@ -428,16 +470,36 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.neonCyan,
       letterSpacing: 0.5,
     },
+    actionsSearchRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginBottom: 20,
+    },
     searchInputContainer: {
+      flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.borderGlow,
       borderRadius: 14,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+    },
+    lensTriggerBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: colors.neonCyan,
       paddingHorizontal: 14,
       paddingVertical: 12,
-      marginBottom: 20,
+      borderRadius: 14,
+    },
+    lensTriggerText: {
+      fontFamily: 'Geist_700Bold',
+      fontSize: 13,
+      color: colors.obsidian,
     },
     searchPlaceholder: {
       fontFamily: 'Geist_400Regular',

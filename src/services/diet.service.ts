@@ -65,9 +65,37 @@ export interface DailySummary {
   consumedProtein?: number;
   consumedCarbs?: number;
   consumedFat?: number;
-  waterTargetMl?: number;
   consumedWaterMl?: number;
+  burnedCalories?: number;
+  netCalories?: number;
+  waterTargetMl?: number;
   meals: Meal[];
+}
+
+export interface FoodAnalysisItem {
+  foodName: string;
+  estimatedGrams: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
+export interface FoodAnalysisResult {
+  dishName: string;
+  totalCalories: number;
+  totalProtein: number;
+  totalCarbs: number;
+  totalFat: number;
+  confidence: number;
+  notes?: string;
+  items: FoodAnalysisItem[];
+}
+
+export interface AnalyzeFoodImageRequest {
+  base64Image: string;
+  mimeType?: string;
+  additionalContext?: string;
 }
 
 export interface Food {
@@ -258,6 +286,15 @@ export const dietService = {
   stopFasting: async (): Promise<FastingStatus> => {
     const response = await apiFetch('/api/diet/fasting/stop', {
       method: 'POST',
+    });
+    return await handleResponse(response);
+  },
+
+  // 17. Nexodus Lens (Análisis visual con Google Gemini Vision)
+  analyzeFoodImage: async (data: AnalyzeFoodImageRequest): Promise<FoodAnalysisResult> => {
+    const response = await apiFetch('/api/diet/lens/analyze', {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
     return await handleResponse(response);
   },
