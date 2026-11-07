@@ -1,3 +1,17 @@
+## [0.1.1] - 2026-11-07
+
+### Features
+
+- feat: Cambios en pantalla de dieta
+- feat: Fase 5 - RecoveryZone Heatmap & The Nexodus Protocol HUD
+- feat: Fase 4 complemento
+- feat: Fase 4 - Nexodus Lens & Balance Calorico Neto
+- feat: Vulnerabilidades corregidas
+
+### Bug Fixes
+
+- fix: Optimizar toggle de completado en comidas sin reenvio innecesario de items
+
 ## [0.1.0] - 2026-11-06
 
 ### Features
