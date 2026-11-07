@@ -7,6 +7,7 @@ import { queryKeys } from '../../../services/queryKeys';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
 import { Skeleton } from '../../../components/Skeleton';
+import { BodyRecoveryHeatmap } from './BodyRecoveryHeatmap';
 
 const MUSCLE_NAMES_ES: Record<string, string> = {
   Chest: 'Pecho',
@@ -67,6 +68,9 @@ export const MuscleRecoveryCard = React.memo(() => {
         </View>
         <Text style={styles.headerSub}>Modelo 48-72h</Text>
       </View>
+
+      {/* Anatomical Heatmap */}
+      <BodyRecoveryHeatmap recoveryData={recoveryList} />
 
       <View style={styles.grid}>
         {recoveryList.map((item) => {

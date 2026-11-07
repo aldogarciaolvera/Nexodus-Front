@@ -317,3 +317,30 @@ eas update --branch preview --message "Actualización a rama preview" --clear-ca
 ```
 
 > **Regla de oro:** Las actualizaciones OTA solo aplican para cambios en JS/TS o diseño. Si agregas una librería con dependencias nativas (ej. nuevo módulo de cámara o permisos del sistema), debes **forzosamente** volver a compilar una nueva APK.
+
+
+---
+
+## RecoveryZone Anatomy & The Nexodus Protocol (Fase 5)
+
+### 1. Mapa Anatómico de Recuperación Muscular (`BodyRecoveryHeatmap.tsx`)
+Inspirado en la ingeniería inversa de Liftoff v2.17.5:
+- **32 capas anatómicas modulares (256x256 PNGs transparentes)** extraídas y alojadas localmente en `assets/musclegraphics/`.
+- Renderizado de alto rendimiento mediante `<Image tintColor={color} />` sobre la silueta base Obsidian `#1C2029`.
+- Vistas alternables con un toque: **Vista Frontal (Anterior)** y **Vista Dorsal (Posterior)**.
+- Código de calor por fatiga basado en modelo exponencial de 48-72h:
+  - `#EF4444` (Rojo): Fatiga Alta / Menos de 35% de recuperación.
+  - `#F59E0B` (Ámbar): En recuperación / Descansando (35% – 69%).
+  - `#38BDF8` (Azul): Listo / Casi recuperado (70% – 89%).
+  - `#00F0FF` (Cian Neón): 100% Óptimo para entrenar.
+
+### 2. HUD de Rachas Inteligentes (`StreakCard.tsx`)
+- Llama cian `#00F0FF` con contador numérico monoespaciado (`JetBrains Mono`).
+- Matriz de consistencia semanal (L, M, X, J, V, S, D) con cápsulas visuales para días cumplidos, descansos protegidos y día en curso.
+- Protección con Escudos de Racha y banner de alerta en ventana de gracia (24h).
+- Modal interactivo de restauración (`StreakRestoreModal.tsx`) para recuperar rachas caídas mediante Cyphers o escudos.
+
+### 3. Protocolo de Rangos Obsidian (`ObsidianTierCard.tsx`)
+- Indicador de jerarquía Obsidian (`Initiate`, `Vanguard`, `Cyber`, `Titan`, `Apex`, `Sovereign`, `Obsidian`).
+- Barra de progreso de NXP en tiempo real hacia el siguiente rango.
+- Contador de Cyphers para canje en el Cyber Vault.

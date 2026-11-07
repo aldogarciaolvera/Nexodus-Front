@@ -37,4 +37,7 @@ export const queryKeys = {
     water: (date?: string) => ['dietWater', date] as const,
     fasting: ['dietFasting'] as const,
   },
+  gamification: {
+    status: ['gamificationStatus'] as const,
+  },
 } as const;

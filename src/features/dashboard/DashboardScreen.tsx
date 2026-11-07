@@ -1,18 +1,29 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQuery } from '@tanstack/react-query';
 import { Header } from '../../components/Header';
 import { DailyTodoCard } from './components/DailyTodoCard';
 import { WorkoutCard } from './components/WorkoutCard';
 import { DietCard } from './components/DietCard';
 import { FinanceCard } from './components/FinanceCard';
 import { IdeasCard } from './components/IdeasCard';
+import { StreakCard } from './components/StreakCard';
+import { ObsidianTierCard } from './components/ObsidianTierCard';
 import { useTheme } from '../../utils/ThemeContext';
 import { ThemeColors } from '../../utils/theme';
+import { queryKeys } from '../../services/queryKeys';
+import { gamificationService } from '../../services/gamification.service';
 
 export const DashboardScreen = () => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
+
+  const { data: gamificationStatus } = useQuery({
+    queryKey: queryKeys.gamification.status,
+    queryFn: gamificationService.getStatus,
+    staleTime: 60 * 1000,
+  });
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -22,6 +33,10 @@ export const DashboardScreen = () => {
           showsVerticalScrollIndicator={false}
         >
           <Header />
+
+          {/* Gamification & Streaks Protocol */}
+          <ObsidianTierCard status={gamificationStatus} />
+          <StreakCard />
           
           <View style={styles.grid}>
             <View style={styles.gridColumn}>
