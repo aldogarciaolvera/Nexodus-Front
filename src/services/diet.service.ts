@@ -9,6 +9,9 @@ export interface DietTarget {
   fastingProtocol: string;
   eatingWindowStart?: string;
   eatingWindowEnd?: string;
+  isCalorieCyclingEnabled?: boolean;
+  workoutDayCarbMultiplier?: number;
+  restDayCarbMultiplier?: number;
 }
 
 export interface CalculateTargetRequest {
@@ -69,11 +72,17 @@ export interface DailySummary {
   burnedCalories?: number;
   netCalories?: number;
   waterTargetMl?: number;
+  isWorkoutDay?: boolean;
+  dayType?: 'Workout' | 'Rest' | string;
+  targetCarbsAdjusted?: number;
+  targetCaloriesAdjusted?: number;
+  target?: DietTarget;
   meals: Meal[];
 }
 
 export interface FoodAnalysisItem {
   foodName: string;
+  cookingState?: 'Raw' | 'Boiled' | 'Grilled' | 'Fried' | 'Baked' | 'Steamed' | string;
   estimatedGrams: number;
   calories: number;
   protein: number;
@@ -96,6 +105,7 @@ export interface AnalyzeFoodImageRequest {
   base64Image: string;
   mimeType?: string;
   additionalContext?: string;
+  hint?: string;
 }
 
 export interface FoodCategory {

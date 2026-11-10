@@ -25,6 +25,10 @@ import { HydrationCard } from './HydrationCard';
 import { MealItemCard } from './MealItemCard';
 import { NexodusLensModal } from './NexodusLensModal';
 import { NetCaloricBalanceCard } from './NetCaloricBalanceCard';
+import { NexodusChefCard } from './NexodusChefCard';
+import { RecipeCatalogModal } from './RecipeCatalogModal';
+import { ChefAiModal } from './ChefAiModal';
+import { PantryModal } from './PantryModal';
 
 const getLocalDateString = (d: Date = new Date()): string => {
   const year = d.getFullYear();
@@ -49,6 +53,9 @@ export const DietView = () => {
   const [mealToEdit, setMealToEdit] = useState<Meal | null>(null);
   const [initialMealItems, setInitialMealItems] = useState<MealItem[]>([]);
   const [showLensModal, setShowLensModal] = useState(false);
+  const [showChefAiModal, setShowChefAiModal] = useState(false);
+  const [showCatalogModal, setShowCatalogModal] = useState(false);
+  const [showPantryModal, setShowPantryModal] = useState(false);
 
   // Profile Query
   const { data: profile, isLoading: isProfileLoading } = useQuery({
@@ -134,10 +141,10 @@ export const DietView = () => {
     );
   }
 
-  // Consolidated Targets
-  const targetCals = backendTarget?.targetCalories || dietProfile?.targetCalories || 2200;
+  // Consolidated Targets (Dynamic Gym Calorie / Carb Cycling prioritized if available)
+  const targetCals = dailySummary?.targetCaloriesAdjusted || backendTarget?.targetCalories || dietProfile?.targetCalories || 2200;
   const targetProtein = backendTarget?.proteinGrams || dietProfile?.proteinGrams || 160;
-  const targetCarbs = backendTarget?.carbsGrams || dietProfile?.carbsGrams || 220;
+  const targetCarbs = dailySummary?.targetCarbsAdjusted || backendTarget?.carbsGrams || dietProfile?.carbsGrams || 220;
   const targetFat = backendTarget?.fatGrams || dietProfile?.fatGrams || 70;
   const targetWaterMl = backendTarget?.waterTargetMl || dietProfile?.waterTargetMl || 3000;
 
@@ -157,6 +164,12 @@ export const DietView = () => {
   const consumedProtein = dailySummary?.consumedProtein ?? meals.reduce((sum, m) => sum + (m.protein || 0), 0);
   const consumedCarbs = dailySummary?.consumedCarbs ?? meals.reduce((sum, m) => sum + (m.carbs || 0), 0);
   const consumedFat = dailySummary?.consumedFat ?? meals.reduce((sum, m) => sum + (m.fat || 0), 0);
+
+  // Remaining Macros for Chef AI
+  const remainingCals = Math.max(0, targetCals - consumedCals);
+  const remainingProtein = Math.max(0, targetProtein - consumedProtein);
+  const remainingCarbs = Math.max(0, targetCarbs - consumedCarbs);
+  const remainingFat = Math.max(0, targetFat - consumedFat);
 
   const currentWater = waterData?.consumedWaterMl ?? waterData?.totalMl ?? dailySummary?.consumedWaterMl ?? consumedWaterMl;
 
@@ -269,7 +282,7 @@ export const DietView = () => {
         </TouchableOpacity>
       </View>
 
-      {/* 1. Macros & Calories Summary Card */}
+      {/* 1. Macros & Calories Summary Card (con ciclado de carbohidratos Gym/Descanso) */}
       <DietMacrosCard
         targetCals={targetCals}
         consumedCals={consumedCals}
@@ -279,6 +292,19 @@ export const DietView = () => {
         consumedCarbs={consumedCarbs}
         targetFat={targetFat}
         consumedFat={consumedFat}
+        isWorkoutDay={dailySummary?.isWorkoutDay}
+        dayType={dailySummary?.dayType}
+        isCalorieCyclingEnabled={backendTarget?.isCalorieCyclingEnabled ?? true}
+      />
+
+      {/* 2. Nexodus Chef Hub & Healthy Recipes */}
+      <NexodusChefCard
+        remainingCals={remainingCals}
+        remainingProtein={remainingProtein}
+        remainingCarbs={remainingCarbs}
+        onOpenChefAi={() => setShowChefAiModal(true)}
+        onOpenCatalog={() => setShowCatalogModal(true)}
+        onOpenPantry={() => setShowPantryModal(true)}
       />
 
       {/* 3. Hydration Dedicated Card */}
@@ -290,14 +316,14 @@ export const DietView = () => {
         pendingAmount={addWaterMutation.variables}
       />
 
-      {/* 2. Net Caloric Balance Card (Ingesta - Entreno = Balance Neto) */}
+      {/* 4. Net Caloric Balance Card (Ingesta - Entreno = Balance Neto) */}
       <NetCaloricBalanceCard
         consumedCals={consumedCals}
         burnedCals={dailySummary?.burnedCalories || 0}
         targetCals={targetCals}
       />
 
-      {/* 4. Intermittent Fasting Widget (Solo visible si el plan de dieta tiene una meta de ayuno configurada) */}
+      {/* 5. Intermittent Fasting Widget (Solo visible si el plan de dieta tiene una meta de ayuno configurada) */}
       {isFastingConfigured && (
         <FastingCard fastingProtocol={rawFastingProtocol || '16:8'} />
       )}
@@ -376,6 +402,31 @@ export const DietView = () => {
           });
           setShowMealModal(true);
         }}
+      />
+
+      {/* Recipe Catalog Modal (Catálogo de Platos Completos) */}
+      <RecipeCatalogModal
+        visible={showCatalogModal}
+        onClose={() => setShowCatalogModal(false)}
+        selectedDate={selectedDate}
+      />
+
+      {/* Chef AI Modal (Completar Macros Restantes) */}
+      <ChefAiModal
+        visible={showChefAiModal}
+        onClose={() => setShowChefAiModal(false)}
+        selectedDate={selectedDate}
+        remainingCals={remainingCals}
+        remainingProtein={remainingProtein}
+        remainingCarbs={remainingCarbs}
+        remainingFat={remainingFat}
+      />
+
+      {/* Pantry Modal (Modo Despensa - Cocina con lo que tienes) */}
+      <PantryModal
+        visible={showPantryModal}
+        onClose={() => setShowPantryModal(false)}
+        selectedDate={selectedDate}
       />
     </View>
   );

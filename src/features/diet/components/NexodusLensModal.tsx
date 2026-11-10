@@ -50,6 +50,7 @@ export const NexodusLensModal: React.FC<NexodusLensModalProps> = ({
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [contextNote, setContextNote] = useState('');
+  const [hintNote, setHintNote] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<FoodAnalysisResult | null>(null);
 
@@ -57,6 +58,7 @@ export const NexodusLensModal: React.FC<NexodusLensModalProps> = ({
     setImageUri(null);
     setImageBase64(null);
     setContextNote('');
+    setHintNote('');
     setIsAnalyzing(false);
     setAnalysisResult(null);
   };
@@ -130,6 +132,7 @@ export const NexodusLensModal: React.FC<NexodusLensModalProps> = ({
         base64Image: imageBase64,
         mimeType: 'image/jpeg',
         additionalContext: contextNote.trim() || undefined,
+        hint: hintNote.trim() || undefined,
       });
 
       setAnalysisResult(res);
@@ -146,7 +149,9 @@ export const NexodusLensModal: React.FC<NexodusLensModalProps> = ({
     if (!analysisResult) return;
 
     const mappedItems: MealItem[] = analysisResult.items.map((item) => ({
-      foodName: item.foodName,
+      foodName: item.cookingState && item.cookingState !== 'Raw'
+        ? `${item.foodName} (${item.cookingState})`
+        : item.foodName,
       quantity: item.estimatedGrams || 100,
       unit: 'g',
       calories: item.calories,
@@ -246,10 +251,20 @@ export const NexodusLensModal: React.FC<NexodusLensModalProps> = ({
                 <Text style={styles.sectionLabel}>DETALLES ADICIONALES (OPCIONAL)</Text>
                 <TextInput
                   style={styles.contextInput}
-                  placeholder="Ej. Pechuga a la plancha sin aceite, salsa verde picante..."
+                  placeholder="Ej. Pechuga asada, ensalada verde con aderezo..."
                   placeholderTextColor={theme.colors.slate600}
                   value={contextNote}
                   onChangeText={setContextNote}
+                  maxLength={150}
+                />
+
+                <Text style={[styles.sectionLabel, { marginTop: 12 }]}>PISTA DE INGREDIENTES OCULTOS (OPCIONAL)</Text>
+                <TextInput
+                  style={styles.contextInput}
+                  placeholder="Ej. Aderezo césar, 1 cda de aceite de oliva, mantequilla..."
+                  placeholderTextColor={theme.colors.slate600}
+                  value={hintNote}
+                  onChangeText={setHintNote}
                   maxLength={150}
                 />
 
@@ -346,7 +361,14 @@ export const NexodusLensModal: React.FC<NexodusLensModalProps> = ({
                   {analysisResult.items.map((item, idx) => (
                     <View key={idx} style={styles.ingredientRow}>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.ingredientName}>{item.foodName}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <Text style={styles.ingredientName}>{item.foodName}</Text>
+                          {item.cookingState && item.cookingState !== 'Raw' && (
+                            <View style={styles.cookingStateBadge}>
+                              <Text style={styles.cookingStateText}>{item.cookingState}</Text>
+                            </View>
+                          )}
+                        </View>
                         <Text style={styles.ingredientSub}>
                           ~{item.estimatedGrams}g • P: {item.protein}g • C: {item.carbs}g • G: {item.fat}g
                         </Text>
@@ -667,6 +689,20 @@ const createStyles = (colors: ThemeColors) =>
       fontFamily: 'Geist_500Medium',
       fontSize: 13,
       color: colors.text,
+    },
+    cookingStateBadge: {
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+      backgroundColor: 'rgba(56, 189, 248, 0.15)',
+      borderWidth: 1,
+      borderColor: 'rgba(56, 189, 248, 0.35)',
+    },
+    cookingStateText: {
+      fontFamily: 'JetBrainsMono_400Regular',
+      fontSize: 9,
+      color: colors.neonCyan,
+      textTransform: 'uppercase',
     },
     ingredientSub: {
       fontFamily: 'JetBrainsMono_400Regular',
