@@ -54,6 +54,8 @@ export const DietView = () => {
   const { data: profile, isLoading: isProfileLoading } = useQuery({
     queryKey: queryKeys.user.profile,
     queryFn: UserService.getProfile,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   const isDietActive = Boolean(profile?.dieta ?? (profile as any)?.Dieta);
@@ -63,6 +65,8 @@ export const DietView = () => {
     queryKey: queryKeys.diet.target,
     queryFn: dietService.getTarget,
     enabled: isDietActive,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   // Daily Summary Query

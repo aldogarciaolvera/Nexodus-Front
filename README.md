@@ -36,6 +36,43 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
 
 ## 🆕 Últimos Cambios
 
+- **Carrusel Horizontal Completo de 7 Vistas & Puntos Minimalistas en Header (`MainCarouselScreen.tsx`, `Header.tsx`, `carouselNavStore.ts` & `BottomNav.tsx`):**
+  - **Carrusel Horizontal Unificado:** Reemplazo de la navegación aislada por un único carrusel horizontal nativo a 60 FPS (`ScrollView` con `pagingEnabled={true}`) que abarca las 7 vistas principales de la aplicación en secuencia fluida:
+    `[0: Dashboard (Home) ↔ 1: Mis Ideas ↔ 2: Mi Diario ↔ 3: Tasks ↔ 4: Gym & Rutinas ↔ 5: Dieta & Macros ↔ 6: Finanzas]`.
+  - **Desplazamiento Gestual Continuo y Scroll Vertical Independiente:** Deslizar horizontalmente transiciona de forma instantánea y natural entre cualquier pantalla contigua, mientras cada vista conserva su propio scroll vertical sin conflictos ni desmontajes.
+  - **Puntos de Navegación Minimalistas en Header (`Header.tsx`):**
+    - Se eliminaron las barras de cápsulas (`SwipeCapsuleIndicator`) para adoptar un diseño limpio y minimalista.
+    - Las secciones compuestas por submódulos (`Ideas ↔ Diario` y `Gym ↔ Dieta`) ahora muestran sutiles puntos indicadores (`● ○` / `○ ●`) directamente a un lado del título del encabezado.
+    - El punto activo adopta una píldora cian neón (`#00F0FF`, 14px), mientras el inactivo permanece como círculo discreto (`#222836`, 6px).
+    - Tocar los puntos navega suavemente entre las vistas hermanas.
+  - **Sincronización Bidireccional con Barra Inferior (`BottomNav.tsx` & `carouselNavStore.ts`):**
+    - La barra flotante `BottomNav` refleja de forma reactiva la pestaña correspondiente según la vista activa (resaltando `Home` en 0, `Ideas` en 1 y 2, `Tasks` en 3, `Fit` en 4 y 5, `Money` en 6).
+    - Pulsar cualquier icono de la barra inferior realiza un scroll animado directo a la página correspondiente.
+    - Las tarjetas interactivas del Dashboard (`DietCard`, `WorkoutCard`, `DailyTodoCard`, `IdeasCard`, `FinanceCard`) activan el deslizamiento animado del carrusel hacia su sección destino mediante `carouselNavStore.navigateToTab(...)`.
+
+- **Rediseño Estructural de Tarjeta de Dieta & Macros en Dashboard (`DietCard.tsx`):**
+  - **Alineación Central del Círculo de Progreso:** Centrado horizontal del indicador radial de calorías con `Svg` de 68x68px, borde de fondo (`#1E2330`) y arco activo en cian eléctrico (`#00F0FF`), visualizando con claridad el porcentaje completado y la etiqueta métrica `KCAL` en `JetBrains Mono`.
+  - **Prevención de Desbordamiento y Sanitización Numérica:** Redondeo estricto con `Math.round()` de todas las calorías consumidas y macronutrientes (proteína, carbohidratos y grasas), erradicando el desbordamiento horizontal provocado por decimales flotantes y por la compresión lateral previa.
+  - **Estructuración Jerárquica Vertical de Textos:**
+    - Resumen calórico centrado inmediatamente debajo del círculo (`consumidas / meta kcal`).
+    - Desglose de macronutrientes en filas independientes de ancho completo con etiqueta (`Prot`, `Carb`, `Gras`), puntos de color tonal (`neonCyan`, `warning`, `slate400`), valores precisos en gramos y micro-barras de progreso de 2.5px que reflejan visualmente el porcentaje alcanzado sin salirse de los límites de la tarjeta.
+  - **Caché y Rendimiento Reactivo:** Adición de políticas de `staleTime` (1 minuto para el resumen diario y 10 minutos para el perfil de usuario), eliminando refetches repetitivos al regresar al dashboard.
+
+- **Optimización de Consultas, Navegación por Gestos (Swipe) & Cápsulas de Navegación (`FitScreen.tsx`, `JournalScreen.tsx`, `SwipeCapsuleIndicator.tsx` & `workoutStore.ts`):**
+  - **Optimización de Caché y Eliminación de Consultas Innecesarias en Gym y Dieta:**
+    - `workoutStore.ts`: Incorporación de `lastBackendSync` con guard de 2 minutos en `initFromBackend()`, impidiendo peticiones redundantes a `/api/workout-sessions/active` cada vez que el usuario ingresa a la pestaña de Gym.
+    - `GymView.tsx`: Configuración de `staleTime` (10 min para perfil de usuario, 5 min para rutinas) y `gcTime` (30 min) en React Query, evitando reconsultas constantes a la base de datos.
+    - `DietView.tsx`: Configuración de `staleTime` (10 min para perfil, 5 min para target nutricional).
+    - **Montaje Persistente en Memoria:** Tanto `GymView` como `DietView` (así como `Ideas` y `Diario`) se conservan montados continuamente en memoria dentro de un paginador horizontal desacoplado con scroll vertical independiente, erradicando el ciclo de desmontaje y re-montaje que volvía a solicitar datos al backend.
+  - **Navegación por Gestos Fluidos a 60 FPS (Swipe Horizontal):**
+    - `FitScreen.tsx`: Reemplazo del switch estático por un carrusel/paginador horizontal nativo (`ScrollView` con `pagingEnabled`, `bounces={false}` y `showsHorizontalScrollIndicator={false}`). Deslizar de derecha a izquierda o de izquierda a derecha transiciona suavemente entre **Gym** y **Dieta**.
+    - **Transición Perimetral entre Pestañas Vecinas:** Soporte de gestos en los extremos (`onScrollEndDrag`). Arrastrar a la derecha en Gym conduce directamente a la pestaña de **Tasks**, mientras que arrastrar a la izquierda en Dieta conduce a **Money**.
+    - `JournalScreen.tsx`: Paginador horizontal por gestos idéntico entre **Mis Ideas** y **Mi Diario**, con transición perimetral hacia **Home** (Dashboard) y **Tasks**.
+  - **Componente Reutilizable `SwipeCapsuleIndicator.tsx`:**
+    - Indicador de cápsulas estilizado en Obsidian Cyan con bordes estructurales de 1px (`#222836`), geometría `rounded-full` y tonal layering.
+    - Muestra las cápsulas centrales de la pantalla activa con indicador de punto brillante cian (`#00F0FF`), así como flechas de guía laterales (`← Tasks | [ Gym ] [ Dieta ] | Money →`) que informan al usuario hacia qué pantallas adyacentes puede desplazarse.
+    - Totalmente interactivo: soporta tanto el gesto de arrastre en la pantalla como el toque directo en las cápsulas o en las flechas de guía para una navegación inmediata y accesible.
+
 - **Fase 4: Frontend Nutrition, Nexodus Lens (AI Vision) & Balance Calórico Neto (`src/features/diet/`):**
   - **Nexodus Lens Modal (`NexodusLensModal.tsx`):**
     - Escaneo visual de comidas con soporte de cámara fotográfica y selección desde galería mediante `expo-image-picker`.

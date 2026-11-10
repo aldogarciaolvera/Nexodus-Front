@@ -1,35 +1,38 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import React from 'react';
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../utils/ThemeContext';
 import { ThemeColors } from '../../utils/theme';
 import { Header } from '../../components/Header';
 import { Plus } from 'lucide-react-native';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import { AppNavigationProp, RootTabParamList } from '../../utils/navigation';
+import { useNavigation } from '@react-navigation/native';
+import { AppNavigationProp } from '../../utils/navigation';
 import { GymView } from '../gym/components/GymView';
 import { DietView } from '../diet/components/DietView';
+import { useCarouselNavStore } from '../../store/carouselNavStore';
 
 export type FitTabType = 'gym' | 'diet';
 
 interface FitScreenProps {
+  mode?: FitTabType;
   initialTab?: FitTabType;
 }
 
-export const FitScreen: React.FC<FitScreenProps> = ({ initialTab }) => {
+export const FitScreen: React.FC<FitScreenProps> = ({ mode, initialTab }) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
   const navigation = useNavigation<AppNavigationProp>();
-  const route = useRoute<RouteProp<RootTabParamList, 'Fit'>>();
+  const navigateToPage = useCarouselNavStore((s) => s.navigateToPage);
 
-  const defaultTab: FitTabType = initialTab || route?.params?.initialTab || 'gym';
-  const [activeTab, setActiveTab] = useState<FitTabType>(defaultTab);
-
-  useEffect(() => {
-    if (route?.params?.initialTab) {
-      setActiveTab(route.params.initialTab);
-    }
-  }, [route?.params?.initialTab]);
+  const selectedMode = mode || initialTab || 'gym';
+  const isGym = selectedMode === 'gym';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -38,55 +41,28 @@ export const FitScreen: React.FC<FitScreenProps> = ({ initialTab }) => {
           style={{ flex: 1 }} 
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <ScrollView 
-            contentContainerStyle={styles.scrollContainer} 
+          {/* Header con puntos minimalistas de navegación */}
+          <Header 
+            title={isGym ? 'Gym & Rutinas' : 'Dieta & Macros'} 
+            dots={{
+              total: 2,
+              active: isGym ? 0 : 1,
+              onPressDot: (idx) => navigateToPage(idx === 0 ? 4 : 5),
+            }}
+          />
+
+          <ScrollView
+            contentContainerStyle={styles.scrollContainer}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Header dinámico según la sección activa */}
-            <Header title={activeTab === 'gym' ? 'Gym & Rutinas' : 'Dieta & Macros'} />
-
-            {/* Switch estilo Ideas & Diario para Gym & Dieta */}
-            <View style={styles.typeToggle}>
-              <TouchableOpacity 
-                style={[styles.toggleBtn, activeTab === 'gym' && styles.toggleBtnActive]}
-                onPress={() => setActiveTab('gym')}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel="Ver sección de Gym y entrenamiento"
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Text style={[styles.toggleText, activeTab === 'gym' && styles.toggleTextActive]}>
-                  Gym
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.toggleBtn, activeTab === 'diet' && styles.toggleBtnActive]}
-                onPress={() => setActiveTab('diet')}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel="Ver sección de Dieta y macronutrientes"
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Text style={[styles.toggleText, activeTab === 'diet' && styles.toggleTextActive]}>
-                  Dieta
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Vista según la pestaña activa */}
-            {activeTab === 'gym' ? (
-              <GymView />
-            ) : (
-              <DietView />
-            )}
-
+            {isGym ? <GymView /> : <DietView />}
             <View style={{ height: 100 }} />
           </ScrollView>
         </KeyboardAvoidingView>
 
-        {/* Botón flotante para crear rutina (únicamente visible en la pestaña Gym) */}
-        {activeTab === 'gym' && (
+        {/* Botón flotante para crear rutina (únicamente visible en la vista Gym) */}
+        {isGym && (
           <TouchableOpacity 
             style={styles.fab} 
             activeOpacity={0.8}
@@ -114,39 +90,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   scrollContainer: {
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'android' ? 24 : 12,
+    paddingTop: Platform.OS === 'android' ? 8 : 4,
     paddingBottom: 100,
-  },
-  typeToggle: {
-    flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 4,
-    borderWidth: 1,
-    borderColor: colors.borderGlow,
-    marginTop: 16,
-    marginBottom: 24,
-    alignSelf: 'center',
-    width: '80%',
-  },
-  toggleBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  toggleBtnActive: {
-    backgroundColor: colors.neonCyan,
-  },
-  toggleText: {
-    fontFamily: 'Geist_500Medium',
-    fontSize: 13,
-    color: colors.mutedText,
-  },
-  toggleTextActive: {
-    fontFamily: 'Geist_700Bold',
-    color: colors.obsidian,
   },
   fab: {
     position: 'absolute',

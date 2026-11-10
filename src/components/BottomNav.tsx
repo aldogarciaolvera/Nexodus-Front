@@ -59,10 +59,64 @@ const LABELS = {
   Ideas: 'Ideas',
 };
 
-export const BottomNav = ({ state, descriptors, navigation }: BottomTabBarProps) => {
+export type BottomNavTabName = 'Dashboard' | 'Ideas' | 'Tasks' | 'Fit' | 'Money';
+
+const DEFAULT_ROUTES: BottomNavTabName[] = ['Dashboard', 'Ideas', 'Tasks', 'Fit', 'Money'];
+
+export interface BottomNavProps {
+  state?: BottomTabBarProps['state'];
+  descriptors?: BottomTabBarProps['descriptors'];
+  navigation?: BottomTabBarProps['navigation'];
+  activeTab?: BottomNavTabName;
+  onTabPress?: (tab: BottomNavTabName) => void;
+}
+
+export const BottomNav = ({ state, descriptors, navigation, activeTab, onTabPress }: BottomNavProps) => {
   const theme = useTheme();
   const { isDarkMode } = theme;
   const styles = createStyles(theme.colors, isDarkMode);
+
+  // Modo carrusel desacoplado (activeTab / onTabPress)
+  if (activeTab && onTabPress) {
+    return (
+      <View style={styles.container}>
+        <BlurView 
+          intensity={24} 
+          tint={isDarkMode ? "dark" : "light"} 
+          style={styles.blurWrapper}
+        >
+          <View style={styles.navBar}>
+            {DEFAULT_ROUTES.map((routeKey) => {
+              const isFocused = activeTab === routeKey;
+
+              return (
+                <TouchableOpacity 
+                  key={routeKey}
+                  style={styles.tabItem} 
+                  activeOpacity={0.7}
+                  onPress={() => onTabPress(routeKey)}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: isFocused }}
+                  accessibilityLabel={`Pestaña ${LABELS[routeKey]}`}
+                >
+                  <View style={styles.iconContainer}>
+                    {ICONS[routeKey](isFocused, theme.colors)}
+                    {isFocused && <View style={styles.iconGlow} />}
+                  </View>
+                  <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>
+                    {LABELS[routeKey]}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </BlurView>
+      </View>
+    );
+  }
+
+  // Modo React Navigation estándar
+  if (!state || !navigation) return null;
 
   return (
     <View style={styles.container}>
@@ -93,6 +147,8 @@ export const BottomNav = ({ state, descriptors, navigation }: BottomTabBarProps)
                 style={styles.tabItem} 
                 activeOpacity={0.7}
                 onPress={onPress}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: isFocused }}
               >
                 <View style={styles.iconContainer}>
                   {ICONS[route.name as keyof typeof ICONS](isFocused, theme.colors)}

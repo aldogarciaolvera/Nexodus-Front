@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import Svg, { Path, Circle } from 'react-native-svg';
+import Svg, { Circle } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
@@ -10,6 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '../../../services/queryKeys';
 import { dietService } from '../../../services/diet.service';
 import { Flame } from 'lucide-react-native';
+import { useCarouselNavStore } from '../../../store/carouselNavStore';
 import { UserService } from '../../../services/user.service';
 
 export const DietCard = () => {
@@ -21,6 +22,8 @@ export const DietCard = () => {
   const { data: profile } = useQuery({
     queryKey: queryKeys.user.profile,
     queryFn: UserService.getProfile,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   const isDietActive = Boolean(profile?.dieta ?? (profile as any)?.Dieta ?? isConfigured);
@@ -37,6 +40,7 @@ export const DietCard = () => {
     queryKey: queryKeys.diet.daily(today),
     queryFn: () => dietService.getDailySummary(today),
     enabled: isDietActive,
+    staleTime: 60 * 1000,
   });
 
   if (!isDietActive) {
@@ -44,13 +48,13 @@ export const DietCard = () => {
       <TouchableOpacity 
         style={styles.card}
         activeOpacity={0.8}
-        onPress={() => navigation.navigate('Fit', { initialTab: 'diet' })}
+        onPress={() => useCarouselNavStore.getState().navigateToTab('Fit', 'diet')}
         accessibilityRole="button"
         accessibilityLabel="Configurar plan de dieta y macronutrientes"
       >
         <View>
           <View style={styles.header}>
-            <Flame size={16} color={theme.colors.neonCyan} />
+            <Flame size={14} color={theme.colors.neonCyan} />
             <Text style={styles.headerTitle} numberOfLines={1}>Dieta & Macros</Text>
           </View>
 
@@ -70,70 +74,122 @@ export const DietCard = () => {
   }
 
   const meals = dailySummary?.meals || [];
-  const targetCals = dailySummary?.targetCalories || dietProfile?.targetCalories || 2200;
-  const consumedCals = dailySummary?.consumedCalories ?? meals.reduce((sum, m) => sum + (m.calories || 0), 0);
-  const pct = targetCals > 0 ? Math.min(1, consumedCals / targetCals) : 0;
-  const strokeDashoffset = 150 * (1 - pct);
+  const targetCals = Math.round(dailySummary?.targetCalories || dietProfile?.targetCalories || 2200);
+  const consumedCals = Math.round(dailySummary?.consumedCalories ?? meals.reduce((sum, m) => sum + (m.calories || 0), 0));
+  const pct = targetCals > 0 ? Math.min(1, Math.max(0, consumedCals / targetCals)) : 0;
+  const strokeDashoffset = 176 * (1 - pct);
   const targetReachedPct = Math.round(pct * 100);
 
-  const targetProtein = dailySummary?.targetProtein || dietProfile?.proteinGrams || 160;
-  const consumedProtein = dailySummary?.consumedProtein ?? meals.reduce((sum, m) => sum + (m.protein || 0), 0);
+  const targetProtein = Math.round(dailySummary?.targetProtein || dietProfile?.proteinGrams || 160);
+  const consumedProtein = Math.round(dailySummary?.consumedProtein ?? meals.reduce((sum, m) => sum + (m.protein || 0), 0));
+  const proteinPct = targetProtein > 0 ? Math.min(100, Math.round((consumedProtein / targetProtein) * 100)) : 0;
 
-  const targetCarbs = dailySummary?.targetCarbs || dietProfile?.carbsGrams || 220;
-  const consumedCarbs = dailySummary?.consumedCarbs ?? meals.reduce((sum, m) => sum + (m.carbs || 0), 0);
+  const targetCarbs = Math.round(dailySummary?.targetCarbs || dietProfile?.carbsGrams || 220);
+  const consumedCarbs = Math.round(dailySummary?.consumedCarbs ?? meals.reduce((sum, m) => sum + (m.carbs || 0), 0));
+  const carbsPct = targetCarbs > 0 ? Math.min(100, Math.round((consumedCarbs / targetCarbs) * 100)) : 0;
 
-  const targetFat = dailySummary?.targetFat || dietProfile?.fatGrams || 70;
-  const consumedFat = dailySummary?.consumedFat ?? meals.reduce((sum, m) => sum + (m.fat || 0), 0);
+  const targetFat = Math.round(dailySummary?.targetFat || dietProfile?.fatGrams || 70);
+  const consumedFat = Math.round(dailySummary?.consumedFat ?? meals.reduce((sum, m) => sum + (m.fat || 0), 0));
+  const fatPct = targetFat > 0 ? Math.min(100, Math.round((consumedFat / targetFat) * 100)) : 0;
 
   return (
     <TouchableOpacity 
       style={styles.card}
       activeOpacity={0.8}
-      onPress={() => navigation.navigate('Fit', { initialTab: 'diet' })}
+      onPress={() => useCarouselNavStore.getState().navigateToTab('Fit', 'diet')}
       accessibilityRole="button"
-      accessibilityLabel="Ver sección de Dieta y Macros"
+      accessibilityLabel={`Ver sección de Dieta y Macros: ${consumedCals} de ${targetCals} kilocalorías consumidas`}
     >
       <View>
         <View style={styles.header}>
-          <Flame size={16} color={theme.colors.neonCyan} />
+          <Flame size={14} color={theme.colors.neonCyan} />
           <Text style={styles.headerTitle} numberOfLines={1}>Dieta & Macros</Text>
         </View>
 
-        <Text style={styles.subtitle} numberOfLines={1}>
-          Hoy: {consumedCals.toLocaleString()} / {targetCals.toLocaleString()} kcal
-        </Text>
+        {/* Círculo Centrado */}
+        <View style={styles.gaugeContainer}>
+          <Svg width={68} height={68} viewBox="0 0 68 68" style={{ transform: [{ rotate: '-90deg' }] }}>
+            <Circle 
+              cx={34} 
+              cy={34} 
+              r={28} 
+              fill="none" 
+              stroke={theme.colors.surfaceLight} 
+              strokeWidth={3.8} 
+            />
+            <Circle 
+              cx={34} 
+              cy={34} 
+              r={28} 
+              fill="none" 
+              stroke={theme.colors.neonCyan} 
+              strokeWidth={3.8} 
+              strokeLinecap="round"
+              strokeDasharray={176} 
+              strokeDashoffset={strokeDashoffset} 
+            />
+          </Svg>
+          <View style={styles.gaugeTextContainer}>
+            <Text style={styles.gaugeValue}>{targetReachedPct}%</Text>
+            <Text style={styles.gaugeLabel}>KCAL</Text>
+          </View>
+        </View>
+
+        {/* Textos Por Debajo: Resumen Calórico */}
+        <View style={styles.caloricSummaryContainer}>
+          <Text style={styles.caloricSummaryText} numberOfLines={1}>
+            <Text style={styles.caloricConsumed}>{consumedCals.toLocaleString()}</Text>
+            <Text style={styles.caloricTarget}> / {targetCals.toLocaleString()} kcal</Text>
+          </Text>
+        </View>
         
-        <View style={styles.contentRow}>
-          <View style={styles.gaugeContainer}>
-            <Svg width={54} height={54} viewBox="0 0 60 60" style={{ transform: [{ rotate: '-90deg' }] }}>
-              <Circle cx={30} cy={30} r={24} fill="none" stroke={theme.colors.surfaceLight} strokeWidth={3.5} />
-              <Circle 
-                cx={30} cy={30} r={24} fill="none" 
-                stroke={theme.colors.neonCyan} 
-                strokeWidth={3.5} 
-                strokeLinecap="round"
-                strokeDasharray={150} 
-                strokeDashoffset={strokeDashoffset} 
-              />
-            </Svg>
-            <View style={styles.gaugeTextContainer}>
-              <Text style={styles.gaugeLabel}>Kcal</Text>
-              <Text style={styles.gaugeValue}>{targetReachedPct}%</Text>
+        {/* Desglose de Macronutrientes */}
+        <View style={styles.macrosList}>
+          {/* Proteína */}
+          <View style={styles.macroItemContainer}>
+            <View style={styles.macroRow}>
+              <View style={styles.macroLabelGroup}>
+                <View style={[styles.macroBullet, { backgroundColor: theme.colors.neonCyan }]} />
+                <Text style={styles.macroLabel}>Prot</Text>
+              </View>
+              <Text style={styles.macroValue} numberOfLines={1}>
+                {consumedProtein}<Text style={styles.macroTarget}>/{targetProtein}g</Text>
+              </Text>
+            </View>
+            <View style={styles.macroTrack}>
+              <View style={[styles.macroFill, { width: `${proteinPct}%`, backgroundColor: theme.colors.neonCyan }]} />
             </View>
           </View>
-          
-          <View style={styles.macrosList}>
-            <View style={styles.macroItem}>
-              <View style={[styles.macroBullet, { backgroundColor: theme.colors.neonCyan }]} />
-              <Text style={[styles.macroText, { color: theme.colors.slate200 }]}>P: {consumedProtein}/{targetProtein}g</Text>
+
+          {/* Carbos */}
+          <View style={styles.macroItemContainer}>
+            <View style={styles.macroRow}>
+              <View style={styles.macroLabelGroup}>
+                <View style={[styles.macroBullet, { backgroundColor: theme.colors.warning }]} />
+                <Text style={styles.macroLabel}>Carb</Text>
+              </View>
+              <Text style={styles.macroValue} numberOfLines={1}>
+                {consumedCarbs}<Text style={styles.macroTarget}>/{targetCarbs}g</Text>
+              </Text>
             </View>
-            <View style={styles.macroItem}>
-              <View style={[styles.macroBullet, { backgroundColor: theme.colors.slate400 }]} />
-              <Text style={[styles.macroText, { color: theme.colors.slate300 }]}>C: {consumedCarbs}/{targetCarbs}g</Text>
+            <View style={styles.macroTrack}>
+              <View style={[styles.macroFill, { width: `${carbsPct}%`, backgroundColor: theme.colors.warning }]} />
             </View>
-            <View style={styles.macroItem}>
-              <View style={[styles.macroBullet, { backgroundColor: theme.colors.slate600 }]} />
-              <Text style={[styles.macroText, { color: theme.colors.slate400 }]}>F: {consumedFat}/{targetFat}g</Text>
+          </View>
+
+          {/* Grasas */}
+          <View style={styles.macroItemContainer}>
+            <View style={styles.macroRow}>
+              <View style={styles.macroLabelGroup}>
+                <View style={[styles.macroBullet, { backgroundColor: theme.colors.slate400 }]} />
+                <Text style={styles.macroLabel}>Gras</Text>
+              </View>
+              <Text style={styles.macroValue} numberOfLines={1}>
+                {consumedFat}<Text style={styles.macroTarget}>/{targetFat}g</Text>
+              </Text>
+            </View>
+            <View style={styles.macroTrack}>
+              <View style={[styles.macroFill, { width: `${fatPct}%`, backgroundColor: theme.colors.slate400 }]} />
             </View>
           </View>
         </View>
@@ -148,13 +204,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderColor: colors.borderGlow,
     borderWidth: 1,
     borderRadius: 16,
-    padding: 14,
+    padding: 12,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   headerTitle: {
     fontSize: 10.5,
@@ -178,19 +234,14 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginTop: 2,
     marginBottom: 4,
   },
-  contentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 4,
-    marginTop: 4,
-  },
   gaugeContainer: {
-    width: 64,
-    height: 64,
+    width: 68,
+    height: 68,
+    alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    marginVertical: 4,
   },
   gaugeTextContainer: {
     position: 'absolute',
@@ -200,40 +251,87 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     height: '100%',
   },
   gaugeLabel: {
-    fontSize: 8,
+    fontSize: 7.5,
     textTransform: 'uppercase',
     color: colors.mutedText,
     fontFamily: 'JetBrainsMono_500Medium',
+    letterSpacing: 0.5,
+    marginTop: 1,
   },
   gaugeValue: {
-    fontSize: 10,
+    fontSize: 13,
     color: colors.white,
-    fontFamily: 'JetBrainsMono_500Medium',
-    lineHeight: 12,
+    fontFamily: 'JetBrainsMono_700Bold',
+    lineHeight: 16,
   },
-  gaugeTotal: {
-    fontSize: 7.5,
+  caloricSummaryContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+    marginBottom: 8,
+  },
+  caloricSummaryText: {
+    textAlign: 'center',
+  },
+  caloricConsumed: {
+    fontSize: 11.5,
+    color: colors.white,
+    fontFamily: 'JetBrainsMono_600SemiBold',
+  },
+  caloricTarget: {
+    fontSize: 10,
     color: colors.slate400,
     fontFamily: 'JetBrainsMono_500Medium',
   },
   macrosList: {
-    flexDirection: 'column',
-    gap: 4,
-    paddingLeft: 4,
-  },
-  macroItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: colors.borderGlow,
+    paddingTop: 8,
     gap: 6,
   },
-  macroBullet: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+  macroItemContainer: {
+    gap: 3,
   },
-  macroText: {
-    fontSize: 11,
+  macroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  macroLabelGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  macroBullet: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  macroLabel: {
+    fontSize: 10,
+    color: colors.slate300,
     fontFamily: 'JetBrainsMono_500Medium',
+  },
+  macroValue: {
+    fontSize: 10,
+    color: colors.white,
+    fontFamily: 'JetBrainsMono_500Medium',
+  },
+  macroTarget: {
+    fontSize: 9,
+    color: colors.slate400,
+    fontFamily: 'JetBrainsMono_400Regular',
+  },
+  macroTrack: {
+    height: 2.5,
+    width: '100%',
+    backgroundColor: colors.surfaceLight,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  macroFill: {
+    height: '100%',
+    borderRadius: 2,
   },
   footer: {
     marginTop: 12,

@@ -7,12 +7,19 @@ import { ThemeColors } from '../utils/theme';
 import { DropdownMenu } from './DropdownMenu';
 import { AppNavigationProp } from '../utils/navigation';
 
+export interface HeaderDotsConfig {
+  total: number;
+  active: number; // 0-based
+  onPressDot?: (index: number) => void;
+}
+
 interface HeaderProps {
   title?: string;
   subtitle?: string;
+  dots?: HeaderDotsConfig;
 }
 
-export const Header = ({ title = "Nexodus" }: HeaderProps) => {
+export const Header = ({ title = "Nexodus", dots }: HeaderProps) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
   const navigation = useNavigation<AppNavigationProp>();
@@ -34,7 +41,37 @@ export const Header = ({ title = "Nexodus" }: HeaderProps) => {
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        <Text style={styles.welcomeText}>{title}</Text>
+        <View style={styles.titleWithDots}>
+          <Text style={styles.welcomeText}>{title}</Text>
+          {dots && dots.total > 1 && (
+            <View style={styles.dotsRow}>
+              {Array.from({ length: dots.total }).map((_, idx) => {
+                const isActive = idx === dots.active;
+                return (
+                  <TouchableOpacity
+                    key={idx}
+                    activeOpacity={0.7}
+                    disabled={!dots.onPressDot}
+                    onPress={() => dots.onPressDot?.(idx)}
+                    hitSlop={{ top: 12, bottom: 12, left: 6, right: 6 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Cambiar a vista ${idx + 1}`}
+                  >
+                    <View
+                      style={[
+                        styles.dot,
+                        isActive
+                          ? { backgroundColor: theme.colors.neonCyan, width: 14 }
+                          : { backgroundColor: theme.colors.surfaceLight, width: 6 },
+                      ]}
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </View>
+
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <TouchableOpacity 
             style={styles.profileButton} 
@@ -72,6 +109,23 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 16,
   },
+  titleWithDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexShrink: 1,
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingLeft: 2,
+    paddingTop: 4,
+  },
+  dot: {
+    height: 6,
+    borderRadius: 3,
+  },
   profileButton: {
     width: 36,
     height: 36,
@@ -82,7 +136,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   welcomeText: {
     fontSize: 24,
     fontWeight: '500',

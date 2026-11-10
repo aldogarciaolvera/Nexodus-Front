@@ -43,11 +43,15 @@ export const GymView = () => {
   const { data: profile, isLoading } = useQuery({
     queryKey: queryKeys.gym.profile,
     queryFn: UserService.getProfile,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   const { data: routinesList = [], isLoading: isLoadingRoutines } = useQuery({
     queryKey: queryKeys.gym.routines,
     queryFn: gymService.getRoutines,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   const routineQueries = useQueries({

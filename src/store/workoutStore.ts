@@ -22,6 +22,7 @@ interface WorkoutState {
   currentExerciseIndex: number;
   completedSets: Record<string, number>; // exerciseId -> count
   restTimer: RestTimerState;
+  lastBackendSync: number;
   
   // Core Actions
   initFromBackend: () => Promise<void>;
@@ -72,8 +73,16 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
     targetSeconds: 90,
     remainingSeconds: 90,
   },
+  lastBackendSync: 0,
 
   initFromBackend: async () => {
+    const { lastBackendSync, isActive } = get();
+    // Cache de 2 minutos para evitar consultas repetitivas al cambiar de vista
+    if (Date.now() - lastBackendSync < 120000 || isActive) {
+      return;
+    }
+    set({ lastBackendSync: Date.now() });
+
     try {
       const activeSession = await gymService.getActiveWorkoutSession();
       if (activeSession && activeSession.isActive) {

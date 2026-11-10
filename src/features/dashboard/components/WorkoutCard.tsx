@@ -10,6 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { gymService, Routine } from '../../../services/gym.service';
 import { Skeleton } from '../../../components/Skeleton';
 import { AppNavigationProp } from '../../../utils/navigation';
+import { useCarouselNavStore } from '../../../store/carouselNavStore';
 import { Dumbbell } from 'lucide-react-native';
 import { queryKeys } from '../../../services/queryKeys';
 
@@ -64,7 +65,7 @@ export const WorkoutCard = () => {
     if (isActive) {
       navigation.navigate('ActiveWorkout');
     } else {
-      navigation.navigate('Fit', { initialTab: 'gym' });
+      useCarouselNavStore.getState().navigateToTab('Fit', 'gym');
     }
   };
 
@@ -72,7 +73,7 @@ export const WorkoutCard = () => {
     if (isActive) {
       navigation.navigate('ActiveWorkout');
     } else if (todayRoutine) {
-      navigation.navigate('Fit', { initialTab: 'gym' });
+      useCarouselNavStore.getState().navigateToTab('Fit', 'gym');
     } else {
       navigation.navigate('CreateRoutine');
     }

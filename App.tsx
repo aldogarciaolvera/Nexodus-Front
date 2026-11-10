@@ -30,14 +30,14 @@ import { ActiveWorkoutScreen } from './src/features/gym/ActiveWorkoutScreen';
 import { DietScreen } from './src/features/diet/DietScreen';
 import { JournalScreen } from './src/features/journal/JournalScreen';
 import { CreateJournalEntryScreen } from './src/features/journal/CreateJournalEntryScreen';
+import { MainCarouselScreen } from './src/features/navigation/MainCarouselScreen';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
-import { RootStackParamList, RootTabParamList } from './src/utils/navigation';
+import { RootStackParamList } from './src/utils/navigation';
 import { setupNotificationChannel, requestNotificationPermissions } from './src/utils/notifications';
 import { requestCameraPermissions } from './src/utils/camera';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-const Tab = createBottomTabNavigator<RootTabParamList>();
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -50,18 +50,7 @@ const queryClient = new QueryClient({
 });
 
 function MainTabs() {
-  return (
-    <Tab.Navigator 
-      tabBar={(props) => <BottomNav {...props} />}
-      screenOptions={{ headerShown: false }}
-    >
-      <Tab.Screen name="Dashboard" component={DashboardScreen} />
-      <Tab.Screen name="Ideas" component={JournalScreen} />
-      <Tab.Screen name="Tasks" component={TasksScreen} />
-      <Tab.Screen name="Fit" component={FitScreen} />
-      <Tab.Screen name="Money" component={FinanceScreen} />
-    </Tab.Navigator>
-  );
+  return <MainCarouselScreen />;
 }
 
 function AppInner() {
