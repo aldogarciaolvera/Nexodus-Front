@@ -40,14 +40,15 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
   - **Carrusel Horizontal Unificado:** Reemplazo de la navegación aislada por un único carrusel horizontal nativo a 60 FPS (`ScrollView` con `pagingEnabled={true}`) que abarca las 7 vistas principales de la aplicación en secuencia fluida:
     `[0: Dashboard (Home) ↔ 1: Mis Ideas ↔ 2: Mi Diario ↔ 3: Tasks ↔ 4: Gym & Rutinas ↔ 5: Dieta & Macros ↔ 6: Finanzas]`.
   - **Desplazamiento Gestual Continuo y Scroll Vertical Independiente:** Deslizar horizontalmente transiciona de forma instantánea y natural entre cualquier pantalla contigua, mientras cada vista conserva su propio scroll vertical sin conflictos ni desmontajes.
-  - **Puntos de Navegación Minimalistas en Header (`Header.tsx`):**
+  - **Puntos de Navegación Minimalistas y Alineación Pixel-Perfect en Header (`Header.tsx`, `FitScreen.tsx`, `JournalScreen.tsx`):**
     - Se eliminaron las barras de cápsulas (`SwipeCapsuleIndicator`) para adoptar un diseño limpio y minimalista.
-    - Las secciones compuestas por submódulos (`Ideas ↔ Diario` y `Gym ↔ Dieta`) ahora muestran sutiles puntos indicadores (`● ○` / `○ ●`) directamente a un lado del título del encabezado.
-    - El punto activo adopta una píldora cian neón (`#00F0FF`, 14px), mientras el inactivo permanece como círculo discreto (`#222836`, 6px).
-    - Tocar los puntos navega suavemente entre las vistas hermanas.
-  - **Sincronización Bidireccional con Barra Inferior (`BottomNav.tsx` & `carouselNavStore.ts`):**
-    - La barra flotante `BottomNav` refleja de forma reactiva la pestaña correspondiente según la vista activa (resaltando `Home` en 0, `Ideas` en 1 y 2, `Tasks` en 3, `Fit` en 4 y 5, `Money` en 6).
-    - Pulsar cualquier icono de la barra inferior realiza un scroll animado directo a la página correspondiente.
+    - Las secciones compuestas por submódulos (`Ideas ↔ Diario` y `Gym ↔ Dieta`) ahora muestran sutiles puntos indicadores (`● ○` / `○ ●`) directamente a un lado del título del encabezado con centrado vertical exacto.
+    - El punto activo adopta una píldora cian neón (`#00F0FF`, 14px), mientras el inactivo permanece como círculo discreto (`#222836`, 6px), permitiendo tocar los puntos para alternar suavemente entre vistas hermanas.
+    - **Alineación Geométrica Universal:** Se unificó la ubicación del `<Header />` dentro del contenedor de desplazamiento con las mismas coordenadas estructurales (`paddingHorizontal: 20`, `paddingTop: Platform.OS === 'android' ? 24 : 12`), logrando que el título y el botón de perfil queden a la misma altura exacta y alineados al píxel respecto a Dashboard, Tasks y Finanzas al deslizar horizontalmente.
+  - **Sincronización y Latencia Cero en Barra Inferior (`BottomNav.tsx` & `carouselNavStore.ts`):**
+    - **Eliminación del Retardo Táctil (`delayPressIn={0}`):** Se eliminó el retraso nativo de 130ms de reconocimiento de pulsaciones en las pestañas de `BottomNav`, logrando que la selección y el brillo del icono activo respondan en 0ms al tocar.
+    - **Aislamiento de Render (`ConnectedBottomNav`):** Se desacopló la barra inferior en un componente memoizado independiente que no suscribe al contenedor principal del carrusel, impidiendo re-renderizados innecesarios de las 7 pantallas completas al alternar de pestaña.
+    - **Memoización de Pantallas y Flags de Desplazamiento Nativo:** Se aplicó `React.memo` a las 7 vistas principales y se añadieron propiedades de aceleración en el `ScrollView` (`directionalLockEnabled={true}`, `bounces={false}`, `overScrollMode="never"`, `keyboardShouldPersistTaps="handled"`), eliminando bloqueos en el hilo de JavaScript y garantizando un desplazamiento instantáneo a 60 FPS.
     - Las tarjetas interactivas del Dashboard (`DietCard`, `WorkoutCard`, `DailyTodoCard`, `IdeasCard`, `FinanceCard`) activan el deslizamiento animado del carrusel hacia su sección destino mediante `carouselNavStore.navigateToTab(...)`.
 
 - **Rediseño Estructural de Tarjeta de Dieta & Macros en Dashboard (`DietCard.tsx`):**

@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../utils/ThemeContext';
@@ -129,17 +130,17 @@ export const JournalScreen: React.FC<JournalScreenProps> = ({ mode = 'idea' }) =
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Header con puntos minimalistas de navegación */}
-        <Header 
-          title={isIdea ? 'Mis Ideas' : 'Mi Diario'} 
-          dots={{
-            total: 2,
-            active: isIdea ? 0 : 1,
-            onPressDot: (idx) => navigateToPage(idx === 0 ? 1 : 2),
-          }}
-        />
-
         <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+          {/* Header con puntos minimalistas de navegación dentro del ScrollView a la misma altura que Dashboard */}
+          <Header 
+            title={isIdea ? 'Mis Ideas' : 'Mi Diario'} 
+            dots={{
+              total: 2,
+              active: isIdea ? 0 : 1,
+              onPressDot: (idx) => navigateToPage(idx === 0 ? 1 : 2),
+            }}
+          />
+
           {isIdea ? (
             /* Vista Mis Ideas */
             isLoading ? (
@@ -306,7 +307,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   scrollContainer: {
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: Platform.OS === 'android' ? 24 : 12,
     paddingBottom: 100,
   },
   emptyText: {

@@ -41,21 +41,21 @@ export const FitScreen: React.FC<FitScreenProps> = ({ mode, initialTab }) => {
           style={{ flex: 1 }} 
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          {/* Header con puntos minimalistas de navegación */}
-          <Header 
-            title={isGym ? 'Gym & Rutinas' : 'Dieta & Macros'} 
-            dots={{
-              total: 2,
-              active: isGym ? 0 : 1,
-              onPressDot: (idx) => navigateToPage(idx === 0 ? 4 : 5),
-            }}
-          />
-
           <ScrollView
             contentContainerStyle={styles.scrollContainer}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
+            {/* Header posicionado idénticamente a Dashboard */}
+            <Header 
+              title={isGym ? 'Gym & Rutinas' : 'Dieta & Macros'} 
+              dots={{
+                total: 2,
+                active: isGym ? 0 : 1,
+                onPressDot: (idx) => navigateToPage(idx === 0 ? 4 : 5),
+              }}
+            />
+
             {isGym ? <GymView /> : <DietView />}
             <View style={{ height: 100 }} />
           </ScrollView>
@@ -90,7 +90,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   scrollContainer: {
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'android' ? 8 : 4,
+    paddingTop: Platform.OS === 'android' ? 24 : 12,
     paddingBottom: 100,
   },
   fab: {

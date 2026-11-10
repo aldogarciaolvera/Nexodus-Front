@@ -42,7 +42,7 @@ export const Header = ({ title = "Nexodus", dots }: HeaderProps) => {
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <View style={styles.titleWithDots}>
-          <Text style={styles.welcomeText}>{title}</Text>
+          <Text style={styles.welcomeText} numberOfLines={1}>{title}</Text>
           {dots && dots.total > 1 && (
             <View style={styles.dotsRow}>
               {Array.from({ length: dots.total }).map((_, idx) => {
@@ -112,15 +112,14 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   titleWithDots: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    flexShrink: 1,
+    gap: 8,
+    flex: 1,
+    marginRight: 8,
   },
   dotsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingLeft: 2,
-    paddingTop: 4,
   },
   dot: {
     height: 6,

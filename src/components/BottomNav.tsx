@@ -93,7 +93,8 @@ export const BottomNav = ({ state, descriptors, navigation, activeTab, onTabPres
                 <TouchableOpacity 
                   key={routeKey}
                   style={styles.tabItem} 
-                  activeOpacity={0.7}
+                  activeOpacity={0.6}
+                  delayPressIn={0}
                   onPress={() => onTabPress(routeKey)}
                   accessibilityRole="tab"
                   accessibilityState={{ selected: isFocused }}
@@ -145,7 +146,8 @@ export const BottomNav = ({ state, descriptors, navigation, activeTab, onTabPres
               <TouchableOpacity 
                 key={route.key}
                 style={styles.tabItem} 
-                activeOpacity={0.7}
+                activeOpacity={0.6}
+                delayPressIn={0}
                 onPress={onPress}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: isFocused }}

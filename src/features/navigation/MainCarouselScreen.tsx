@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import {
   View,
   ScrollView,
@@ -19,18 +19,36 @@ import { TasksScreen } from '../tasks/TasksScreen';
 import { FitScreen } from '../fit/FitScreen';
 import { FinanceScreen } from '../finance/FinanceScreen';
 
+// Componentes memoizados para evitar renders innecesarios durante el swipe y selección de tabs
+const MemoDashboard = React.memo(DashboardScreen);
+const MemoIdeas = React.memo(() => <JournalScreen mode="idea" />);
+const MemoDiario = React.memo(() => <JournalScreen mode="diario" />);
+const MemoTasks = React.memo(TasksScreen);
+const MemoGym = React.memo(() => <FitScreen mode="gym" />);
+const MemoDiet = React.memo(() => <FitScreen mode="diet" />);
+const MemoFinance = React.memo(FinanceScreen);
+
+// Componente aislado de la barra inferior para que solo ella se re-renderice al cambiar de pestaña
+const ConnectedBottomNav = React.memo(() => {
+  const activeTab = useCarouselNavStore((s) => s.activeTab);
+  const navigateToTab = useCarouselNavStore((s) => s.navigateToTab);
+
+  return (
+    <BottomNav
+      activeTab={activeTab}
+      onTabPress={navigateToTab}
+    />
+  );
+});
+
 export const MainCarouselScreen = () => {
   const theme = useTheme();
   const route = useRoute();
   const { width: screenWidth } = useWindowDimensions();
   const pagerRef = useRef<React.ElementRef<typeof ScrollView>>(null);
 
-  const {
-    activeTab,
-    setCurrentPage,
-    setScrollToPageFn,
-    navigateToTab,
-  } = useCarouselNavStore();
+  const setCurrentPage = useCarouselNavStore((s) => s.setCurrentPage);
+  const setScrollToPageFn = useCarouselNavStore((s) => s.setScrollToPageFn);
 
   // Registrar la función imperativa de scroll en el store global
   useEffect(() => {
@@ -45,72 +63,74 @@ export const MainCarouselScreen = () => {
   useEffect(() => {
     if (route.params) {
       const p = route.params as any;
+      const navFn = useCarouselNavStore.getState().navigateToTab;
       if (p.screen) {
-        navigateToTab(p.screen, p.params?.initialTab);
+        navFn(p.screen, p.params?.initialTab);
       } else if (p.initialTab) {
-        navigateToTab('Fit', p.initialTab);
+        navFn('Fit', p.initialTab);
       }
     }
-  }, [route.params, navigateToTab]);
+  }, [route.params]);
 
-  const handleMomentumScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+  const handleMomentumScrollEnd = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const page = Math.round(e.nativeEvent.contentOffset.x / screenWidth);
     setCurrentPage(page);
-  };
+  }, [screenWidth, setCurrentPage]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.obsidian }]}>
-      {/* Carrusel Horizontal Unificado de 7 Vistas */}
+      {/* Carrusel Horizontal Unificado de 7 Vistas con rendimiento ultra optimizado */}
       <ScrollView
         ref={pagerRef}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         scrollEventThrottle={16}
+        directionalLockEnabled={true}
+        bounces={false}
+        overScrollMode="never"
+        keyboardShouldPersistTaps="handled"
         onMomentumScrollEnd={handleMomentumScrollEnd}
         style={styles.pager}
       >
         {/* Página 0: Home (Dashboard) */}
         <View style={{ width: screenWidth, flex: 1 }}>
-          <DashboardScreen />
+          <MemoDashboard />
         </View>
 
         {/* Página 1: Mis Ideas */}
         <View style={{ width: screenWidth, flex: 1 }}>
-          <JournalScreen mode="idea" />
+          <MemoIdeas />
         </View>
 
         {/* Página 2: Mi Diario */}
         <View style={{ width: screenWidth, flex: 1 }}>
-          <JournalScreen mode="diario" />
+          <MemoDiario />
         </View>
 
         {/* Página 3: Tasks */}
         <View style={{ width: screenWidth, flex: 1 }}>
-          <TasksScreen />
+          <MemoTasks />
         </View>
 
         {/* Página 4: Gym & Rutinas */}
         <View style={{ width: screenWidth, flex: 1 }}>
-          <FitScreen mode="gym" />
+          <MemoGym />
         </View>
 
         {/* Página 5: Dieta & Macros */}
         <View style={{ width: screenWidth, flex: 1 }}>
-          <FitScreen mode="diet" />
+          <MemoDiet />
         </View>
 
         {/* Página 6: Finanzas */}
         <View style={{ width: screenWidth, flex: 1 }}>
-          <FinanceScreen />
+          <MemoFinance />
         </View>
       </ScrollView>
 
-      {/* Barra de Navegación Inferior Flotante */}
-      <BottomNav
-        activeTab={activeTab}
-        onTabPress={(tab) => navigateToTab(tab)}
-      />
+      {/* Barra de Navegación Inferior Flotante Aislada */}
+      <ConnectedBottomNav />
     </View>
   );
 };
@@ -123,4 +143,3 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
-

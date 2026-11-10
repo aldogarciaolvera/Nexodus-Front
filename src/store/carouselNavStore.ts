@@ -61,7 +61,7 @@ export const useCarouselNavStore = create<CarouselNavState>((set, get) => ({
   },
   navigateToTab: (tab: MainTabName, subTab?: string) => {
     let targetPage = 0;
-    const { lastIdeasPage, lastFitPage } = get();
+    const { currentPage, activeTab, lastIdeasPage, lastFitPage } = get();
 
     if (tab === 'Dashboard') {
       targetPage = 0;
@@ -74,6 +74,8 @@ export const useCarouselNavStore = create<CarouselNavState>((set, get) => ({
     } else if (tab === 'Money') {
       targetPage = 6;
     }
+
+    if (targetPage === currentPage && activeTab === tab) return;
 
     get().navigateToPage(targetPage, true);
   },
