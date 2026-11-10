@@ -9,10 +9,11 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, Search, ScanBarcode, Plus, Utensils, Check, Camera } from 'lucide-react-native';
-import { useQuery } from '@tanstack/react-query';
+import { X, Search, ScanBarcode, Plus, Utensils, Check, Camera, Pencil, Scale } from 'lucide-react-native';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
 import { dietService, Food } from '../../../services/diet.service';
@@ -37,6 +38,16 @@ const normalizeText = (text: string) =>
     .toLowerCase()
     .trim();
 
+// Genera una clave canónica única por alimento (código de barras o nombre normalizado + marca)
+const getFoodKey = (f: Partial<Food>): string => {
+  if (f.barcode && f.barcode.trim()) {
+    return `barcode:${f.barcode.trim().toLowerCase()}`;
+  }
+  const normName = normalizeText(f.name || '');
+  const normBrand = normalizeText(f.brand || '');
+  return `name:${normName}::brand:${normBrand}`;
+};
+
 export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
   visible,
   onClose,
@@ -46,6 +57,7 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
   const styles = createStyles(theme.colors);
   const insets = useSafeAreaInsets();
   const showAlert = useAlertStore((state) => state.showAlert);
+  const queryClient = useQueryClient();
 
   const [query, setQuery] = useState('');
   const [isBarcodeSearch, setIsBarcodeSearch] = useState(false);
@@ -66,6 +78,26 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
   // Alimento seleccionado para confirmar porción
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [quantity, setQuantity] = useState('100');
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Consulta optimizada del catálogo general de alimentos de la BD con React Query
   const { data: catalogFoods = [], isLoading: isLoadingCatalog } = useQuery({
@@ -79,21 +111,27 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
     gcTime: 15 * 60 * 1000,
   });
 
-  // Consolidar catálogo completo deduplicando por ID o nombre
+  // Consolidar catálogo completo deduplicando por código de barras o nombre normalizado
   const allAvailableFoods = useMemo(() => {
     const map = new Map<string, Food>();
 
-    // Primero los añadidos en la sesión para que aparezcan arriba
+    // 1. Primero los añadidos/editados en la sesión activa (máxima prioridad)
     customAddedFoods.forEach((item) => {
-      const key = item.id || item.name.toLowerCase();
+      const key = getFoodKey(item);
       map.set(key, item);
     });
 
-    // Luego los alimentos del catálogo de la BD
+    // 2. Luego los alimentos del catálogo general de la BD
     catalogFoods.forEach((item) => {
-      const key = item.id || item.name.toLowerCase();
+      const key = getFoodKey(item);
       if (!map.has(key)) {
         map.set(key, item);
+      } else {
+        const existing = map.get(key)!;
+        // Si el que estaba registrado no es personalizado y este sí lo es, priorizamos el personalizado
+        if (!existing.isCustom && item.isCustom) {
+          map.set(key, item);
+        }
       }
     });
 
@@ -127,9 +165,9 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
         const res = await dietService.searchFoods(trimmed, 1, 30);
         if (res.items && res.items.length > 0) {
           setCustomAddedFoods((prev) => {
-            const existingKeys = new Set(prev.map((p) => p.id || p.name.toLowerCase()));
+            const existingKeys = new Set(prev.map(getFoodKey));
             const toAdd = res.items.filter(
-              (item) => !existingKeys.has(item.id || item.name.toLowerCase())
+              (item) => !existingKeys.has(getFoodKey(item))
             );
             return toAdd.length > 0 ? [...toAdd, ...prev] : prev;
           });
@@ -171,8 +209,7 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
   // Verificación y alternancia de selección (marcar / desmarcar)
   const isItemSelected = (item: Food) => {
     if (!selectedFood) return false;
-    if (selectedFood.id && item.id) return selectedFood.id === item.id;
-    return selectedFood.name.toLowerCase() === item.name.toLowerCase();
+    return getFoodKey(selectedFood) === getFoodKey(item);
   };
 
   const handleToggleSelect = (item: Food) => {
@@ -182,8 +219,29 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
     } else {
       // Si no estaba seleccionado, se marca y se asigna su porción base
       setSelectedFood(item);
-      setQuantity(item.servingSize?.toString() || '100');
+      setQuantity(item.servingSize != null ? String(item.servingSize) : '100');
     }
+  };
+
+  // Abrir modal de edición para modificar datos o porción del alimento
+  const handleEditFood = (item: Food) => {
+    setOpenFoodFactsData({
+      id: item.id,
+      name: item.name,
+      brand: item.brand,
+      barcode: item.barcode,
+      categoryId: item.categoryId,
+      category: item.category,
+      servingSize: item.servingSize != null ? Number(item.servingSize) : 100,
+      servingUnit: item.servingUnit || 'g',
+      calories: item.calories != null ? Number(item.calories) : 0,
+      protein: item.protein != null ? Number(item.protein) : 0,
+      carbs: item.carbs != null ? Number(item.carbs) : 0,
+      fat: item.fat != null ? Number(item.fat) : 0,
+      sodiumMg: item.sodiumMg != null ? Number(item.sodiumMg) : undefined,
+      potassiumMg: item.potassiumMg != null ? Number(item.potassiumMg) : undefined,
+    });
+    setShowCreateModal(true);
   };
 
   // Consulta por código de barras
@@ -196,14 +254,25 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
 
     setBarcodeQuery(cleanCode);
 
+    // Helper para verificar si un alimento cuenta con datos nutricionales reales (no todo en 0 o vacío)
+    const hasValidNutrition = (f: { calories?: number; protein?: number; carbs?: number; fat?: number }) => {
+      const c = f.calories ?? 0;
+      const p = f.protein ?? 0;
+      const cb = f.carbs ?? 0;
+      const ft = f.fat ?? 0;
+      return c > 0 || p > 0 || cb > 0 || ft > 0;
+    };
+
     // 1. Caché local en memoria
     if (barcodeCacheRef.current.has(cleanCode)) {
       const cached = barcodeCacheRef.current.get(cleanCode)!;
-      setBarcodeFoods([cached]);
-      setSelectedFood(cached);
-      setQuantity(cached.servingSize?.toString() || '100');
-      showAlert('Alimento Encontrado', `Se encontró "${cached.name}".`, 'success');
-      return;
+      if (hasValidNutrition(cached)) {
+        setBarcodeFoods([cached]);
+        setSelectedFood(cached);
+        setQuantity(cached.servingSize != null ? String(cached.servingSize) : '100');
+        showAlert('Alimento Encontrado', `Se encontró "${cached.name}".`, 'success');
+        return;
+      }
     }
 
     try {
@@ -211,32 +280,80 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
 
       // 2. Buscar en la BD interna
       const food = await dietService.getFoodByBarcode(cleanCode);
-      if (food) {
+
+      // Si existe en la BD y tiene macronutrientes válidos, se agrega y selecciona directamente
+      if (food && hasValidNutrition(food)) {
         barcodeCacheRef.current.set(cleanCode, food);
         setBarcodeFoods([food]);
-        setCustomAddedFoods((prev) => [food, ...prev]);
+        const foodKey = getFoodKey(food);
+        setCustomAddedFoods((prev) => [food, ...prev.filter((p) => getFoodKey(p) !== foodKey)]);
         setSelectedFood(food);
-        setQuantity(food.servingSize?.toString() || '100');
+        setQuantity(food.servingSize != null ? String(food.servingSize) : '100');
         showAlert('Alimento Encontrado', `Se encontró "${food.name}".`, 'success');
         return;
       }
 
-      // 3. Consultar Open Food Facts
+      // Si no existe en la BD, o si la BD devolvió un registro con datos vacíos/en cero (ej. Clorets)
+      // Consultamos Open Food Facts para obtener la información disponible
       const offProduct = await openFoodFactsService.fetchByBarcode(cleanCode);
-      if (offProduct) {
-        setOpenFoodFactsData(offProduct);
-        setShowCreateModal(true);
+
+      const baseName = food?.name || offProduct?.name || 'Alimento Escaneado';
+      const baseBrand = food?.brand || offProduct?.brand;
+      const baseServingSize = food?.servingSize != null ? Number(food.servingSize) : (offProduct?.servingSize != null ? Number(offProduct.servingSize) : 100);
+      const baseServingUnit = food?.servingUnit || offProduct?.servingUnit || 'g';
+
+      const offHasNutrition = offProduct ? hasValidNutrition(offProduct) : false;
+      const calories = offHasNutrition
+        ? offProduct!.calories
+        : food?.calories && food.calories > 0
+        ? food.calories
+        : undefined;
+      const protein = offHasNutrition
+        ? offProduct!.protein
+        : food?.protein && food.protein > 0
+        ? food.protein
+        : undefined;
+      const carbs = offHasNutrition
+        ? offProduct!.carbs
+        : food?.carbs && food.carbs > 0
+        ? food.carbs
+        : undefined;
+      const fat = offHasNutrition
+        ? offProduct!.fat
+        : food?.fat && food.fat > 0
+        ? food.fat
+        : undefined;
+      const sodiumMg = offProduct?.sodiumMg ?? (food?.sodiumMg != null ? food.sodiumMg : undefined);
+      const potassiumMg = offProduct?.potassiumMg ?? (food?.potassiumMg != null ? food.potassiumMg : undefined);
+
+      const prefilledData: InitialFoodData = {
+        id: food?.id,
+        name: baseName,
+        brand: baseBrand,
+        barcode: cleanCode,
+        servingSize: baseServingSize,
+        servingUnit: baseServingUnit,
+        calories,
+        protein,
+        carbs,
+        fat,
+        sodiumMg,
+        potassiumMg,
+      };
+
+      setOpenFoodFactsData(prefilledData);
+      setShowCreateModal(true);
+
+      if (calories !== undefined && calories > 0) {
         showAlert(
-          'Alimento en Open Food Facts',
-          `Se encontraron los datos de "${offProduct.name}". Revisa los datos y guarda el alimento en tu catálogo.`,
+          'Revisa y Guarda',
+          `Se obtuvieron los datos de "${baseName}". Verifica los macronutrientes y guarda el alimento.`,
           'info'
         );
       } else {
-        setOpenFoodFactsData(null);
-        setShowCreateModal(true);
         showAlert(
-          'Código no registrado',
-          'El alimento no se encontró en la base de datos ni en Open Food Facts. Puedes registrarlo manualmente.',
+          'Datos Incompletos en API',
+          `Se detectó "${baseName}", pero la API no contiene sus calorías ni macronutrientes. Ingresa los datos de la etiqueta para registrarlo con exactitud.`,
           'info'
         );
       }
@@ -253,6 +370,97 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
     onSelectFood(selectedFood, qty);
     setSelectedFood(null);
     onClose();
+  };
+
+  const renderFoodItem = ({ item }: { item: Food }) => {
+    const selected = isItemSelected(item);
+    const qtyNum = selected ? parseFloat(quantity) || item.servingSize || 100 : item.servingSize || 100;
+    const ratio = selected ? qtyNum / (item.servingSize || 100) : 1;
+    const displayCalories = Math.round(item.calories * ratio);
+    const displayProtein = Math.round(item.protein * ratio * 10) / 10;
+    const displayCarbs = Math.round(item.carbs * ratio * 10) / 10;
+    const displayFat = Math.round(item.fat * ratio * 10) / 10;
+
+    return (
+      <TouchableOpacity
+        style={[styles.foodCard, selected && styles.foodCardSelected]}
+        onPress={() => handleToggleSelect(item)}
+        onLongPress={() => handleEditFood(item)}
+        delayLongPress={400}
+        activeOpacity={0.7}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: selected }}
+        accessibilityLabel={`${item.name}, ${displayCalories} calorías`}
+        accessibilityHint="Mantén presionado para editar este alimento"
+      >
+        <View style={{ flex: 1 }}>
+          <View style={styles.foodTitleRow}>
+            <Text style={styles.foodName}>{item.name}</Text>
+            {item.brand ? <Text style={styles.foodBrand}>• {item.brand}</Text> : null}
+            {item.category ? (
+              <View style={styles.cardCategoryBadge}>
+                <Text style={styles.cardCategoryBadgeText}>{item.category}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          <View style={styles.servingRow}>
+            <Text style={[styles.foodServing, selected && styles.foodServingActive]}>
+              {selected
+                ? `Porción seleccionada: ${quantity || item.servingSize} ${item.servingUnit}`
+                : `Porción base: ${item.servingSize} ${item.servingUnit}`}
+            </Text>
+            <TouchableOpacity
+              style={styles.cardEditPill}
+              onPress={() => handleEditFood(item)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel={`Editar ${item.name}`}
+            >
+              <Pencil size={11} color={theme.colors.mutedText} />
+              <Text style={styles.cardEditPillText}>Editar</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.macroPillsRow}>
+            <View style={[styles.macroPill, selected && styles.macroPillSelected]}>
+              <Text style={[styles.macroPillText, selected && { color: theme.colors.neonCyan }]}>
+                {displayCalories} kcal
+              </Text>
+            </View>
+            <View style={[styles.macroPill, { borderColor: 'rgba(56, 189, 248, 0.3)' }]}>
+              <Text style={[styles.macroPillText, { color: theme.colors.neonCyan }]}>
+                P: {displayProtein}g
+              </Text>
+            </View>
+            <View style={[styles.macroPill, { borderColor: 'rgba(234, 179, 8, 0.3)' }]}>
+              <Text style={[styles.macroPillText, { color: theme.colors.warning }]}>
+                C: {displayCarbs}g
+              </Text>
+            </View>
+            <View style={styles.macroPill}>
+              <Text style={[styles.macroPillText, { color: theme.colors.mutedText }]}>
+                G: {displayFat}g
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.selectIndicator, selected && styles.selectIndicatorActive]}
+          onPress={() => handleToggleSelect(item)}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel={selected ? `Desmarcar ${item.name}` : `Marcar ${item.name}`}
+        >
+          {selected ? (
+            <Check size={14} color={theme.colors.obsidian} />
+          ) : (
+            <Plus size={14} color={theme.colors.mutedText} />
+          )}
+        </TouchableOpacity>
+      </TouchableOpacity>
+    );
   };
 
   if (!visible) return null;
@@ -298,7 +506,14 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
 
             <TouchableOpacity
               style={[styles.modeTab, isBarcodeSearch && styles.modeTabActive]}
-              onPress={() => setIsBarcodeSearch(true)}
+              onPress={() => {
+                setIsBarcodeSearch(true);
+                if (!barcodeQuery.trim()) {
+                  setBarcodeFoods([]);
+                } else if (barcodeFoods.length > 0 && barcodeFoods[0].barcode !== barcodeQuery.trim()) {
+                  setBarcodeFoods([]);
+                }
+              }}
               accessibilityRole="tab"
               accessibilityState={{ selected: isBarcodeSearch }}
             >
@@ -334,10 +549,15 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
                 <ScanBarcode size={16} color={theme.colors.neonCyan} />
                 <TextInput
                   style={styles.searchInput}
-                  placeholder="Ingresa código o escanea con cámara"
+                  placeholder="Ingresa el código"
                   placeholderTextColor={theme.colors.mutedText}
                   value={barcodeQuery}
-                  onChangeText={setBarcodeQuery}
+                  onChangeText={(text) => {
+                    setBarcodeQuery(text);
+                    if (!text.trim()) {
+                      setBarcodeFoods([]);
+                    }
+                  }}
                   keyboardType="numeric"
                   accessibilityLabel="Buscar por código de barras"
                   returnKeyType="search"
@@ -347,15 +567,6 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
                     }
                   }}
                 />
-                <TouchableOpacity
-                  style={styles.cameraIconBtn}
-                  onPress={handleOpenScanner}
-                  accessibilityRole="button"
-                  accessibilityLabel="Abrir cámara para escanear código de barras"
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Camera size={18} color={theme.colors.neonCyan} />
-                </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.searchActionBtn}
                   onPress={() => {
@@ -399,12 +610,25 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
               ) : (
                 <FlatList
                   data={barcodeFoods}
-                  keyExtractor={(item, index) => item.id || item.barcode || index.toString()}
+                  keyExtractor={(item, index) => item.id || getFoodKey(item) || index.toString()}
                   contentContainerStyle={styles.listContent}
                   showsVerticalScrollIndicator={false}
                   keyboardShouldPersistTaps="handled"
                   keyboardDismissMode="on-drag"
-                  extraData={selectedFood?.id || selectedFood?.name}
+                  extraData={{ selectedKey: selectedFood ? getFoodKey(selectedFood) : null, quantity }}
+                  ListHeaderComponent={
+                    barcodeFoods.length > 0 ? (
+                      <View style={styles.portionNoticeCard}>
+                        <View style={styles.portionNoticeHeader}>
+                          <Scale size={13} color={theme.colors.neonCyan} />
+                          <Text style={styles.portionNoticeTitle}>AJUSTE Y CÁLCULO DE PORCIÓN</Text>
+                        </View>
+                        <Text style={styles.portionNoticeText}>
+                          Al seleccionar el alimento puedes cambiar los gramos o porción a consumir; las calorías y macronutrientes se calcularán automáticamente según la cantidad que ingreses.
+                        </Text>
+                      </View>
+                    ) : undefined
+                  }
                   ListEmptyComponent={
                     <View style={styles.emptyContainer}>
                       <ScanBarcode size={32} color={theme.colors.slate600} />
@@ -414,65 +638,7 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
                       </Text>
                     </View>
                   }
-                  renderItem={({ item }) => {
-                    const selected = isItemSelected(item);
-                    return (
-                      <TouchableOpacity
-                        style={[styles.foodCard, selected && styles.foodCardSelected]}
-                        onPress={() => handleToggleSelect(item)}
-                        activeOpacity={0.7}
-                        accessibilityRole="checkbox"
-                        accessibilityState={{ checked: selected }}
-                        accessibilityLabel={`${item.name}, ${item.calories} calorías`}
-                      >
-                        <View style={{ flex: 1 }}>
-                          <View style={styles.foodTitleRow}>
-                            <Text style={styles.foodName}>{item.name}</Text>
-                            {item.brand ? <Text style={styles.foodBrand}>• {item.brand}</Text> : null}
-                          </View>
-
-                          <Text style={styles.foodServing}>
-                            Porción: {item.servingSize} {item.servingUnit}
-                          </Text>
-
-                          <View style={styles.macroPillsRow}>
-                            <View style={styles.macroPill}>
-                              <Text style={styles.macroPillText}>{item.calories} kcal</Text>
-                            </View>
-                            <View style={[styles.macroPill, { borderColor: 'rgba(56, 189, 248, 0.3)' }]}>
-                              <Text style={[styles.macroPillText, { color: theme.colors.neonCyan }]}>
-                                P: {item.protein}g
-                              </Text>
-                            </View>
-                            <View style={[styles.macroPill, { borderColor: 'rgba(234, 179, 8, 0.3)' }]}>
-                              <Text style={[styles.macroPillText, { color: theme.colors.warning }]}>
-                                C: {item.carbs}g
-                              </Text>
-                            </View>
-                            <View style={styles.macroPill}>
-                              <Text style={[styles.macroPillText, { color: theme.colors.mutedText }]}>
-                                G: {item.fat}g
-                              </Text>
-                            </View>
-                          </View>
-                        </View>
-
-                        <TouchableOpacity
-                          style={[styles.selectIndicator, selected && styles.selectIndicatorActive]}
-                          onPress={() => handleToggleSelect(item)}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          accessibilityRole="button"
-                          accessibilityLabel={selected ? `Desmarcar ${item.name}` : `Marcar ${item.name}`}
-                        >
-                          {selected ? (
-                            <Check size={14} color={theme.colors.obsidian} />
-                          ) : (
-                            <Plus size={14} color={theme.colors.mutedText} />
-                          )}
-                        </TouchableOpacity>
-                      </TouchableOpacity>
-                    );
-                  }}
+                  renderItem={renderFoodItem}
                 />
               )
             ) : isLoadingCatalog && allAvailableFoods.length === 0 ? (
@@ -485,7 +651,7 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
             ) : (
               <FlatList
                 data={filteredNameFoods}
-                keyExtractor={(item, index) => item.id || item.barcode || `${item.name}-${index}`}
+                keyExtractor={(item, index) => item.id || getFoodKey(item) || `${item.name}-${index}`}
                 contentContainerStyle={styles.listContent}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
@@ -493,13 +659,25 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
                 initialNumToRender={12}
                 maxToRenderPerBatch={10}
                 windowSize={5}
-                extraData={selectedFood?.id || selectedFood?.name}
+                extraData={{ selectedKey: selectedFood ? getFoodKey(selectedFood) : null, quantity }}
                 ListHeaderComponent={
-                  <View style={styles.resultsHeader}>
-                    <Text style={styles.resultsCount}>
-                      {filteredNameFoods.length}{' '}
-                      {filteredNameFoods.length === 1 ? 'ALIMENTO DISPONIBLE' : 'ALIMENTOS DISPONIBLES'}
-                    </Text>
+                  <View>
+                    <View style={styles.portionNoticeCard}>
+                      <View style={styles.portionNoticeHeader}>
+                        <Scale size={13} color={theme.colors.neonCyan} />
+                        <Text style={styles.portionNoticeTitle}>AJUSTE Y CÁLCULO DE PORCIÓN</Text>
+                      </View>
+                      <Text style={styles.portionNoticeText}>
+                        Puedes seleccionar cualquier alimento y cambiar su porción en gramos o mililitros; sus calorías y macronutrientes se calcularán automáticamente según la cantidad que tomes. Para modificar la porción base de forma permanente, mantén presionado el alimento o toca "Editar".
+                      </Text>
+                    </View>
+
+                    <View style={styles.resultsHeaderRow}>
+                      <Text style={styles.resultsCount}>
+                        {filteredNameFoods.length}{' '}
+                        {filteredNameFoods.length === 1 ? 'ALIMENTO DISPONIBLE' : 'ALIMENTOS DISPONIBLES'}
+                      </Text>
+                    </View>
                   </View>
                 }
                 ListEmptyComponent={
@@ -513,72 +691,24 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
                     </Text>
                   </View>
                 }
-                renderItem={({ item }) => {
-                  const selected = isItemSelected(item);
-                  return (
-                    <TouchableOpacity
-                      style={[styles.foodCard, selected && styles.foodCardSelected]}
-                      onPress={() => handleToggleSelect(item)}
-                      activeOpacity={0.7}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: selected }}
-                      accessibilityLabel={`${item.name}, ${item.calories} calorías`}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <View style={styles.foodTitleRow}>
-                          <Text style={styles.foodName}>{item.name}</Text>
-                          {item.brand ? <Text style={styles.foodBrand}>• {item.brand}</Text> : null}
-                        </View>
-
-                        <Text style={styles.foodServing}>
-                          Porción: {item.servingSize} {item.servingUnit}
-                        </Text>
-
-                        <View style={styles.macroPillsRow}>
-                          <View style={styles.macroPill}>
-                            <Text style={styles.macroPillText}>{item.calories} kcal</Text>
-                          </View>
-                          <View style={[styles.macroPill, { borderColor: 'rgba(56, 189, 248, 0.3)' }]}>
-                            <Text style={[styles.macroPillText, { color: theme.colors.neonCyan }]}>
-                              P: {item.protein}g
-                            </Text>
-                          </View>
-                          <View style={[styles.macroPill, { borderColor: 'rgba(234, 179, 8, 0.3)' }]}>
-                            <Text style={[styles.macroPillText, { color: theme.colors.warning }]}>
-                              C: {item.carbs}g
-                            </Text>
-                          </View>
-                          <View style={styles.macroPill}>
-                            <Text style={[styles.macroPillText, { color: theme.colors.mutedText }]}>
-                              G: {item.fat}g
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
-
-                      <TouchableOpacity
-                        style={[styles.selectIndicator, selected && styles.selectIndicatorActive]}
-                        onPress={() => handleToggleSelect(item)}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        accessibilityRole="button"
-                        accessibilityLabel={selected ? `Desmarcar ${item.name}` : `Marcar ${item.name}`}
-                      >
-                        {selected ? (
-                          <Check size={14} color={theme.colors.obsidian} />
-                        ) : (
-                          <Plus size={14} color={theme.colors.mutedText} />
-                        )}
-                      </TouchableOpacity>
-                    </TouchableOpacity>
-                  );
-                }}
+                renderItem={renderFoodItem}
               />
             )}
           </View>
 
           {/* Quantity Confirmation Footer */}
           {selectedFood && (
-            <View style={[styles.footerSheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+            <View
+              style={[
+                styles.footerSheet,
+                {
+                  paddingBottom:
+                    Platform.OS === 'android'
+                      ? (keyboardHeight > 0 ? keyboardHeight + 12 : Math.max(insets.bottom, 16))
+                      : (keyboardHeight > 0 ? 12 : Math.max(insets.bottom, 16)),
+                },
+              ]}
+            >
               <View style={styles.footerTop}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.footerFoodName} numberOfLines={1}>
@@ -590,17 +720,20 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
                   </Text>
                 </View>
 
-                <View style={styles.qtyBox}>
-                  <TextInput
-                    style={styles.qtyInput}
-                    value={quantity}
-                    onChangeText={setQuantity}
-                    keyboardType="decimal-pad"
-                    selectTextOnFocus={true}
-                    returnKeyType="done"
-                    accessibilityLabel="Cantidad a consumir"
-                  />
-                  <Text style={styles.qtyUnit}>{selectedFood.servingUnit}</Text>
+                <View style={styles.qtyContainer}>
+                  <Text style={styles.qtyLabel}>CANTIDAD A CONSUMIR</Text>
+                  <View style={styles.qtyBox}>
+                    <TextInput
+                      style={styles.qtyInput}
+                      value={quantity}
+                      onChangeText={setQuantity}
+                      keyboardType="numeric"
+                      selectTextOnFocus={true}
+                      returnKeyType="done"
+                      accessibilityLabel="Cantidad a consumir"
+                    />
+                    <Text style={styles.qtyUnit}>{selectedFood.servingUnit}</Text>
+                  </View>
                 </View>
               </View>
 
@@ -615,16 +748,34 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
 
                 return (
                   <View style={styles.footerSummaryRow}>
-                    <Text style={styles.footerSummaryText}>
-                      {totalKcal} kcal • P: {totalP}g C: {totalC}g G: {totalF}g
-                    </Text>
+                    <View style={styles.footerMacroPills}>
+                      <View style={styles.footerMacroBadgeKcal}>
+                        <Text style={styles.footerMacroKcalText}>{totalKcal} kcal</Text>
+                      </View>
+                      <View style={styles.footerMacroBadge}>
+                        <Text style={[styles.footerMacroBadgeText, { color: theme.colors.neonCyan }]}>
+                          P: {totalP}g
+                        </Text>
+                      </View>
+                      <View style={styles.footerMacroBadge}>
+                        <Text style={[styles.footerMacroBadgeText, { color: theme.colors.warning }]}>
+                          C: {totalC}g
+                        </Text>
+                      </View>
+                      <View style={styles.footerMacroBadge}>
+                        <Text style={[styles.footerMacroBadgeText, { color: theme.colors.mutedText }]}>
+                          G: {totalF}g
+                        </Text>
+                      </View>
+                    </View>
+
                     <TouchableOpacity
                       style={styles.confirmSelectBtn}
                       onPress={handleConfirmSelect}
                       accessibilityRole="button"
-                      accessibilityLabel="Añadir a la comida"
+                      accessibilityLabel={`Añadir ${selectedFood.name} a la comida`}
                     >
-                      <Text style={styles.confirmSelectBtnText}>Añadir</Text>
+                      <Text style={styles.confirmSelectBtnText}>Añadir ({totalKcal} kcal)</Text>
                     </TouchableOpacity>
                   </View>
                 );
@@ -640,16 +791,23 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
             setShowCreateModal(false);
             setOpenFoodFactsData(null);
           }}
-          initialBarcode={barcodeQuery}
+          initialBarcode={isBarcodeSearch ? barcodeQuery : undefined}
           initialData={openFoodFactsData}
           onFoodCreated={(created) => {
-            setCustomAddedFoods((prev) => [created, ...prev]);
+            const key = getFoodKey(created);
+            setCustomAddedFoods((prev) => {
+              const filtered = prev.filter((f) => getFoodKey(f) !== key);
+              return [created, ...filtered];
+            });
             if (created.barcode) {
               barcodeCacheRef.current.set(created.barcode, created);
-              setBarcodeFoods((prev) => [created, ...prev]);
+              if (isBarcodeSearch && barcodeQuery.trim() === created.barcode) {
+                setBarcodeFoods([created]);
+              }
             }
+            queryClient.invalidateQueries({ queryKey: queryKeys.diet.foods('all') });
             setSelectedFood(created);
-            setQuantity(created.servingSize?.toString() || '100');
+            setQuantity(created.servingSize != null ? String(created.servingSize) : '100');
             setOpenFoodFactsData(null);
           }}
         />
@@ -747,13 +905,6 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: 14,
       paddingVertical: 4,
     },
-    cameraIconBtn: {
-      padding: 6,
-      borderRadius: 8,
-      backgroundColor: 'rgba(0, 240, 255, 0.08)',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
     searchActionBtn: {
       backgroundColor: colors.neonCyan,
       paddingHorizontal: 12,
@@ -789,6 +940,13 @@ const createStyles = (colors: ThemeColors) =>
       paddingBottom: 24,
       gap: 10,
     },
+    resultsHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 8,
+      paddingHorizontal: 2,
+    },
     resultsHeader: {
       paddingVertical: 8,
     },
@@ -797,6 +955,62 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: 11,
       color: colors.mutedText,
       letterSpacing: 0.5,
+    },
+    portionNoticeCard: {
+      backgroundColor: 'rgba(56, 189, 248, 0.05)',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: 'rgba(56, 189, 248, 0.2)',
+      padding: 12,
+      marginBottom: 10,
+    },
+    portionNoticeHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginBottom: 4,
+    },
+    portionNoticeTitle: {
+      fontFamily: 'Geist_700Bold',
+      fontSize: 11,
+      color: colors.neonCyan,
+      letterSpacing: 0.5,
+    },
+    portionNoticeText: {
+      fontFamily: 'Geist_400Regular',
+      fontSize: 11,
+      color: colors.mutedText,
+      lineHeight: 16,
+    },
+    servingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 8,
+    },
+    foodServingActive: {
+      color: colors.neonCyan,
+      fontFamily: 'Geist_600SemiBold',
+    },
+    macroPillSelected: {
+      borderColor: colors.neonCyan,
+      backgroundColor: 'rgba(0, 240, 255, 0.1)',
+    },
+    cardEditPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 7,
+      paddingVertical: 2,
+      borderRadius: 6,
+      backgroundColor: 'rgba(255, 255, 255, 0.04)',
+      borderWidth: 1,
+      borderColor: colors.borderGlow,
+    },
+    cardEditPillText: {
+      fontFamily: 'Geist_500Medium',
+      fontSize: 10,
+      color: colors.mutedText,
     },
     foodCard: {
       flexDirection: 'row',
@@ -816,6 +1030,7 @@ const createStyles = (colors: ThemeColors) =>
       alignItems: 'center',
       gap: 6,
       marginBottom: 3,
+      flexWrap: 'wrap',
     },
     foodName: {
       fontFamily: 'Geist_600SemiBold',
@@ -826,6 +1041,19 @@ const createStyles = (colors: ThemeColors) =>
       fontFamily: 'Geist_400Regular',
       fontSize: 12,
       color: colors.mutedText,
+    },
+    cardCategoryBadge: {
+      backgroundColor: 'rgba(56, 189, 248, 0.1)',
+      borderWidth: 1,
+      borderColor: 'rgba(56, 189, 248, 0.3)',
+      borderRadius: 12,
+      paddingHorizontal: 7,
+      paddingVertical: 1,
+    },
+    cardCategoryBadgeText: {
+      fontFamily: 'JetBrainsMono_500Medium',
+      fontSize: 10,
+      color: colors.neonCyan,
     },
     foodServing: {
       fontFamily: 'JetBrainsMono_400Regular',
@@ -909,6 +1137,16 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.mutedText,
       marginTop: 2,
     },
+    qtyContainer: {
+      alignItems: 'flex-end',
+      gap: 3,
+    },
+    qtyLabel: {
+      fontFamily: 'JetBrainsMono_600SemiBold',
+      fontSize: 9,
+      color: colors.mutedText,
+      letterSpacing: 0.5,
+    },
     qtyBox: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -942,6 +1180,38 @@ const createStyles = (colors: ThemeColors) =>
       paddingTop: 8,
       borderTopWidth: 1,
       borderTopColor: colors.borderGlow,
+    },
+    footerMacroPills: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      flexWrap: 'wrap',
+      flex: 1,
+    },
+    footerMacroBadgeKcal: {
+      backgroundColor: 'rgba(0, 240, 255, 0.15)',
+      borderColor: colors.neonCyan,
+      borderWidth: 1,
+      borderRadius: 6,
+      paddingHorizontal: 7,
+      paddingVertical: 3,
+    },
+    footerMacroKcalText: {
+      fontFamily: 'JetBrainsMono_700Bold',
+      fontSize: 11,
+      color: colors.neonCyan,
+    },
+    footerMacroBadge: {
+      backgroundColor: colors.surfaceLight,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: colors.borderGlow,
+      paddingHorizontal: 6,
+      paddingVertical: 3,
+    },
+    footerMacroBadgeText: {
+      fontFamily: 'JetBrainsMono_500Medium',
+      fontSize: 10,
     },
     footerSummaryText: {
       fontFamily: 'JetBrainsMono_500Medium',

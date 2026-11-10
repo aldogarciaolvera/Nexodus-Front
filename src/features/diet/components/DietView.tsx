@@ -237,40 +237,7 @@ export const DietView = () => {
         </View>
       </View>
 
-      {/* 1. Macros & Calories Summary Card */}
-      <DietMacrosCard
-        targetCals={targetCals}
-        consumedCals={consumedCals}
-        targetProtein={targetProtein}
-        consumedProtein={consumedProtein}
-        targetCarbs={targetCarbs}
-        consumedCarbs={consumedCarbs}
-        targetFat={targetFat}
-        consumedFat={consumedFat}
-      />
-
-      {/* 2. Net Caloric Balance Card (Ingesta - Entreno = Balance Neto) */}
-      <NetCaloricBalanceCard
-        consumedCals={consumedCals}
-        burnedCals={dailySummary?.burnedCalories || 0}
-        targetCals={targetCals}
-      />
-
-      {/* 3. Hydration Dedicated Card */}
-      <HydrationCard
-        currentWaterMl={currentWater}
-        targetWaterMl={targetWaterMl}
-        onAddWater={(amount) => addWaterMutation.mutate(amount)}
-        isPending={addWaterMutation.isPending}
-        pendingAmount={addWaterMutation.variables}
-      />
-
-      {/* 4. Intermittent Fasting Widget (Solo visible si el plan de dieta tiene una meta de ayuno configurada) */}
-      {isFastingConfigured && (
-        <FastingCard fastingProtocol={rawFastingProtocol || '16:8'} />
-      )}
-
-      {/* 5. Main Diet Actions: Agregar Comida & Nexodus Lens */}
+      {/* Main Diet Actions: Agregar Comida & Nexodus Lens (Acceso Rápido Superior) */}
       <View style={styles.actionsRow}>
         <TouchableOpacity
           style={styles.addMealActionBtn}
@@ -298,7 +265,40 @@ export const DietView = () => {
         </TouchableOpacity>
       </View>
 
-      {/* 6. Scheduled Feedings Header */}
+      {/* 1. Macros & Calories Summary Card */}
+      <DietMacrosCard
+        targetCals={targetCals}
+        consumedCals={consumedCals}
+        targetProtein={targetProtein}
+        consumedProtein={consumedProtein}
+        targetCarbs={targetCarbs}
+        consumedCarbs={consumedCarbs}
+        targetFat={targetFat}
+        consumedFat={consumedFat}
+      />
+
+      {/* 3. Hydration Dedicated Card */}
+      <HydrationCard
+        currentWaterMl={currentWater}
+        targetWaterMl={targetWaterMl}
+        onAddWater={(amount) => addWaterMutation.mutate(amount)}
+        isPending={addWaterMutation.isPending}
+        pendingAmount={addWaterMutation.variables}
+      />
+
+      {/* 2. Net Caloric Balance Card (Ingesta - Entreno = Balance Neto) */}
+      <NetCaloricBalanceCard
+        consumedCals={consumedCals}
+        burnedCals={dailySummary?.burnedCalories || 0}
+        targetCals={targetCals}
+      />
+
+      {/* 4. Intermittent Fasting Widget (Solo visible si el plan de dieta tiene una meta de ayuno configurada) */}
+      {isFastingConfigured && (
+        <FastingCard fastingProtocol={rawFastingProtocol || '16:8'} />
+      )}
+
+      {/* 5. Scheduled Feedings Header */}
       <View style={styles.feedingsHeader}>
         <View>
           <Text style={styles.sectionTitle}>COMIDAS DEL DÍA</Text>

@@ -49,7 +49,7 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
     - Cálculo de superávit o déficit calórico en tiempo real contra la meta diaria configurada.
     - Integrado de forma reactiva en `DietView.tsx`.
   - **Actualización de la Vista de Dieta (`DietView.tsx`):**
-    - Fila de acciones principales en Dieta (`DietView.tsx`): reemplazo de la barra rápida de búsqueda por dos botones simétricos de acción inmediata: "Agregar Comida" (botón sólido cyan) y "Nexodus Lens" (botón de superficie con borde reactivo y chispas), optimizando la cabecera de "Comidas del Día".
+    - Fila de acciones principales de acceso rápido en Dieta (`DietView.tsx`): ubicación prominente de los botones "Agregar Comida" (botón sólido cyan) y "Nexodus Lens" (botón de superficie con borde reactivo y chispas) directamente por debajo de la selección del día y por encima de la tarjeta y gráfico de calorías/macronutrientes para un acceso inmediato al registrar comidas.
     - Integración de la tarjeta de balance neto debajo del resumen calórico y de macronutrientes.
     - Actualización del icono de la insignia de meta nutricional a diana/objetivo (`Target`) para mayor precisión semántica.
     - Estado de carga contextual por botón en hidratación (`HydrationCard.tsx`): visualización precisa del indicador `ActivityIndicator` exclusivamente en el botón presionado (`+250ml` o `+500ml`) con bloqueo preventivo y sincronización de volumen real.
@@ -68,10 +68,48 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
     - Validación proactiva en cada modal que utiliza cámara (`BarcodeScannerModal`, `FoodSearchModal`, `NexodusLensModal`), alertando limpiamente mediante `GlobalAlert` si el usuario aún no los ha otorgado o si requiere habilitarlos en los ajustes.
   - **Escáner de Códigos de Barra con Cámara y Auto-completado Inteligente (`BarcodeScannerModal.tsx`, `FoodSearchModal.tsx`, `CreateFoodModal.tsx` & `openFoodFacts.service.ts`):**
     - Integración de escáner en tiempo real con `expo-camera` (`CameraView`) estilizado con retícula Obsidian Cyan, botón de linterna (torch) y detección automática de códigos de barra (EAN-13, EAN-8, UPC-A, UPC-E, Code 128/39).
-    - Flujo de resolución en dos fases:
-      1. Búsqueda directa en la base de datos interna de alimentos por código de barras.
-      2. Si no existe en la base interna, consulta automática al API v2 de **Open Food Facts** (`openFoodFacts.service.ts`) para auto-extraer nombre, marca, calorías, macronutrientes (proteína, carbohidratos, grasas) y tamaño de porción.
-    - Precarga automática en `CreateFoodModal.tsx` con banner visual informativo en Obsidian Cyan para revisión y guardado rápido, o captura manual si el producto no se encuentra catalogado.
+    - Flujo de resolución inteligente y validación de macronutrientes:
+      1. Búsqueda directa en la base de datos interna de alimentos por código de barras. Si cuenta con información nutricional real (calorías/macros > 0), se agrega y selecciona directamente en la comida.
+      2. Si el alimento existe en la base de datos pero sus calorías y macronutrientes están en cero o incompletos (como registros automáticos de la API sin tabla nutricional, ej. Clorets), o si no existe en la base interna:
+         - Se consulta Open Food Facts para consolidar nombre, marca y porción.
+         - Se abre automáticamente `CreateFoodModal.tsx` precargando los datos del producto pero dejando los campos de calorías y macronutrientes listos para que el usuario ingrese los valores exactos de la etiqueta física.
+         - Permite actualizar el registro existente (`updateFood` / `PUT /api/diet/foods/:id`) o crear uno nuevo, autoseleccionándolo inmediatamente tras guardar.
+    - **Estabilización de Componentes Nativos y Manejo Nulo (`BarcodeScannerModal.tsx` & `CreateFoodModal.tsx`):**
+      - Desacoplamiento de `<CameraView>`: En Expo SDK 58 `<CameraView>` no admite elementos hijos; se convirtió en componente auto-cerrado con el visor y controles superpuestos mediante posicionamiento absoluto (`StyleSheet.absoluteFill`).
+      - Corrección de `TypeError: Cannot read property 'toString' of null`: Sanitización estricta de valores nutricionales nulos (`null`) devueltos por la base de datos o API (como `SodiumMg`, `PotassiumMg`, `ServingSize`), previniendo excepciones en tiempo de ejecución en Android/Hermes.
+      - **Enfoque Estabilizado y Consenso de Lectura en Escáner (`BarcodeScannerModal.tsx`):**
+        - Retardo inicial de 750ms para que la lente de la cámara estabilice su autoenfoque y balance de blancos antes de procesar fotogramas.
+        - Algoritmo de consenso multi-frame que exige detectar el mismo código de barras de manera consecutiva e idéntica antes de aceptarlo, descartando falsos positivos o números incompletos generados por reflejos o desenfoque.
+        - Insignia de estado interactiva en el visor ("Estabilizando enfoque...", "Centra el código en el recuadro", "Verificando...") con confirmación visual.
+    - **Edición Rápida de Alimentos por Pulsación Prolongada (`FoodSearchModal.tsx` & `CreateFoodModal.tsx`):**
+      - Soporte para **mantener presionado cualquier alimento de la lista** (`onLongPress` con 400ms) o tocar su botón "Editar" para abrir el modal en modo edición.
+      - Permite actualizar nombre, marca, porción base (ej. cambiar 100g por una porción personalizada), calorías y macronutrientes, refrescando la lista y la porción activa de forma inmediata.
+    - **Reestructuración Visual de Tarjetas de Comidas (`MealItemCard.tsx` & `MealFormModal.tsx`):**
+      - Título principal semántico: el tipo de comida ("Desayuno", "Comida", "Cena", "Snack") ahora se muestra como título principal en lugar del nombre del primer ingrediente, mientras que los alimentos agregados con sus respectivas porciones se muestran claramente como subtítulo.
+      - Cabecera limpia: se simplificó la cabecera superior para mostrar únicamente el indicador de estado coloreado y la hora exacta del registro (ej. `● 00:13`), logrando una jerarquía visual limpia y sin redundancias.
+      - Sincronización automática de nombres en el formulario de comidas al alternar entre tipos de comida.
+    - **Aviso Informativo y Recálculo Dinámico de Porciones en Catálogo (`FoodSearchModal.tsx`):**
+      - Banner informativo permanente: tarjeta informativa con icono `Scale` que comunica al usuario que puede seleccionar cualquier alimento y cambiar los gramos o mililitros a consumir para recalcular automáticamente sus valores nutricionales, o mantenerlo presionado para editar su porción base.
+      - Recálculo reactivo en tiempo real: al seleccionar un alimento y modificar los gramos en el panel inferior, tanto la tarjeta seleccionada en la lista como el panel de confirmación recalculan y actualizan inmediatamente las calorías y macronutrientes correspondientes a la porción elegida con insignias métricas de alta visibilidad.
+    - **Catálogo Colaborativo Comunitario (`DietEndpoints.cs`, `DietService.cs` & `FoodRepository.cs`):**
+      - Alta inicial pública comunitaria: cuando cualquier usuario registra un alimento nuevo por primera vez (mediante escaneo o creación manual), se almacena automáticamente como alimento base del catálogo general (`IsCustom: false`, `UserId: null`), quedando accesible de inmediato para todos los usuarios de la aplicación.
+      - Personalización individual protegida: si un usuario edita un alimento público existente, se genera una copia personalizada (`IsCustom: true`, `UserId: usuario`) para ese usuario, preservando intacto el alimento base para los demás y permitiendo actualizaciones posteriores directas sobre su copia sin crear registros duplicados.
+    - **Deduplicación Canónica y Prevención de Registros Duplicados (`FoodSearchModal.tsx`, `CreateFoodModal.tsx`, `DietEndpoints.cs`, `DietService.cs` & `FoodRepository.cs`):**
+      - Endpoint `PUT /api/diet/foods/{id}` implementado en el backend y conectado en el frontend: actualizar un alimento personalizado modifica directamente la fila correspondiente en la base de datos en vez de duplicarla. Si se edita un alimento genérico del sistema, se asocia o actualiza una copia personalizada única para el usuario autenticado.
+      - Deduplicación canónica en frontend (`getFoodKey` por código de barras o nombre normalizado + marca): evita tarjetas repetidas de un mismo alimento (como "Aguacate Hass") en el catálogo, priorizando siempre la versión personalizada y más reciente.
+      - Sincronización reactiva del estado local `customAddedFoods` al guardar o editar, reemplazando instantáneamente cualquier versión previa sin generar entradas duplicadas.
+    - **Categorías Oficiales del Sistema para Alimentos (`Categories`, `Food.cs`, `DietEndpoints.cs`, `CreateFoodModal.tsx` & `FoodSearchModal.tsx`):**
+      - **Extensión del Modelo de Datos en BD (`Categories`):** Incorporación de la columna discriminadora `Type` (`varchar(20)`, con valor por defecto `'Money'` para las categorías financieras preexistentes y `'Food'` para las categorías de alimentos). `UserId` fue convertido a nullable (`Guid?`) para permitir categorías globales del sistema administradas de forma compartida (`UserId = NULL`).
+      - **Conceptos de Alimentos Predefinidos:** Inicialización automática mediante `DataSeeder` de las categorías del sistema: *Carnes, Pescados y Mariscos, Verduras, Frutas, Lácteos y Huevos, Cereales y Granos, Legumbres, Frutos Secos y Semillas, Grasas y Aceites, Bebidas, Suplementos, Snacks y Dulces, Otros*, con migración retroactiva que catalogó los alimentos preexistentes.
+      - **Asociación en Alimentos (`Food.cs` & `FoodDtos`):** Columnas `CategoryId` (clave foránea con `OnDelete: SetNull`) y `Category` (denormalización para lectura instantánea sin joins).
+      - **Selector Elegante en Creación y Edición (`CreateFoodModal.tsx`):** Selector de pastillas/chips con geometría `rounded-full` y resaltado en Obsidian Cyan ubicado debajo de "Marca", permitiendo elegir exclusivamente entre las categorías del sistema sin que el usuario cree categorías dispersas.
+      - **Insignia Visual en Catálogo (`FoodSearchModal.tsx`):** Badge distintivo de categoría en cada tarjeta del catálogo de alimentos junto a la marca del producto.
+    - **Optimización de Entrada de Porción y Elevación Sobre el Teclado (`FoodSearchModal.tsx`):**
+      - Escucha activa de eventos de teclado en tiempo real (`keyboardDidShow` / `keyboardDidHide`) para computar dinámicamente la elevación del panel inferior (`footerSheet`) por encima del teclado del software en dispositivos Android.
+      - Asignación de teclado numérico (`numeric`) directo y selección automática de texto al enfocar (`selectTextOnFocus`) para escribir la porción de inmediato sin oscurecer los controles de confirmación.
+    - **Aislamiento de Pestañas y Limpieza de Resultados en Código de Barras (`FoodSearchModal.tsx` & `CreateFoodModal.tsx`):**
+      - Prevención de arrastre de códigos de barra entre modos: editar o crear un alimento desde la pestaña de "Buscar por Nombre" ya no contamina el input de código de barras ni altera los resultados de escaneo.
+      - Validación contextual al alternar a la pestaña de "Código de Barras": solo se muestran resultados si el código en el input coincide exactamente con el alimento escaneado, impidiendo que alimentos buscados por nombre aparezcan inesperadamente bajo un código ajeno.
   - **Servicios API (`diet.service.ts`):**
     - Tipado y método `analyzeFoodImage` (`POST /api/diet/lens/analyze`).
     - Actualización de `DailySummary` con `burnedCalories` y `netCalories`.

@@ -98,19 +98,31 @@ export interface AnalyzeFoodImageRequest {
   additionalContext?: string;
 }
 
+export interface FoodCategory {
+  id: string;
+  name: string;
+  description?: string;
+  type?: string;
+}
+
 export interface Food {
   id?: string;
   name: string;
   brand?: string;
   barcode?: string;
+  categoryId?: string;
+  category?: string;
   servingSize: number;
   servingUnit: string;
   calories: number;
   protein: number;
   carbs: number;
   fat: number;
+  fiber?: number;
   sodiumMg?: number;
   potassiumMg?: number;
+  isCustom?: boolean;
+  createdAt?: string;
 }
 
 export interface FastingStatus {
@@ -224,10 +236,36 @@ export const dietService = {
     }
   },
 
+  // 9b. Obtener Categorías de Alimentos del Sistema
+  getFoodCategories: async (): Promise<FoodCategory[]> => {
+    try {
+      const response = await apiFetch('/api/diet/categories');
+      if (response.ok) {
+        return await handleResponse(response);
+      }
+      const fallbackRes = await apiFetch('/api/diet/foods/categories');
+      if (fallbackRes.ok) {
+        return await handleResponse(fallbackRes);
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
   // 10. Crear Alimento Personalizado
   createFood: async (food: Omit<Food, 'id'>): Promise<Food> => {
     const response = await apiFetch('/api/diet/foods', {
       method: 'POST',
+      body: JSON.stringify(food),
+    });
+    return await handleResponse(response);
+  },
+
+  // 10b. Actualizar Alimento Existente
+  updateFood: async (id: string, food: Partial<Food>): Promise<Food> => {
+    const response = await apiFetch(`/api/diet/foods/${id}`, {
+      method: 'PUT',
       body: JSON.stringify(food),
     });
     return await handleResponse(response);

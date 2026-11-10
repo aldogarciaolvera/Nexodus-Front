@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { X, Zap, ZapOff, ScanBarcode, Camera } from 'lucide-react-native';
+import { X, Zap, ZapOff, ScanBarcode, Camera, Check } from 'lucide-react-native';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
 import { useAlertStore } from '../../../store/alertStore';
@@ -35,22 +35,84 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
   const [permission, requestPermission] = useCameraPermissions();
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [scanned, setScanned] = useState(false);
+  const [isLensReady, setIsLensReady] = useState(false);
+  const [detectingCode, setDetectingCode] = useState<string | null>(null);
+
+  const candidateRef = useRef<{ code: string; count: number; firstSeen: number } | null>(null);
+  const lensTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resetCandidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (visible) {
       setScanned(false);
       setTorchEnabled(false);
+      setIsLensReady(false);
+      setDetectingCode(null);
+      candidateRef.current = null;
+
       if (permission && !permission.granted && permission.canAskAgain) {
         requestPermission();
       }
+
+      // Estabilización inicial de 750ms para permitir enfoque nítido de la cámara antes de escanear
+      lensTimerRef.current = setTimeout(() => {
+        setIsLensReady(true);
+      }, 750);
+    } else {
+      if (lensTimerRef.current) clearTimeout(lensTimerRef.current);
+      if (resetCandidateTimerRef.current) clearTimeout(resetCandidateTimerRef.current);
+      candidateRef.current = null;
     }
+
+    return () => {
+      if (lensTimerRef.current) clearTimeout(lensTimerRef.current);
+      if (resetCandidateTimerRef.current) clearTimeout(resetCandidateTimerRef.current);
+    };
   }, [visible, permission]);
 
   const handleScan = ({ data }: { data: string }) => {
-    if (scanned || !data) return;
-    setScanned(true);
-    onBarcodeScanned(data.trim());
-    onClose();
+    if (scanned || !isLensReady || !data) return;
+
+    const trimmed = data.trim();
+    // Filtro mínimo de longitud para descartar artefactos o lecturas parciales
+    if (trimmed.length < 6) return;
+
+    const now = Date.now();
+    const current = candidateRef.current;
+
+    if (resetCandidateTimerRef.current) {
+      clearTimeout(resetCandidateTimerRef.current);
+    }
+
+    // Validación por consenso temporal (esperar lecturas consecutivas idénticas para asegurar nitidez)
+    if (current && current.code === trimmed && now - current.firstSeen < 750) {
+      const newCount = current.count + 1;
+      candidateRef.current = { ...current, count: newCount };
+
+      // Se requieren al menos 2 lecturas consecutivas o estabilidad sostenida por 250ms
+      if (newCount >= 2 || now - current.firstSeen >= 250) {
+        setScanned(true);
+        setDetectingCode(trimmed);
+
+        // Pequeño retardo (160ms) para confirmación visual de enfoque en el centro
+        setTimeout(() => {
+          onBarcodeScanned(trimmed);
+          onClose();
+        }, 160);
+      }
+    } else {
+      // Primera detección candidata
+      candidateRef.current = { code: trimmed, count: 1, firstSeen: now };
+      setDetectingCode(trimmed);
+
+      // Limpieza si no vuelve a confirmarse dentro de 650ms
+      resetCandidateTimerRef.current = setTimeout(() => {
+        if (!scanned) {
+          candidateRef.current = null;
+          setDetectingCode(null);
+        }
+      }, 650);
+    }
   };
 
   const handleRequestPermission = async () => {
@@ -89,25 +151,25 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
             </TouchableOpacity>
           </View>
         ) : (
-          <CameraView
-            style={StyleSheet.absoluteFill}
-            facing="back"
-            enableTorch={torchEnabled}
-            barcodeScannerSettings={{
-              barcodeTypes: [
-                'ean13',
-                'ean8',
-                'upc_a',
-                'upc_e',
-                'code128',
-                'code39',
-                'qr',
-              ],
-            }}
-            onBarcodeScanned={scanned ? undefined : handleScan}
-          >
-            {/* Dark Mask Overlays around scanning area */}
-            <View style={styles.overlay}>
+          <View style={styles.cameraContainer}>
+            <CameraView
+              style={StyleSheet.absoluteFill}
+              facing="back"
+              enableTorch={torchEnabled}
+              barcodeScannerSettings={{
+                barcodeTypes: [
+                  'ean13',
+                  'ean8',
+                  'upc_a',
+                  'upc_e',
+                  'code128',
+                ],
+              }}
+              onBarcodeScanned={scanned ? undefined : handleScan}
+            />
+
+            {/* Dark Mask Overlays rendered on top of camera via absolute positioning */}
+            <View style={[styles.overlay, StyleSheet.absoluteFill]} pointerEvents="box-none">
               {/* Header Bar */}
               <View style={styles.headerBar}>
                 <TouchableOpacity
@@ -142,29 +204,55 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
 
               {/* Viewfinder Target Reticle */}
               <View style={styles.viewfinderContainer}>
-                <View style={styles.viewfinder}>
+                <View style={[styles.viewfinder, Boolean(detectingCode) && styles.viewfinderActive]}>
                   {/* Neon Cyan Corner Indicators */}
-                  <View style={[styles.corner, styles.topLeft]} />
-                  <View style={[styles.corner, styles.topRight]} />
-                  <View style={[styles.corner, styles.bottomLeft]} />
-                  <View style={[styles.corner, styles.bottomRight]} />
+                  <View style={[styles.corner, styles.topLeft, Boolean(detectingCode) && styles.cornerActive]} />
+                  <View style={[styles.corner, styles.topRight, Boolean(detectingCode) && styles.cornerActive]} />
+                  <View style={[styles.corner, styles.bottomLeft, Boolean(detectingCode) && styles.cornerActive]} />
+                  <View style={[styles.corner, styles.bottomRight, Boolean(detectingCode) && styles.cornerActive]} />
 
-                  {/* Horizontal animated-look scan line */}
-                  <View style={styles.scanLine} />
+                  {/* Horizontal scan line */}
+                  <View style={[styles.scanLine, Boolean(detectingCode) && styles.scanLineLocked]} />
+                </View>
+
+                {/* Status Badge below Reticle */}
+                <View
+                  style={[
+                    styles.statusBadge,
+                    !isLensReady && styles.statusBadgeWait,
+                    Boolean(detectingCode) && styles.statusBadgeActive,
+                    scanned && styles.statusBadgeSuccess,
+                  ]}
+                >
+                  {!isLensReady ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <ActivityIndicator size="small" color={theme.colors.mutedText} />
+                      <Text style={styles.statusBadgeText}>Estabilizando enfoque...</Text>
+                    </View>
+                  ) : scanned ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Check size={14} color={theme.colors.obsidian} />
+                      <Text style={styles.statusBadgeTextSuccess}>{detectingCode}</Text>
+                    </View>
+                  ) : detectingCode ? (
+                    <Text style={styles.statusBadgeTextActive}>Verificando: {detectingCode}</Text>
+                  ) : (
+                    <Text style={styles.statusBadgeText}>Centra el código en el recuadro</Text>
+                  )}
                 </View>
               </View>
 
               {/* Footer Guidance */}
               <View style={styles.footerContainer}>
                 <Text style={styles.guidanceText}>
-                  Apunta la cámara al código de barras de tu producto
+                  Mantén el código de barras centrado y nítido
                 </Text>
                 <TouchableOpacity style={styles.manualEntryBtn} onPress={onClose}>
                   <Text style={styles.manualEntryText}>Ingresar código manualmente</Text>
                 </TouchableOpacity>
               </View>
             </View>
-          </CameraView>
+          </View>
         )}
       </View>
     </Modal>
@@ -176,6 +264,10 @@ const createStyles = (colors: ThemeColors) =>
     container: {
       flex: 1,
       backgroundColor: colors.obsidian,
+    },
+    cameraContainer: {
+      flex: 1,
+      position: 'relative',
     },
     centerContainer: {
       flex: 1,
@@ -273,6 +365,7 @@ const createStyles = (colors: ThemeColors) =>
     viewfinderContainer: {
       alignItems: 'center',
       justifyContent: 'center',
+      gap: 16,
     },
     viewfinder: {
       width: SCAN_BOX_SIZE,
@@ -282,11 +375,19 @@ const createStyles = (colors: ThemeColors) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
+    viewfinderActive: {
+      backgroundColor: 'rgba(0, 240, 255, 0.04)',
+    },
     corner: {
       position: 'absolute',
       width: 24,
       height: 24,
       borderColor: colors.neonCyan,
+    },
+    cornerActive: {
+      borderColor: colors.neonCyan,
+      width: 28,
+      height: 28,
     },
     topLeft: {
       top: 0,
@@ -320,9 +421,46 @@ const createStyles = (colors: ThemeColors) =>
       width: '90%',
       height: 2,
       backgroundColor: colors.neonCyan,
-      shadowColor: colors.neonCyan,
-      shadowOpacity: 0.8,
-      shadowRadius: 6,
+    },
+    scanLineLocked: {
+      backgroundColor: '#00F0FF',
+      height: 3,
+    },
+    statusBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(20, 23, 31, 0.85)',
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.borderGlow,
+    },
+    statusBadgeWait: {
+      borderColor: 'rgba(255, 255, 255, 0.15)',
+    },
+    statusBadgeActive: {
+      borderColor: colors.neonCyan,
+      backgroundColor: 'rgba(0, 240, 255, 0.12)',
+    },
+    statusBadgeSuccess: {
+      backgroundColor: colors.neonCyan,
+      borderColor: colors.neonCyan,
+    },
+    statusBadgeText: {
+      fontFamily: 'JetBrainsMono_400Regular',
+      fontSize: 12,
+      color: colors.mutedText,
+    },
+    statusBadgeTextActive: {
+      fontFamily: 'JetBrainsMono_600SemiBold',
+      fontSize: 12,
+      color: colors.neonCyan,
+    },
+    statusBadgeTextSuccess: {
+      fontFamily: 'JetBrainsMono_600SemiBold',
+      fontSize: 12,
+      color: colors.obsidian,
     },
     footerContainer: {
       paddingHorizontal: 30,

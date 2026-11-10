@@ -70,6 +70,21 @@ export const MealFormModal: React.FC<MealFormModalProps> = ({
   const [showFoodSearch, setShowFoodSearch] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  const getMealTypeDefaultName = (type: string) => {
+    switch (type.toLowerCase()) {
+      case 'breakfast':
+        return 'Desayuno';
+      case 'lunch':
+        return 'Comida';
+      case 'dinner':
+        return 'Cena';
+      case 'snack':
+        return 'Snack';
+      default:
+        return 'Comida';
+    }
+  };
+
   useEffect(() => {
     if (visible) {
       if (mealToEdit) {
@@ -82,7 +97,7 @@ export const MealFormModal: React.FC<MealFormModalProps> = ({
       } else {
         setDate(initialDate || new Date().toISOString().split('T')[0]);
         setMealType(initialMealType);
-        setName(initialItems && initialItems.length > 0 ? initialItems[0].foodName : '');
+        setName(getMealTypeDefaultName(initialMealType));
         // Current time format HH:mm
         const now = new Date();
         const hh = String(now.getHours()).padStart(2, '0');
@@ -123,7 +138,7 @@ export const MealFormModal: React.FC<MealFormModalProps> = ({
     setItems((prev) => [...prev, newItem]);
 
     if (!name.trim()) {
-      setName(food.name);
+      setName(getMealTypeDefaultName(mealType));
     }
   };
 
@@ -216,7 +231,13 @@ export const MealFormModal: React.FC<MealFormModalProps> = ({
                   <TouchableOpacity
                     key={type.key}
                     style={[styles.pill, isActive && styles.pillActive]}
-                    onPress={() => setMealType(type.key)}
+                    onPress={() => {
+                      setMealType(type.key);
+                      const defaultNames = ['Desayuno', 'Comida', 'Cena', 'Snack', ''];
+                      if (defaultNames.includes(name.trim())) {
+                        setName(type.label);
+                      }
+                    }}
                     accessibilityRole="tab"
                     accessibilityState={{ selected: isActive }}
                     accessibilityLabel={type.label}
