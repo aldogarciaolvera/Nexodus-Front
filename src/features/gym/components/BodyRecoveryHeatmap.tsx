@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
 import { MuscleRecoveryDto } from '../../../services/gym.service';
-import { RotateCw, ShieldCheck, Zap } from 'lucide-react-native';
+import { Zap } from 'lucide-react-native';
 
 interface BodyRecoveryHeatmapProps {
   recoveryData?: MuscleRecoveryDto[];
@@ -12,10 +12,8 @@ interface BodyRecoveryHeatmapProps {
 export const BodyRecoveryHeatmap: React.FC<BodyRecoveryHeatmapProps> = ({ recoveryData = [] }) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
-  const [viewMode, setViewMode] = useState<'front' | 'back'>('front');
-  const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null);
 
-  // Helper to map muscle group to recovery score
+  // Helper para buscar porcentaje de recuperación de un músculo
   const getRecovery = (muscleName: string): { percentage: number; status: string; hoursLeft: number } => {
     const match = recoveryData.find(
       (m) => m.muscleGroup.toLowerCase().includes(muscleName.toLowerCase()) ||
@@ -32,13 +30,13 @@ export const BodyRecoveryHeatmap: React.FC<BodyRecoveryHeatmapProps> = ({ recove
   };
 
   const getColorForPercentage = (pct: number): string => {
-    if (pct < 35) return '#EF4444'; // Rojo - Fatigado
-    if (pct < 70) return '#F59E0B'; // Ámbar - En Recuperación
-    if (pct < 90) return '#38BDF8'; // Azul Neón - Casi Listo
+    if (pct < 35) return '#EF4444'; // Rojo - Fatiga Alta
+    if (pct < 70) return '#F59E0B'; // Ámbar - Descansando
+    if (pct < 90) return '#38BDF8'; // Azul Neón - Listo (>70%)
     return '#00F0FF';               // Cian Neón - 100% Óptimo
   };
 
-  // Specific muscle recovery mappings
+  // Mapeo de grupos musculares
   const chest = getRecovery('Pecho');
   const back = getRecovery('Espalda');
   const legs = getRecovery('Piernas');
@@ -55,204 +53,177 @@ export const BodyRecoveryHeatmap: React.FC<BodyRecoveryHeatmapProps> = ({ recove
   const tricepsColor = getColorForPercentage(triceps.percentage);
   const coreColor = getColorForPercentage(core.percentage);
 
-  const bodyBaseColor = '#1C2029';
+  const armsPercentage = Math.round((biceps.percentage + triceps.percentage) / 2);
+  const armsColor = getColorForPercentage(armsPercentage);
+
+  // Promedio general de recuperación
+  const avgRecovery = recoveryData.length > 0
+    ? Math.round(recoveryData.reduce((acc, curr) => acc + curr.recoveryPercentage, 0) / recoveryData.length)
+    : 100;
+  const avgColor = getColorForPercentage(avgRecovery);
+
+  // Color de base visible para la silueta del cuerpo
+  const bodyBaseColor = '#222836';
+
+  const getStatusMessage = () => {
+    if (avgRecovery >= 90) {
+      return 'Tus grupos musculares están completamente recuperados. ¡Listo para entrenar con alta intensidad!';
+    }
+    if (avgRecovery >= 70) {
+      return 'Tus músculos principales están recuperados y listos para una sesión de entrenamiento.';
+    }
+    if (avgRecovery >= 45) {
+      return 'Recuperación activa en curso. Se recomienda priorizar grupos musculares descansados.';
+    }
+    return 'Fatiga muscular alta acumulada. Se recomienda descanso e hidratación.';
+  };
 
   return (
     <View style={styles.container}>
-      {/* Header with Switch */}
+      {/* Header unificado Obsidian Cyan */}
       <View style={styles.headerRow}>
         <View style={styles.titleContainer}>
-          <Zap size={16} color={theme.colors.neonCyan} />
-          <Text style={styles.title}>RECOVERY ZONE ANATOMY</Text>
+          <View style={styles.iconCircle}>
+            <Zap size={14} color={theme.colors.neonCyan} />
+          </View>
+          <Text style={styles.title}>Recuperación Muscular</Text>
         </View>
-
-        <TouchableOpacity
-          style={styles.switchButton}
-          onPress={() => setViewMode(prev => prev === 'front' ? 'back' : 'front')}
-          activeOpacity={0.8}
-        >
-          <RotateCw size={14} color={theme.colors.neonCyan} />
-          <Text style={styles.switchButtonText}>
-            {viewMode === 'front' ? 'VISTA DORSAL' : 'VISTA FRONTAL'}
-          </Text>
-        </TouchableOpacity>
+        <Text style={styles.headerSub}>Modelo 48-72h</Text>
       </View>
 
-      {/* Anatomical Body Canvas */}
+      {/* Canvas anatómico: Medidor vertical de batería + Vistas Frontal y Dorsal lado a lado */}
       <View style={styles.canvasWrapper}>
-        <View style={styles.bodyStack}>
-          {viewMode === 'front' ? (
-            <>
-              {/* Silhouette Front */}
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_musclebody_upperfront.png')}
-                style={[styles.layer, { tintColor: bodyBaseColor }]}
-              />
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_musclebody_middlefront.png')}
-                style={[styles.layer, { tintColor: bodyBaseColor }]}
-              />
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_musclebody_lowerfront.png')}
-                style={[styles.layer, { tintColor: bodyBaseColor }]}
-              />
-
-              {/* Muscles Front */}
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_muscle_upperchest.png')}
-                style={[styles.layer, { tintColor: chestColor }]}
-              />
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_muscle_lowerchest.png')}
-                style={[styles.layer, { tintColor: chestColor }]}
-              />
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_muscle_frontdelt.png')}
-                style={[styles.layer, { tintColor: shoulderColor }]}
-              />
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_muscle_middledelt.png')}
-                style={[styles.layer, { tintColor: shoulderColor }]}
-              />
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_muscle_biceps.png')}
-                style={[styles.layer, { tintColor: bicepsColor }]}
-              />
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_muscle_abdominals.png')}
-                style={[styles.layer, { tintColor: coreColor }]}
-              />
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_muscle_obliques.png')}
-                style={[styles.layer, { tintColor: coreColor }]}
-              />
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_muscle_quadriceps.png')}
-                style={[styles.layer, { tintColor: legsColor }]}
-              />
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_muscle_forearms.png')}
-                style={[styles.layer, { tintColor: bicepsColor }]}
-              />
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_muscle_calves.png')}
-                style={[styles.layer, { tintColor: legsColor }]}
-              />
-            </>
-          ) : (
-            <>
-              {/* Silhouette Back */}
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_musclebody_upperback.png')}
-                style={[styles.layer, { tintColor: bodyBaseColor }]}
-              />
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_musclebody_middleback.png')}
-                style={[styles.layer, { tintColor: bodyBaseColor }]}
-              />
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_musclebody_lowerback.png')}
-                style={[styles.layer, { tintColor: bodyBaseColor }]}
-              />
-
-              {/* Muscles Back */}
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_muscle_traps.png')}
-                style={[styles.layer, { tintColor: backColor }]}
-              />
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_muscle_upperback.png')}
-                style={[styles.layer, { tintColor: backColor }]}
-              />
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_muscle_lats.png')}
-                style={[styles.layer, { tintColor: backColor }]}
-              />
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_muscle_reardelt.png')}
-                style={[styles.layer, { tintColor: shoulderColor }]}
-              />
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_muscle_triceps.png')}
-                style={[styles.layer, { tintColor: tricepsColor }]}
-              />
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_muscle_lowerback.png')}
-                style={[styles.layer, { tintColor: backColor }]}
-              />
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_muscle_glutes.png')}
-                style={[styles.layer, { tintColor: legsColor }]}
-              />
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_muscle_hamstrings.png')}
-                style={[styles.layer, { tintColor: legsColor }]}
-              />
-              <Image
-                source={require('../../../../assets/musclegraphics/assets_musclegraphics_male_muscle_calves.png')}
-                style={[styles.layer, { tintColor: legsColor }]}
-              />
-            </>
-          )}
+        {/* Barra de batería / energía general a la izquierda */}
+        <View style={styles.batteryColumn}>
+          <View style={[styles.batteryCap, { backgroundColor: avgColor }]} />
+          <View style={styles.batteryTrack}>
+            <View
+              style={[
+                styles.batteryFill,
+                {
+                  height: `${Math.max(8, Math.min(100, avgRecovery))}%`,
+                  backgroundColor: avgColor,
+                },
+              ]}
+            />
+          </View>
+          <View style={styles.batteryBottom} />
+          <Text style={[styles.batteryText, { color: avgColor }]}>{avgRecovery}%</Text>
         </View>
 
-        {/* Legend */}
-        <View style={styles.legendColumn}>
-          <Text style={styles.viewIndicator}>
-            {viewMode === 'front' ? 'VISTA ANTERIOR' : 'VISTA POSTERIOR'}
-          </Text>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: '#00F0FF' }]} />
-            <Text style={styles.legendText}>Óptimo (100%)</Text>
+        {/* Siluetas frontal y dorsal organizadas en paralelo con anatomía unificada */}
+        <View style={styles.figuresContainer}>
+          {/* Silueta Frontal (Anterior) */}
+          <View style={styles.figureBox}>
+            <View style={styles.figureCanvas}>
+              {/* Capa base anatómica completa */}
+              <Image
+                source={require('../../../../assets/musclegraphics/composite_front_base.png')}
+                style={[styles.layer, { tintColor: bodyBaseColor }]}
+              />
+
+              {/* Músculos frontales alineados con precisión anatómica */}
+              <Image
+                source={require('../../../../assets/musclegraphics/composite_front_pecho.png')}
+                style={[styles.layer, { tintColor: chestColor }]}
+              />
+              <Image
+                source={require('../../../../assets/musclegraphics/composite_front_hombros.png')}
+                style={[styles.layer, { tintColor: shoulderColor }]}
+              />
+              <Image
+                source={require('../../../../assets/musclegraphics/composite_front_core.png')}
+                style={[styles.layer, { tintColor: coreColor }]}
+              />
+              <Image
+                source={require('../../../../assets/musclegraphics/composite_front_brazos.png')}
+                style={[styles.layer, { tintColor: armsColor }]}
+              />
+              <Image
+                source={require('../../../../assets/musclegraphics/composite_front_piernas.png')}
+                style={[styles.layer, { tintColor: legsColor }]}
+              />
+            </View>
+            <Text style={styles.figureLabel}>VISTA ANTERIOR</Text>
           </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: '#38BDF8' }]} />
-            <Text style={styles.legendText}>Listo (&gt;70%)</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]} />
-            <Text style={styles.legendText}>Descansando</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
-            <Text style={styles.legendText}>Fatiga Alta</Text>
+
+          {/* Silueta Dorsal (Posterior) */}
+          <View style={styles.figureBox}>
+            <View style={styles.figureCanvas}>
+              {/* Capa base anatómica completa */}
+              <Image
+                source={require('../../../../assets/musclegraphics/composite_back_base.png')}
+                style={[styles.layer, { tintColor: bodyBaseColor }]}
+              />
+
+              {/* Músculos dorsales alineados con precisión anatómica */}
+              <Image
+                source={require('../../../../assets/musclegraphics/composite_back_espalda.png')}
+                style={[styles.layer, { tintColor: backColor }]}
+              />
+              <Image
+                source={require('../../../../assets/musclegraphics/composite_back_hombros.png')}
+                style={[styles.layer, { tintColor: shoulderColor }]}
+              />
+              <Image
+                source={require('../../../../assets/musclegraphics/composite_back_brazos.png')}
+                style={[styles.layer, { tintColor: armsColor }]}
+              />
+              <Image
+                source={require('../../../../assets/musclegraphics/composite_back_piernas.png')}
+                style={[styles.layer, { tintColor: legsColor }]}
+              />
+            </View>
+            <Text style={styles.figureLabel}>VISTA POSTERIOR</Text>
           </View>
         </View>
       </View>
 
-      {/* Muscle Quick Badges */}
-      <View style={styles.badgesRow}>
-        <TouchableOpacity
-          style={[styles.badgePill, selectedMuscle === 'Pecho' && styles.badgePillActive]}
-          onPress={() => setSelectedMuscle('Pecho')}
-        >
-          <Text style={styles.badgeLabel}>Pecho</Text>
-          <Text style={[styles.badgeValue, { color: chestColor }]}>{chest.percentage}%</Text>
-        </TouchableOpacity>
+      {/* Insignia de estado y recomendación */}
+      <View style={styles.statusSection}>
+        <View style={[styles.statusPill, { borderColor: avgColor, backgroundColor: avgColor + '18' }]}>
+          <Text style={[styles.statusPillText, { color: avgColor }]}>
+            {avgRecovery >= 85 ? 'LISTO PARA ENTRENAR' : avgRecovery >= 50 ? 'RECUPERACIÓN ACTIVA' : 'DESCANSO RECOMENDADO'}
+          </Text>
+        </View>
+        <Text style={styles.statusDescription}>{getStatusMessage()}</Text>
+      </View>
 
-        <TouchableOpacity
-          style={[styles.badgePill, selectedMuscle === 'Espalda' && styles.badgePillActive]}
-          onPress={() => setSelectedMuscle('Espalda')}
-        >
-          <Text style={styles.badgeLabel}>Espalda</Text>
-          <Text style={[styles.badgeValue, { color: backColor }]}>{back.percentage}%</Text>
-        </TouchableOpacity>
+      {/* Rectángulos ordenados con el porcentaje de cada grupo muscular dentro del contenedor */}
+      <View style={styles.badgesContainer}>
+        <View style={styles.badgeRow}>
+          <View style={styles.badgeCard}>
+            <Text style={styles.badgeLabel}>PECHO</Text>
+            <Text style={[styles.badgeValue, { color: chestColor }]}>{chest.percentage}%</Text>
+          </View>
 
-        <TouchableOpacity
-          style={[styles.badgePill, selectedMuscle === 'Piernas' && styles.badgePillActive]}
-          onPress={() => setSelectedMuscle('Piernas')}
-        >
-          <Text style={styles.badgeLabel}>Piernas</Text>
-          <Text style={[styles.badgeValue, { color: legsColor }]}>{legs.percentage}%</Text>
-        </TouchableOpacity>
+          <View style={styles.badgeCard}>
+            <Text style={styles.badgeLabel}>ESPALDA</Text>
+            <Text style={[styles.badgeValue, { color: backColor }]}>{back.percentage}%</Text>
+          </View>
 
-        <TouchableOpacity
-          style={[styles.badgePill, selectedMuscle === 'Hombros' && styles.badgePillActive]}
-          onPress={() => setSelectedMuscle('Hombros')}
-        >
-          <Text style={styles.badgeLabel}>Hombros</Text>
-          <Text style={[styles.badgeValue, { color: shoulderColor }]}>{shoulders.percentage}%</Text>
-        </TouchableOpacity>
+          <View style={styles.badgeCard}>
+            <Text style={styles.badgeLabel}>PIERNAS</Text>
+            <Text style={[styles.badgeValue, { color: legsColor }]}>{legs.percentage}%</Text>
+          </View>
+        </View>
+
+        <View style={styles.badgeRow}>
+          <View style={styles.badgeCard}>
+            <Text style={styles.badgeLabel}>HOMBROS</Text>
+            <Text style={[styles.badgeValue, { color: shoulderColor }]}>{shoulders.percentage}%</Text>
+          </View>
+
+          <View style={styles.badgeCard}>
+            <Text style={styles.badgeLabel}>BRAZOS</Text>
+            <Text style={[styles.badgeValue, { color: armsColor }]}>{armsPercentage}%</Text>
+          </View>
+
+          <View style={styles.badgeCard}>
+            <Text style={styles.badgeLabel}>CORE</Text>
+            <Text style={[styles.badgeValue, { color: coreColor }]}>{core.percentage}%</Text>
+          </View>
+        </View>
       </View>
     </View>
   );
@@ -260,125 +231,178 @@ export const BodyRecoveryHeatmap: React.FC<BodyRecoveryHeatmapProps> = ({ recove
 
 const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-  container: {
-    backgroundColor: '#14171F',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#222836',
-    padding: 16,
-    marginVertical: 12,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  title: {
-    fontFamily: 'JetBrains Mono',
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#00F0FF',
-    letterSpacing: 1,
-  },
-  switchButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#0B0D11',
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#222836',
-  },
-  switchButtonText: {
-    fontFamily: 'JetBrains Mono',
-    fontSize: 10,
-    color: '#00F0FF',
-    fontWeight: '600',
-  },
-  canvasWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingVertical: 8,
-  },
-  bodyStack: {
-    width: 190,
-    height: 190,
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  layer: {
-    position: 'absolute',
-    width: 190,
-    height: 190,
-    resizeMode: 'contain',
-  },
-  legendColumn: {
-    gap: 8,
-    paddingLeft: 10,
-  },
-  viewIndicator: {
-    fontFamily: 'JetBrains Mono',
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.mutedText,
-    marginBottom: 4,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  legendText: {
-    fontSize: 11,
-    color: colors.slate400,
-    fontFamily: 'Geist',
-  },
-  badgesRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#222836',
-    gap: 6,
-  },
-  badgePill: {
-    flex: 1,
-    backgroundColor: '#0B0D11',
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#222836',
-    paddingVertical: 6,
-    alignItems: 'center',
-  },
-  badgePillActive: {
-    borderColor: '#00F0FF',
-  },
-  badgeLabel: {
-    fontSize: 9,
-    fontFamily: 'JetBrains Mono',
-    color: colors.mutedText,
-    textTransform: 'uppercase',
-  },
-  badgeValue: {
-    fontSize: 12,
-    fontFamily: 'JetBrains Mono',
-    fontWeight: '700',
-    marginTop: 2,
-  },
-});
+    container: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.borderGlow,
+      padding: 16,
+      marginBottom: 20,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    titleContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    iconCircle: {
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      backgroundColor: colors.surfaceLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.borderGlow,
+    },
+    title: {
+      fontFamily: 'Geist_500Medium',
+      fontSize: 14,
+      color: colors.text,
+      letterSpacing: -0.3,
+    },
+    headerSub: {
+      fontFamily: 'JetBrainsMono_500Medium',
+      fontSize: 10,
+      color: colors.mutedText,
+    },
+    canvasWrapper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 6,
+    },
+    batteryColumn: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingLeft: 2,
+      paddingRight: 8,
+    },
+    batteryCap: {
+      width: 10,
+      height: 4,
+      borderTopLeftRadius: 2,
+      borderTopRightRadius: 2,
+      marginBottom: 1,
+    },
+    batteryTrack: {
+      width: 20,
+      height: 125,
+      borderRadius: 6,
+      borderWidth: 1.5,
+      borderColor: colors.borderGlow,
+      backgroundColor: '#0B0D11',
+      overflow: 'hidden',
+      justifyContent: 'flex-end',
+      padding: 2,
+    },
+    batteryFill: {
+      width: '100%',
+      borderRadius: 4,
+    },
+    batteryBottom: {
+      width: 12,
+      height: 2,
+      backgroundColor: colors.borderGlow,
+      borderRadius: 1,
+      marginTop: 2,
+    },
+    batteryText: {
+      fontSize: 10,
+      fontFamily: 'JetBrainsMono_700Bold',
+      marginTop: 4,
+    },
+    figuresContainer: {
+      flex: 1,
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      alignItems: 'center',
+    },
+    figureBox: {
+      alignItems: 'center',
+    },
+    figureCanvas: {
+      width: 95,
+      height: 165,
+      position: 'relative',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    layer: {
+      position: 'absolute',
+      width: 95,
+      height: 165,
+      resizeMode: 'contain',
+    },
+    figureLabel: {
+      fontSize: 8.5,
+      fontFamily: 'JetBrainsMono_500Medium',
+      color: colors.mutedText,
+      letterSpacing: 0.5,
+      marginTop: 4,
+    },
+    statusSection: {
+      alignItems: 'center',
+      marginTop: 10,
+      marginBottom: 2,
+    },
+    statusPill: {
+      borderWidth: 1,
+      borderRadius: 999,
+      paddingVertical: 4,
+      paddingHorizontal: 12,
+      marginBottom: 6,
+    },
+    statusPillText: {
+      fontFamily: 'JetBrainsMono_700Bold',
+      fontSize: 10,
+      letterSpacing: 0.5,
+    },
+    statusDescription: {
+      fontFamily: 'Geist_400Regular',
+      fontSize: 11.5,
+      color: colors.slate400,
+      textAlign: 'center',
+      lineHeight: 16,
+      paddingHorizontal: 8,
+    },
+    badgesContainer: {
+      marginTop: 14,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: colors.borderGlow,
+      gap: 8,
+    },
+    badgeRow: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    badgeCard: {
+      flex: 1,
+      backgroundColor: '#0B0D11',
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.borderGlow,
+      paddingVertical: 8,
+      paddingHorizontal: 2,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    badgeLabel: {
+      fontSize: 9,
+      fontFamily: 'JetBrainsMono_500Medium',
+      color: colors.mutedText,
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+      marginBottom: 2,
+    },
+    badgeValue: {
+      fontSize: 12.5,
+      fontFamily: 'JetBrainsMono_700Bold',
+    },
+  });

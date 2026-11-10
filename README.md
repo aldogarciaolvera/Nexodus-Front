@@ -36,6 +36,18 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
 
 ## 🆕 Últimos Cambios
 
+- **Rediseño Visual de Recuperación Muscular & Alineación Anatómica (`BodyRecoveryHeatmap.tsx` & `MuscleRecoveryCard.tsx`):**
+  - **Alineación Anatómica Exacta y Erradicación de Músculos Amontonados:**
+    - Se identificó que las imágenes base de la anatomía correspondían a tres secciones verticales superpuestas (`upper`, `middle`, `lower`). Al montarse en una misma coordenada Y=0, los músculos quedaban amontonados y solapados erróneamente (ej. bíceps y cuádriceps sobre el pecho).
+    - Se generaron capas compuestas de alta fidelidad (`composite_front_*` y `composite_back_*`) integrando los desplazamientos matemáticos exactos: cabeza y hombros superiores (`Y=0`), brazos y core abdominal (`Y=118`), y piernas/cuádriceps/gemelos (`Y=219` para frontal, `Y=320` para dorsal).
+    - El resultado es una anatomía humana esbelta, limpia y proporcionada idéntica a la referencia, donde cada grupo muscular resalta con nitidez en su ubicación física real.
+  - **Contención Estructural de Rectángulos Métricos:**
+    - Se reemplazó el contenedor con `flexWrap` por dos filas estructuradas fijas (`badgeRow`) con distribución equitativa de ancho (`flex: 1`, `gap: 8`), eliminando desbordamientos fuera de la tarjeta y asegurando que las 6 métricas (`PECHO`, `ESPALDA`, `PIERNAS`, `HOMBROS`, `BRAZOS`, `CORE`) queden 100% contenidas dentro de la tarjeta con números completos y legibles.
+  - **Eliminación de Líneas y Barras Redundantes:** Supresión total de la lista inferior de barras de progreso horizontales y textos redundantes de horas.
+  - **Medidor Vertical de Batería / Nivel de Energía:** Barra vertical a la izquierda con borne superior, carril estilizado con borde tonal (`#222836`), llenado reactivo y porcentaje global en `JetBrains Mono` con código de color dinámico.
+  - **Insignia y Consejo Táctico de Entrenamiento:** Píldora de estado de recuperación (`LISTO PARA ENTRENAR`, `RECUPERACIÓN ACTIVA`, `DESCANSO RECOMENDADO`) con recomendación dinámica.
+
+
 - **Carrusel Horizontal Completo de 7 Vistas & Puntos Minimalistas en Header (`MainCarouselScreen.tsx`, `Header.tsx`, `carouselNavStore.ts` & `BottomNav.tsx`):**
   - **Carrusel Horizontal Unificado:** Reemplazo de la navegación aislada por un único carrusel horizontal nativo a 60 FPS (`ScrollView` con `pagingEnabled={true}`) que abarca las 7 vistas principales de la aplicación en secuencia fluida:
     `[0: Dashboard (Home) ↔ 1: Mis Ideas ↔ 2: Mi Diario ↔ 3: Tasks ↔ 4: Gym & Rutinas ↔ 5: Dieta & Macros ↔ 6: Finanzas]`.
