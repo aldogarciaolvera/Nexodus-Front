@@ -1,3 +1,19 @@
+## [0.1.2] - 2026-11-11
+
+### Features
+
+- feat: auditoria de skills
+- feat: Skill security-audit
+- feat: ChefAI y reparacion de pagina de Rutinas
+- feat: Fases 6C y 6D - Nexodus Chef IA, recetario saludable, modo despensa y ciclado de carbohidratos
+- feat: Carrusel y mejoras de header
+- feat: Carrusel de paginas
+- feat: Implementacion de codigo de barras y mejoras en dieta
+
+### Bug Fixes
+
+- fix: Correxion de grupos musculares
+
 ## [0.1.1] - 2026-11-07
 
 ### Features
