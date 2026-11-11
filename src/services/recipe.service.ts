@@ -296,3 +296,4 @@ export const recipeService = {
     await handleResponse(response);
   },
 };
+

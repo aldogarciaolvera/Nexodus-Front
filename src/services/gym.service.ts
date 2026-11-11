@@ -314,9 +314,28 @@ export const gymService = {
   },
 
   logWorkoutSet: async (sessionId: string, data: LogWorkoutSetRequest): Promise<WorkoutSetDto> => {
+    const isGuid = (val?: string) => !!val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+    const payload: Record<string, any> = {
+      exerciseId: data.exerciseId,
+      setOrder: data.setOrder,
+      type: data.type || 'Normal',
+      weightKg: Number(data.weightKg) || 0,
+      reps: Number(data.reps) || 0,
+      isCompleted: data.isCompleted ?? false,
+    };
+    if (isGuid(data.setId)) {
+      payload.setId = data.setId;
+    }
+    if (data.rpe !== undefined && data.rpe !== null) {
+      payload.rpe = Number(data.rpe);
+    }
+    if (data.durationSeconds !== undefined && data.durationSeconds !== null) {
+      payload.durationSeconds = Number(data.durationSeconds);
+    }
+
     const response = await apiFetch(`/api/gym/sessions/${sessionId}/sets`, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
     return handleResponse(response);
   },

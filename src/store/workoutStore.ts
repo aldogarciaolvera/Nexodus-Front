@@ -257,7 +257,11 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       set((state) => {
         if (!state.session) return state;
         const existingSets = state.session.sets || [];
-        const index = existingSets.findIndex(s => s.id === logged.id || (data.setId && s.id === data.setId));
+        const index = existingSets.findIndex(
+          s => s.id === logged.id || 
+               (data.setId && s.id === data.setId) || 
+               (s.exerciseId === data.exerciseId && s.setOrder === data.setOrder)
+        );
 
         let updatedSets: WorkoutSetDto[];
         if (index >= 0) {

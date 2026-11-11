@@ -27,6 +27,7 @@ export const GymView = () => {
     elapsedSeconds, 
     currentExerciseIndex,
     startWorkout, 
+    resumeWorkout,
     initFromBackend,
   } = useWorkoutStore();
 
@@ -219,6 +220,7 @@ export const GymView = () => {
             activeOpacity={0.8}
             onPress={async () => {
               if (isActive) {
+                resumeWorkout();
                 navigation.navigate('ActiveWorkout');
               } else if (todayRoutine) {
                 await startWorkout(todayRoutine);

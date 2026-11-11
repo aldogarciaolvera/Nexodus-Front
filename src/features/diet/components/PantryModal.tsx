@@ -787,3 +787,4 @@ const createStyles = (colors: ThemeColors) =>
       paddingHorizontal: 30,
     },
   });
+

@@ -135,7 +135,7 @@ export const SetRowItem = React.memo(({
       </View>
 
       {/* Weight Input */}
-      <View style={styles.inputCol}>
+      <View style={styles.kgCol}>
         <TextInput
           style={[styles.input, isCompleted && styles.completedInput]}
           keyboardType="decimal-pad"
@@ -150,7 +150,7 @@ export const SetRowItem = React.memo(({
       </View>
 
       {/* Reps Input */}
-      <View style={styles.inputCol}>
+      <View style={styles.repsCol}>
         <TextInput
           style={[styles.input, isCompleted && styles.completedInput]}
           keyboardType="number-pad"
@@ -165,7 +165,7 @@ export const SetRowItem = React.memo(({
       </View>
 
       {/* Checkbox Complete */}
-      <View style={styles.actionCol}>
+      <View style={styles.checkCol}>
         <TouchableOpacity
           activeOpacity={0.7}
           onPress={handleToggleCheck}
@@ -175,7 +175,10 @@ export const SetRowItem = React.memo(({
             <Check size={16} color={theme.colors.obsidian} strokeWidth={3} />
           ) : null}
         </TouchableOpacity>
+      </View>
 
+      {/* Delete Set */}
+      <View style={styles.deleteCol}>
         {onDeleteSet && initialSet?.id ? (
           <TouchableOpacity
             activeOpacity={0.7}
@@ -195,7 +198,7 @@ const createStyles = (colors: ThemeColors) =>
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: 10,
+      paddingVertical: 8,
       paddingHorizontal: 8,
       borderBottomWidth: 1,
       borderBottomColor: colors.borderGlow,
@@ -208,8 +211,9 @@ const createStyles = (colors: ThemeColors) =>
       borderColor: 'rgba(56, 189, 248, 0.2)',
     },
     orderCol: {
-      width: 28,
+      width: 26,
       alignItems: 'center',
+      justifyContent: 'center',
     },
     orderText: {
       fontFamily: 'JetBrainsMono_500Medium',
@@ -221,44 +225,52 @@ const createStyles = (colors: ThemeColors) =>
       fontWeight: '700',
     },
     typeCol: {
-      width: 40,
+      width: 34,
       alignItems: 'center',
+      justifyContent: 'center',
     },
     prevCol: {
       flex: 1,
-      paddingHorizontal: 6,
+      minWidth: 44,
+      paddingHorizontal: 4,
       alignItems: 'center',
+      justifyContent: 'center',
     },
     prevText: {
       fontFamily: 'JetBrainsMono_400Regular',
       fontSize: 11,
       color: colors.slate500,
     },
-    inputCol: {
-      width: 68,
-      paddingHorizontal: 4,
+    kgCol: {
+      width: 60,
+      paddingHorizontal: 3,
+      alignItems: 'center',
+    },
+    repsCol: {
+      width: 52,
+      paddingHorizontal: 3,
+      alignItems: 'center',
     },
     input: {
+      width: '100%',
       backgroundColor: colors.surfaceLight,
       borderWidth: 1,
       borderColor: colors.borderGlow,
       borderRadius: 8,
       color: colors.text,
       fontFamily: 'JetBrainsMono_500Medium',
-      fontSize: 14,
+      fontSize: 13,
       textAlign: 'center',
-      paddingVertical: 6,
+      paddingVertical: 5,
     },
     completedInput: {
       borderColor: colors.neonCyan,
       color: colors.neonCyan,
     },
-    actionCol: {
-      width: 44,
-      flexDirection: 'row',
+    checkCol: {
+      width: 32,
       alignItems: 'center',
-      justifyContent: 'flex-end',
-      paddingRight: 4,
+      justifyContent: 'center',
     },
     checkBtn: {
       width: 28,
@@ -274,8 +286,12 @@ const createStyles = (colors: ThemeColors) =>
       backgroundColor: colors.neonCyan,
       borderColor: colors.neonCyan,
     },
+    deleteCol: {
+      width: 26,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     deleteBtn: {
-      marginLeft: 6,
       padding: 4,
     },
   });

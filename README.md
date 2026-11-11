@@ -36,6 +36,36 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
 
 ## 🆕 Últimos Cambios
 
+- **Corrección de Entrenamiento Activo, Series, Calculadora de Discos & Modal de Salida (`ActiveWorkoutScreen.tsx`, `SetRowItem.tsx`, `PlateCalculatorModal.tsx`, `ExitWorkoutModal.tsx`, `GymView.tsx` & Backend `Program.cs`):**
+  - **Erradicación de Superposición y Alineación Pixel-Perfect en Tabla de Series (`SetRowItem.tsx` & `ActiveWorkoutScreen.tsx`):**
+    - Se resolvieron los solapamientos de cajas donde los inputs de `REPS` y el botón de check (`✓`) colisionaban.
+    - Se definieron columnas fijas con anchos independientes y balanceados: `SET` (26px), `TIPO` (34px), `PREV` (`flex: 1`, min 44px), `KG` (60px), `REPS` (52px), `CHECK` (32px) y `DELETE` (26px).
+    - Los encabezados de la tabla (`tableHeader`) se sincronizaron al píxel con las filas de datos (`row`), eliminando márgenes flotantes y garantizando que ningún botón se sobreponga.
+  - **Detección Inteligente de Ejercicios con Barra (`isBarbellExercise`):**
+    - El botón de `Calculadora de Discos` ahora se oculta automáticamente para ejercicios con mancuernas, kettlebells, peso corporal, poleas o máquinas (ej. "Pirate supper piernas con kettlebell").
+    - Solo se activa cuando el ejercicio involucra barras olímpicas, press de banca, sentadillas, peso muerto o variantes de barra libre / Smith machine.
+  - **Explicación Fija de Series (`N, W, D, F, T`):**
+    - Se incorporó una barra de leyenda fija, discreta y elegante al pie de la tabla de series con insignias en miniatura con los colores temáticos de Obsidian Cyan:
+      - **N**: Normal (serie efectiva de trabajo)
+      - **W**: Calentamiento (Warmup)
+      - **D**: Drop Set (reducción progresiva de peso)
+      - **F**: Al Fallo (Failure)
+      - **T**: Tiempo (Timed)
+  - **Corrección de Texto en Calculadora de Discos (`PlateCalculatorModal.tsx`):**
+    - El primer botón de la barra olímpica de 20 kg ahora muestra uniformemente `"20 kg"` (sin saltos de línea ni etiquetas incómodas), manteniendo consistencia visual con `15 kg` y `10 kg`.
+  - **Nuevo Modal de Salida & Doble Confirmación para Borrar de BD (`ExitWorkoutModal.tsx`):**
+    - Se eliminó el diálogo nativo amontonado de 3 botones.
+    - Se creó un modal dedicado en Obsidian Cyan con botón de tache (`X`) en la esquina superior derecha que cancela la acción y reanuda el entrenamiento de inmediato.
+    - Muestra solo dos opciones cómodas y accesibles: `"Pausar y Salir"` (botón principal cian) y `"Descartar Sesión"` (botón de alerta roja).
+    - Al pulsar `"Descartar Sesión"`, se activa un paso de doble confirmación preventiva antes de ejecutar `cancelWorkout()`, garantizando que el borrado de datos en la base de datos sea totalmente intencional.
+  - **Corrección del Bug de Pausa del Temporizador:**
+    - Se corrigió el problema donde el temporizador permanecía pausado al salir y volver a entrar o al presionar "Continuar Rutina".
+    - `GymView.tsx` ahora invoca `resumeWorkout()` antes de navegar a `ActiveWorkoutScreen`.
+    - `ActiveWorkoutScreen.tsx` incorpora un `useEffect` automático que reanuda el cronómetro si la pantalla se enfoca o monta con sesión activa pero en estado de pausa.
+  - **Corrección de Error 500 al Guardar / Completar Series (Backend `Program.cs` & `gym.service.ts`):**
+    - Se solucionó la causa raíz del error 500 registrado en el backend al enviar strings de enums (`"type": "Normal"`) mediante la adición de `JsonStringEnumConverter()` en la configuración de serialización JSON de ASP.NET Core (`Program.cs`).
+    - Se sanitizó el servicio cliente en frontend (`gym.service.ts`) para validar y omitir `setId` cuando no sea un GUID válido existente en base de datos, previniendo excepciones en Minimal APIs.
+
 - **Rediseño Visual de Recuperación Muscular & Alineación Anatómica (`BodyRecoveryHeatmap.tsx` & `MuscleRecoveryCard.tsx`):**
   - **Alineación Anatómica Exacta y Erradicación de Músculos Amontonados:**
     - Se identificó que las imágenes base de la anatomía correspondían a tres secciones verticales superpuestas (`upper`, `middle`, `lower`). Al montarse en una misma coordenada Y=0, los músculos quedaban amontonados y solapados erróneamente (ej. bíceps y cuádriceps sobre el pecho).
