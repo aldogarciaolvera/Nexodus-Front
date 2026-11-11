@@ -21,6 +21,7 @@ interface SetRowItemProps {
   }) => void;
   onDeleteSet?: (setId?: string) => void;
   onToggleComplete?: (isCompleted: boolean) => void;
+  onFocusInput?: () => void;
 }
 
 export const SetRowItem = React.memo(({
@@ -30,6 +31,7 @@ export const SetRowItem = React.memo(({
   onSaveSet,
   onDeleteSet,
   onToggleComplete,
+  onFocusInput,
 }: SetRowItemProps) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
@@ -143,6 +145,7 @@ export const SetRowItem = React.memo(({
           placeholderTextColor={theme.colors.slate600}
           value={weightKg}
           onChangeText={setWeightKg}
+          onFocus={onFocusInput}
           onBlur={handleWeightBlur}
           maxLength={6}
           selectTextOnFocus
@@ -158,6 +161,7 @@ export const SetRowItem = React.memo(({
           placeholderTextColor={theme.colors.slate600}
           value={reps}
           onChangeText={setReps}
+          onFocus={onFocusInput}
           onBlur={handleRepsBlur}
           maxLength={4}
           selectTextOnFocus

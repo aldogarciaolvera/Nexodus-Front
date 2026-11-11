@@ -36,6 +36,69 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
 
 ## 🆕 Últimos Cambios
 
+- **Evolución del Módulo de Dieta: Unificación de Filtros, Descuento Automático de Despensa, Navegación Directa de Recetas y Difusión Comunitaria (`RecipeCatalogModal.tsx`, `PantryModal.tsx`, `ChefAiModal.tsx` & Backend `RecipeService.cs`, `RecipeAiService.cs`):**
+  - **Filtro Unificado en el Recetario (`RecipeCatalogModal.tsx`):**
+    - Se integraron las dos filas separadas de filtros (tipo de comida y enfoque nutricional) en una única barra horizontal limpia y deslizante (`Todos`, `Desayuno`, `Almuerzo`, `Cena`, `Snacks`, `Alta Proteína`, `Keto`, `Baja Grasa`).
+    - Al presionar cualquier chip, se aplica instantáneamente la combinación de `mealType` y `dietType` adecuada con resaltado cian en Obsidian Cyan.
+  - **Descuento Automático de Ingredientes de la Despensa al Cocinar/Registrar (`RecipeService.cs`):**
+    - Al registrar cualquier receta como plato en el diario nutricional (`/api/recipes/log`), el backend identifica automáticamente los ingredientes que el usuario tiene en su despensa guardada.
+    - Se descuenta la cantidad exacta utilizada (`matchingPantry.Quantity -= usedQuantity`). Si el ingrediente se agota completamente (`<= 0`), se depura de forma segura del inventario.
+    - El frontend invalida la consulta de despensa en tiempo real para reflejar el nuevo stock disponible sin necesidad de recargar la aplicación.
+  - **Navegación Directa a la Pantalla de la Receta en Modo Despensa (`PantryModal.tsx`):**
+    - Al presionar "Crear Recetas con lo que Tengo", la aplicación genera la sugerencia con Chef IA y navega automáticamente y de forma directa a la pantalla detallada de la receta.
+    - La vista incluye desglose completo de macronutrientes, lista de ingredientes con cantidades exactas, pasos numerados de preparación y la sección interactiva para registrarla en el diario solo tras haberla cocinado.
+    - Se incluye botón de retroceso (`< Volver`) para explorar las demás recetas sugeridas o la despensa, y cada sugerencia cuenta con su botón "Ver Receta Completa & Pasos".
+  - **Corrección de Error 404/NotFoundException en Registro de Recetas de Chef IA (`RecipeAiService.cs`, `ChefAiModal.tsx`):**
+    - `GenerateRecipeForRemainingMacrosAsync` ahora persiste inmediatamente en la base de datos la receta generada con su ID correspondiente en lugar de mantenerla en memoria volátil.
+    - Se agregó soporte de `FallbackRecipe` en `LogRecipeAsMealDto` para garantizar tolerancia total a fallos en caso de solicitudes concurrentes o sin conexión previa.
+  - **Difusión Comunitaria Automática (`IsCommunity = true`):**
+    - Toda receta creada, generada por IA o variante personalizada ahora se guarda automáticamente con `IsCommunity = true`, enriqueciendo permanentemente el catálogo global de recetas comunitarias accesibles para todos los usuarios.
+
+- **Enfoque Automático y Desplazamiento Dinámico al Editar Series en Entrenamiento Activo (`ActiveWorkoutScreen.tsx`, `SetRowItem.tsx`):**
+  - **Detección Dinámica del Teclado y Padding Adaptativo:**
+    - Se integraron listeners de `Keyboard.addListener` (`keyboardDidShow` / `keyboardDidHide` y equivalentes iOS) para capturar en tiempo real la altura exacta del teclado virtual del dispositivo.
+    - Se configuró el `contentContainerStyle` del `ScrollView` con un `paddingBottom` reactivo (`Math.max(120, keyboardSpace + 60)`), proporcionando el área de desplazamiento requerida para que cualquier serie (incluso las últimas series de la tabla) quede por encima del teclado.
+  - **Auto-Scroll al Input en Foco (`handleFocusSet`):**
+    - Se agregó el prop `onFocusInput` en `SetRowItem.tsx` conectado al evento `onFocus` de los campos de texto de Peso (`KG`) y Repeticiones (`REPS`).
+    - Al presionar cualquier campo de texto, `ActiveWorkoutScreen` ejecuta un desplazamiento suave automático (`scrollTo`) enfocado en la serie exacta que se está modificando, evitando que el teclado cubra el valor que el usuario está escribiendo o editando.
+  - **Tipado Fuerte de `ScrollViewInstance`:**
+    - Se empleó `ScrollViewInstance` para tipar la referencia del contenedor de desplazamiento en estricto cumplimiento con React Native 0.88 y React 19, garantizando 0 errores de compilación TypeScript.
+
+- **Migración de `SafeAreaView` a `react-native-safe-area-context` (`ExerciseDetailModal.tsx`):**
+  - Se eliminó la importación obsoleta de `SafeAreaView` proveniente de `'react-native'` en `ExerciseDetailModal.tsx`, migrándola a `'react-native-safe-area-context'` para suprimir el warning de deprecación y asegurar total compatibilidad con futuras versiones de React Native y Expo SDK.
+
+- **Unificación de Identidad Visual para Chef IA (`ChefHat`) & Compactación de Filtros en Recetario (`NexodusChefCard.tsx`, `ChefAiModal.tsx`, `PantryModal.tsx`, `RecipeCatalogModal.tsx`):**
+  - **Sustitución Universal del Icono de Chef IA por `ChefHat` (Gorrito de Chef):**
+    - Se reemplazó el icono genérico de destellos (`Sparkles`) por el icono oficial de gorrito de chef (`ChefHat`) de `lucide-react-native` en todos los puntos de contacto de inteligencia culinaria en la app:
+      - Encabezado y botón principal "Completar Macros" en `NexodusChefCard.tsx`.
+      - Encabezado del modal y botón de acción "Diseñar Plato con Chef IA" en `ChefAiModal.tsx`.
+      - Botón de generación inteligente "Crear Recetas con lo que Tengo" en el Modo Despensa (`PantryModal.tsx`).
+      - Encabezado y detalles del catálogo de recetas en `RecipeCatalogModal.tsx`.
+  - **Rediseño Compacto y Erradicación del Desbordamiento en Filtros del Recetario (`RecipeCatalogModal.tsx`):**
+    - Se eliminó el scroll horizontal infinito único de 650px que extendía los 8 chips fuera de la pantalla.
+    - Se implementó un layout estructurado de doble fila compacta con `flexWrap: 'wrap'` y etiquetas directas:
+      - **Fila 1 (Tipo de Comida):** `Todos`, `Desayuno`, `Almuerzo`, `Cena`, `Snack`.
+      - **Fila 2 (Enfoque Nutricional):** `Todos`, `Proteína`, `Keto`, `Baja Grasa`.
+    - Ambas filas se visualizan al 100% dentro del ancho del teléfono sin requerir desplazamiento horizontal excesivo, con código de color dinámico en Obsidian Cyan (`#38BDF8` y `#00F0FF`).
+
+- **Diagrama Anatómico de Músculos Enfocados, Instrucciones Paso a Paso & Normalización de Recuperación Muscular (`ExerciseMuscleAnatomy.tsx`, `ExerciseDetailModal.tsx`, `ActiveWorkoutScreen.tsx` & Backend `WorkoutSessionService.cs`):**
+  - **Componente Anatómico de Músculos Enfocados (`ExerciseMuscleAnatomy.tsx`):**
+    - Renderiza la anatomía humana dual (Vista Anterior y Vista Posterior) iluminando con brillo cian neón (`#00F0FF`) el grupo muscular principal y en cian activo (`#38BDF8`) los músculos secundarios/estabilizadores.
+    - Mapeo inteligente de todos los músculos (`biceps`, `delts`, `pectorals`, `quads`, `lats`, `traps`, `abs`, `calves`, `forearms`, `glutes`, `hamstrings`, etc.) hacia las capas anatómicas compuestas, manteniendo la silueta base en gris estructural (`#222836`).
+    - Leyenda interactiva con indicador de color y nombres traducidos al español (`■ Primario: [Músculo]`, `■ Secundario: [Músculo]`).
+  - **Modal Deslizante de Guía Técnica e Instrucciones (`ExerciseDetailModal.tsx`):**
+    - Se transformó el botón de la barra rápida de `ActiveWorkoutScreen` en **"Técnica & Músculos"** con icono `BookOpen`.
+    - Al tocarlo, abre un modal completo estilo presentación deslizable con:
+      - Encabezado con título del ejercicio y botón de cierre `X`.
+      - Demostración visual en GIF / imagen en contenedor limpio.
+      - Diagrama anatómico completo de activación muscular frontal y dorsal.
+      - Tarjetas de clasificación rápida de Músculo Primario, Músculo Secundario y Equipamiento traducido (polea, mancuerna, barra olímpica, máquina, etc.).
+      - Sección de **Instrucciones Paso a Paso** que formatea y desglosa el campo `instructions` en tarjetas numeradas (`1.`, `2.`, `3.`, `4.`, `5.`) con tipografía `JetBrains Mono` y `Geist`.
+  - **Optimización del Algoritmo de Recuperación Muscular en Backend (`WorkoutSessionService.cs`):**
+    - Se amplió la función `NormalizeMuscleGroup` para reconocer el 100% de los músculos de la base de datos (incluyendo abreviaciones y nombres clave como `delts`, `calves`, `abductors`, `adductors`, `lats`, `traps`, `forearms`, `serratus`, etc.) mapeándolos a los 6 grupos de recuperación (`Pecho`, `Espalda`, `Piernas`, `Hombros`, `Bíceps/Brazos`, `Core`).
+    - Se añadió un fallback para evaluar `BodyPart` cuando el músculo individual no esté categorizado.
+    - Al completar series y finalizar el entrenamiento, cada serie completada actualiza el registro biológico del músculo utilizado, impactando directamente la tarjeta de Recuperación Muscular en `GymView`.
+
 - **Corrección de Entrenamiento Activo, Series, Calculadora de Discos & Modal de Salida (`ActiveWorkoutScreen.tsx`, `SetRowItem.tsx`, `PlateCalculatorModal.tsx`, `ExitWorkoutModal.tsx`, `GymView.tsx` & Backend `Program.cs`):**
   - **Erradicación de Superposición y Alineación Pixel-Perfect en Tabla de Series (`SetRowItem.tsx` & `ActiveWorkoutScreen.tsx`):**
     - Se resolvieron los solapamientos de cajas donde los inputs de `REPS` y el botón de check (`✓`) colisionaban.

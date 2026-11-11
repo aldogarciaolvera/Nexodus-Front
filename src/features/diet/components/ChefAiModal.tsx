@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   X,
-  Sparkles,
+  ChefHat,
   Clock,
   Flame,
   Check,
@@ -72,11 +72,18 @@ export const ChefAiModal: React.FC<ChefAiModalProps> = ({
 
   // Log as Meal Mutation (Option A)
   const logMealMutation = useMutation({
-    mutationFn: (data: { recipeId: string; date: string; mealType: string; servings: number }) =>
-      recipeService.logRecipeAsMeal(data),
+    mutationFn: (data: {
+      recipeId: string;
+      date: string;
+      mealType: string;
+      servings: number;
+      fallbackRecipe?: any;
+    }) => recipeService.logRecipeAsMeal(data),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.diet.daily(vars.date) });
-      showAlert('Plato Registrado', `"${generatedRecipe?.name}" registrado en tu diario.`, 'success');
+      queryClient.invalidateQueries({ queryKey: queryKeys.diet.pantry });
+      queryClient.invalidateQueries({ queryKey: ['recipes'] });
+      showAlert('Plato Registrado', `"${generatedRecipe?.name}" registrado en tu diario e inventario actualizado.`, 'success');
       handleClose();
     },
     onError: (e: any) => {
@@ -99,12 +106,40 @@ export const ChefAiModal: React.FC<ChefAiModalProps> = ({
 
   const handleLogGenerated = () => {
     if (!generatedRecipe) return;
-    // We log it directly
     logMealMutation.mutate({
       recipeId: generatedRecipe.id,
       date: selectedDate,
       mealType,
       servings: 1,
+      fallbackRecipe: {
+        name: generatedRecipe.name,
+        description: generatedRecipe.description,
+        mealType: generatedRecipe.mealType || mealType,
+        dietType: generatedRecipe.dietType || 'Standard',
+        prepTimeMinutes: generatedRecipe.prepTimeMinutes || 10,
+        cookTimeMinutes: generatedRecipe.cookTimeMinutes || 15,
+        servings: 1,
+        difficulty: generatedRecipe.difficulty || 'Easy',
+        isCommunity: true,
+        tags: generatedRecipe.tags || ['ChefAI', 'Macros'],
+        imageUrl: generatedRecipe.imageUrl,
+        ingredients: generatedRecipe.ingredients.map((i) => ({
+          foodId: i.foodId,
+          customFoodName: i.customFoodName,
+          cookingState: i.cookingState,
+          quantity: i.quantity,
+          unit: i.unit,
+          calories: i.calories,
+          protein: i.protein,
+          carbs: i.carbs,
+          fat: i.fat,
+          isOptional: i.isOptional,
+        })),
+        steps: generatedRecipe.steps.map((s) => ({
+          stepNumber: s.stepNumber,
+          instruction: s.instruction,
+        })),
+      },
     });
   };
 
@@ -123,7 +158,7 @@ export const ChefAiModal: React.FC<ChefAiModalProps> = ({
         <View style={styles.header}>
           <View style={styles.headerTitleRow}>
             <View style={styles.iconCircle}>
-              <Sparkles size={18} color={theme.colors.neonCyan} />
+              <ChefHat size={18} color={theme.colors.neonCyan} />
             </View>
             <View>
               <Text style={styles.headerTitle}>Nexodus Chef IA</Text>
@@ -253,7 +288,7 @@ export const ChefAiModal: React.FC<ChefAiModalProps> = ({
                   </View>
                 ) : (
                   <View style={styles.btnRow}>
-                    <Sparkles size={18} color={theme.colors.obsidian} />
+                    <ChefHat size={18} color={theme.colors.obsidian} />
                     <Text style={styles.generateBtnText}>Diseñar Plato con Chef IA</Text>
                   </View>
                 )}

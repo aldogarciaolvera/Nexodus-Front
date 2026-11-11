@@ -13,13 +13,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   X,
   Refrigerator,
-  Sparkles,
+  ChefHat,
   Plus,
+  Minus,
   Trash2,
   Check,
   AlertCircle,
   Clock,
   ChevronRight,
+  ChevronLeft,
+  BookOpen,
 } from 'lucide-react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '../../../utils/ThemeContext';
@@ -28,6 +31,7 @@ import { useAlertStore } from '../../../store/alertStore';
 import { queryKeys } from '../../../services/queryKeys';
 import {
   recipeService,
+  Recipe,
   PantryItem,
   PantryCookSuggestion,
   PantryCookRequest,
@@ -62,6 +66,11 @@ export const PantryModal: React.FC<PantryModalProps> = ({
   const [newItemCat, setNewItemCat] = useState('Protein');
 
   const [suggestions, setSuggestions] = useState<PantryCookSuggestion[]>([]);
+  const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
+  const [targetMealType, setTargetMealType] = useState<'Breakfast' | 'Lunch' | 'Dinner' | 'Snack'>('Lunch');
+  const [servings, setServings] = useState(1);
+  const [isOpeningRecipe, setIsOpeningRecipe] = useState(false);
+  const [isLoggingMeal, setIsLoggingMeal] = useState(false);
 
   // Query Pantry items
   const { data: pantryItems = [], isLoading: isPantryLoading } = useQuery({
@@ -92,24 +101,10 @@ export const PantryModal: React.FC<PantryModalProps> = ({
     },
   });
 
-  // Cook with AI Mutation
-  const cookAiMutation = useMutation({
-    mutationFn: (req: PantryCookRequest) => recipeService.suggestFromPantry(req),
-    onSuccess: (data) => {
-      setSuggestions(data);
-      if (data.length > 0) {
-        showAlert('Recetas Encontradas', `Chef IA creó ${data.length} opciones con tu despensa.`, 'success');
-      }
-    },
-    onError: (e: any) => {
-      showAlert('Error de Sugerencias', e?.message || 'No se pudo generar con Gemini.', 'error');
-    },
-  });
-
-  // Log Suggestion as Meal (Option A)
-  const logSuggestionMutation = useMutation({
-    mutationFn: async (sug: PantryCookSuggestion) => {
-      // 1. Create recipe first
+  // Open & Save Suggestion as full Recipe
+  const handleOpenSuggestionDetail = async (sug: PantryCookSuggestion) => {
+    setIsOpeningRecipe(true);
+    try {
       const created = await recipeService.createRecipe({
         name: sug.name,
         description: sug.description,
@@ -119,29 +114,89 @@ export const PantryModal: React.FC<PantryModalProps> = ({
         cookTimeMinutes: sug.cookTimeMinutes || 15,
         servings: 1,
         difficulty: sug.difficulty || 'Easy',
-        isCommunity: false,
+        isCommunity: true, // Siempre visible en comunidad
         tags: ['ModoDespensa'],
         ingredients: sug.ingredients,
         steps: sug.steps,
       });
+      setSelectedRecipe(created);
+      queryClient.invalidateQueries({ queryKey: ['recipes'] });
+    } catch (e: any) {
+      showAlert('Error', e?.message || 'No se pudo abrir el detalle de la receta.', 'error');
+    } finally {
+      setIsOpeningRecipe(false);
+    }
+  };
 
-      // 2. Log as meal in daily diary
-      return await recipeService.logRecipeAsMeal({
-        recipeId: created.id,
-        date: selectedDate,
-        mealType: selectedMealType,
-        servings: 1,
-      });
+  // Cook with AI Mutation
+  const cookAiMutation = useMutation({
+    mutationFn: (req: PantryCookRequest) => recipeService.suggestFromPantry(req),
+    onSuccess: async (data) => {
+      setSuggestions(data);
+      if (data.length > 0) {
+        showAlert('Receta Creada', `Chef IA diseñó "${data[0].name}" con tu despensa.`, 'success');
+        await handleOpenSuggestionDetail(data[0]);
+      }
     },
-    onSuccess: (_, sug) => {
+    onError: (e: any) => {
+      showAlert('Error de Sugerencias', e?.message || 'No se pudo generar con Gemini.', 'error');
+    },
+  });
+
+  // Log Meal Mutation
+  const logMealMutation = useMutation({
+    mutationFn: (data: {
+      recipeId: string;
+      date: string;
+      mealType: string;
+      servings: number;
+      fallbackRecipe?: any;
+    }) => recipeService.logRecipeAsMeal(data),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.diet.daily(selectedDate) });
-      showAlert('Plato Registrado', `"${sug.name}" añadido a tu diario con sus ingredientes desglosados.`, 'success');
+      queryClient.invalidateQueries({ queryKey: queryKeys.diet.pantry });
+      queryClient.invalidateQueries({ queryKey: ['recipes'] });
+      showAlert(
+        'Plato Registrado',
+        `"${selectedRecipe?.name}" agregado a tu diario e ingredientes descontados de tu despensa.`,
+        'success'
+      );
+      setSelectedRecipe(null);
       onClose();
     },
     onError: (e: any) => {
       showAlert('Error', e?.message || 'No se pudo registrar la comida.', 'error');
     },
+    onSettled: () => {
+      setIsLoggingMeal(false);
+    },
   });
+
+  const handleConfirmLogMeal = () => {
+    if (!selectedRecipe) return;
+    setIsLoggingMeal(true);
+    logMealMutation.mutate({
+      recipeId: selectedRecipe.id,
+      date: selectedDate,
+      mealType: targetMealType,
+      servings,
+      fallbackRecipe: {
+        name: selectedRecipe.name,
+        description: selectedRecipe.description,
+        mealType: selectedRecipe.mealType,
+        dietType: selectedRecipe.dietType,
+        prepTimeMinutes: selectedRecipe.prepTimeMinutes,
+        cookTimeMinutes: selectedRecipe.cookTimeMinutes,
+        servings: selectedRecipe.servings,
+        difficulty: selectedRecipe.difficulty,
+        isCommunity: true,
+        tags: selectedRecipe.tags,
+        imageUrl: selectedRecipe.imageUrl,
+        ingredients: selectedRecipe.ingredients,
+        steps: selectedRecipe.steps,
+      },
+    });
+  };
 
   const handleAddItem = (nameOverride?: string) => {
     const name = (nameOverride || newItemName).trim();
@@ -172,12 +227,22 @@ export const PantryModal: React.FC<PantryModalProps> = ({
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerTitleRow}>
-            <View style={styles.iconCircle}>
-              <Refrigerator size={18} color={theme.colors.neonCyan} />
-            </View>
-            <View>
-              <Text style={styles.headerTitle}>Modo Despensa</Text>
-              <Text style={styles.headerSub}>Cocina con lo que tienes a la mano</Text>
+            {selectedRecipe ? (
+              <TouchableOpacity onPress={() => setSelectedRecipe(null)} style={styles.backBtn}>
+                <ChevronLeft size={22} color={theme.colors.neonCyan} />
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.iconCircle}>
+                <Refrigerator size={18} color={theme.colors.neonCyan} />
+              </View>
+            )}
+            <View style={{ flexShrink: 1 }}>
+              <Text style={styles.headerTitle} numberOfLines={1}>
+                {selectedRecipe ? selectedRecipe.name : 'Modo Despensa'}
+              </Text>
+              <Text style={styles.headerSub}>
+                {selectedRecipe ? 'Instrucciones y registro de comida' : 'Cocina con lo que tienes a la mano'}
+              </Text>
             </View>
           </View>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
@@ -185,249 +250,406 @@ export const PantryModal: React.FC<PantryModalProps> = ({
           </TouchableOpacity>
         </View>
 
-        {/* Tab Selector */}
-        <View style={styles.tabRow}>
-          <TouchableOpacity
-            style={[styles.tabBtn, activeTab === 'cook' && styles.tabBtnActive]}
-            onPress={() => setActiveTab('cook')}
-          >
-            <Text style={[styles.tabBtnText, activeTab === 'cook' && styles.tabBtnTextActive]}>
-              🍲 Cocinar con IA
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tabBtn, activeTab === 'inventory' && styles.tabBtnActive]}
-            onPress={() => setActiveTab('inventory')}
-          >
-            <Text style={[styles.tabBtnText, activeTab === 'inventory' && styles.tabBtnTextActive]}>
-              📦 Mi Despensa ({pantryItems.length})
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {selectedRecipe ? (
+          // ================== PANTALLA DETALLADA DE LA RECETA ==================
+          <ScrollView style={styles.scrollContent} contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
+            <View style={styles.detailContainer}>
+              <View style={styles.detailHeaderBox}>
+                <Text style={styles.detailTitle}>{selectedRecipe.name}</Text>
+                <Text style={styles.detailDesc}>{selectedRecipe.description}</Text>
+              </View>
 
-        <ScrollView style={styles.scrollContent} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-          {activeTab === 'cook' ? (
-            // ================== MODO COCINAR CON IA ==================
-            <View style={{ gap: 14 }}>
-              {/* Free Text Input (Option A) */}
-              <View style={styles.card}>
-                <Text style={styles.cardSectionLabel}>¿QUÉ TIENES EN TU COCINA HOY?</Text>
-                <TextInput
-                  style={styles.textArea}
-                  placeholder="Ej. Tengo 2 huevos, pechuga de pollo, arroz ya cocido y un jitomate..."
-                  placeholderTextColor={theme.colors.slate600}
-                  value={freeText}
-                  onChangeText={setFreeText}
-                  multiline
-                  numberOfLines={3}
-                />
-
-                {/* Stored Pantry Toggle */}
-                <TouchableOpacity
-                  style={styles.toggleRow}
-                  onPress={() => setUseStoredPantry(!useStoredPantry)}
-                  activeOpacity={0.8}
-                >
-                  <View style={[styles.checkbox, useStoredPantry && styles.checkboxActive]}>
-                    {useStoredPantry && <Check size={12} color={theme.colors.obsidian} />}
-                  </View>
-                  <Text style={styles.toggleText}>
-                    Incluir ingredientes de Mi Despensa guardada ({pantryItems.length} items)
+              {/* Meta tags & Time */}
+              <View style={styles.metaRow}>
+                <View style={styles.metaItem}>
+                  <Clock size={13} color={theme.colors.slate400} />
+                  <Text style={styles.metaItemText}>
+                    {selectedRecipe.prepTimeMinutes + selectedRecipe.cookTimeMinutes} min
                   </Text>
-                </TouchableOpacity>
+                </View>
+                <View style={styles.metaItem}>
+                  <Text style={styles.metaItemText}>Dificultad: {selectedRecipe.difficulty}</Text>
+                </View>
+                <View style={styles.metaItem}>
+                  <Text style={styles.metaItemText}>Porciones: {selectedRecipe.servings}</Text>
+                </View>
+              </View>
 
-                {/* Meal Type Row */}
-                <View style={styles.mealTypeRow}>
-                  {['Breakfast', 'Lunch', 'Dinner'].map((m) => (
+              {/* Macro Cards Grid */}
+              <View style={styles.macroGrid}>
+                <View style={styles.macroCard}>
+                  <Text style={styles.macroLabel}>CALORÍAS</Text>
+                  <Text style={[styles.macroVal, { color: theme.colors.text }]}>
+                    {Math.round(selectedRecipe.totalCalories * servings)}
+                  </Text>
+                </View>
+                <View style={styles.macroCard}>
+                  <Text style={styles.macroLabel}>PROTEÍNA</Text>
+                  <Text style={[styles.macroVal, { color: theme.colors.neonCyan }]}>
+                    {Math.round(selectedRecipe.totalProtein * servings)}g
+                  </Text>
+                </View>
+                <View style={styles.macroCard}>
+                  <Text style={styles.macroLabel}>CARBOS</Text>
+                  <Text style={[styles.macroVal, { color: theme.colors.warning }]}>
+                    {Math.round(selectedRecipe.totalCarbs * servings)}g
+                  </Text>
+                </View>
+                <View style={styles.macroCard}>
+                  <Text style={styles.macroLabel}>GRASAS</Text>
+                  <Text style={[styles.macroVal, { color: theme.colors.error }]}>
+                    {Math.round(selectedRecipe.totalFat * servings)}g
+                  </Text>
+                </View>
+              </View>
+
+              {/* Ingredients List */}
+              <Text style={styles.sectionHeader}>INGREDIENTES</Text>
+              <View style={styles.ingredientsBox}>
+                {selectedRecipe.ingredients.map((ing, i) => (
+                  <View key={i} style={styles.ingredientLine}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.ingredientLineName}>{ing.customFoodName}</Text>
+                      {ing.cookingState && ing.cookingState !== 'Raw' && (
+                        <Text style={styles.cookingStateSub}>Cocción: {ing.cookingState}</Text>
+                      )}
+                    </View>
+                    <Text style={styles.ingredientLineQty}>
+                      {Math.round(ing.quantity * servings)} {ing.unit}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Steps List */}
+              <Text style={styles.sectionHeader}>PREPARACIÓN PASO A PASO</Text>
+              <View style={styles.stepsBox}>
+                {selectedRecipe.steps.map((st, i) => (
+                  <View key={i} style={styles.stepRow}>
+                    <View style={styles.stepNumCircle}>
+                      <Text style={styles.stepNumText}>{st.stepNumber || i + 1}</Text>
+                    </View>
+                    <Text style={styles.stepInstructionText}>{st.instruction}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Logging Section */}
+              <View style={styles.logCard}>
+                <Text style={styles.logCardTitle}>¿PREPARASTE ESTE PLATILLO?</Text>
+                <Text style={styles.logCardSub}>
+                  Guárdalo como registro de comida en tu diario. Los ingredientes usados se restarán automáticamente de tu despensa.
+                </Text>
+
+                {/* Meal Type Selector */}
+                <View style={styles.mealTypeSelectorRow}>
+                  {(['Breakfast', 'Lunch', 'Dinner', 'Snack'] as const).map((m) => (
                     <TouchableOpacity
                       key={m}
-                      style={[styles.chip, selectedMealType === m && styles.chipActive]}
-                      onPress={() => setSelectedMealType(m)}
+                      style={[styles.mealTypeChip, targetMealType === m && styles.mealTypeChipActive]}
+                      onPress={() => setTargetMealType(m)}
                     >
-                      <Text style={[styles.chipText, selectedMealType === m && styles.chipTextActive]}>
-                        {m === 'Breakfast' ? 'Desayuno' : m === 'Lunch' ? 'Almuerzo' : 'Cena'}
+                      <Text
+                        style={[
+                          styles.mealTypeChipText,
+                          targetMealType === m && styles.mealTypeChipTextActive,
+                        ]}
+                      >
+                        {m === 'Breakfast' ? 'Desayuno' : m === 'Lunch' ? 'Almuerzo' : m === 'Dinner' ? 'Cena' : 'Snack'}
                       </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
 
-                {/* Action Button */}
+                {/* Servings Counter */}
+                <View style={styles.servingsRow}>
+                  <Text style={styles.servingsLabel}>Porciones consumidas:</Text>
+                  <View style={styles.counterRow}>
+                    <TouchableOpacity
+                      style={styles.servingBtn}
+                      onPress={() => setServings(Math.max(1, servings - 1))}
+                    >
+                      <Minus size={14} color={theme.colors.text} />
+                    </TouchableOpacity>
+                    <Text style={styles.servingVal}>{servings}</Text>
+                    <TouchableOpacity
+                      style={styles.servingBtn}
+                      onPress={() => setServings(servings + 1)}
+                    >
+                      <Plus size={14} color={theme.colors.text} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Confirm Button */}
                 <TouchableOpacity
-                  style={[styles.searchBtn, cookAiMutation.isPending && styles.searchBtnDisabled]}
-                  onPress={handleSearchCook}
-                  disabled={cookAiMutation.isPending}
+                  style={[styles.confirmLogBtn, isLoggingMeal && styles.confirmLogBtnDisabled]}
+                  onPress={handleConfirmLogMeal}
+                  disabled={isLoggingMeal}
                   activeOpacity={0.8}
                 >
-                  {cookAiMutation.isPending ? (
-                    <View style={styles.btnRow}>
-                      <ActivityIndicator color={theme.colors.obsidian} />
-                      <Text style={styles.searchBtnText}>Buscando recetas con Gemini...</Text>
-                    </View>
+                  {isLoggingMeal ? (
+                    <ActivityIndicator color={theme.colors.obsidian} />
                   ) : (
-                    <View style={styles.btnRow}>
-                      <Sparkles size={16} color={theme.colors.obsidian} />
-                      <Text style={styles.searchBtnText}>Crear Recetas con lo que Tengo</Text>
-                    </View>
+                    <>
+                      <Plus size={18} color={theme.colors.obsidian} />
+                      <Text style={styles.confirmLogBtnText}>Añadir al Diario y Actualizar Despensa</Text>
+                    </>
                   )}
                 </TouchableOpacity>
               </View>
+            </View>
+          </ScrollView>
+        ) : (
+          <>
+            {/* Tab Selector */}
+            <View style={styles.tabRow}>
+              <TouchableOpacity
+                style={[styles.tabBtn, activeTab === 'cook' && styles.tabBtnActive]}
+                onPress={() => setActiveTab('cook')}
+              >
+                <Text style={[styles.tabBtnText, activeTab === 'cook' && styles.tabBtnTextActive]}>
+                  🍲 Cocinar con IA
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.tabBtn, activeTab === 'inventory' && styles.tabBtnActive]}
+                onPress={() => setActiveTab('inventory')}
+              >
+                <Text style={[styles.tabBtnText, activeTab === 'inventory' && styles.tabBtnTextActive]}>
+                  📦 Mi Despensa ({pantryItems.length})
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-              {/* Suggestions List */}
-              {suggestions.length > 0 && (
-                <View style={{ gap: 12 }}>
-                  <Text style={styles.sectionTitle}>RECETAS SUGERIDAS ({suggestions.length})</Text>
+            <ScrollView style={styles.scrollContent} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+              {activeTab === 'cook' ? (
+                // ================== MODO COCINAR CON IA ==================
+                <View style={{ gap: 14 }}>
+                  {/* Free Text Input (Option A) */}
+                  <View style={styles.card}>
+                    <Text style={styles.cardSectionLabel}>¿QUÉ TIENES EN TU COCINA HOY?</Text>
+                    <TextInput
+                      style={styles.textArea}
+                      placeholder="Ej. Tengo 2 huevos, pechuga de pollo, arroz ya cocido y un jitomate..."
+                      placeholderTextColor={theme.colors.slate600}
+                      value={freeText}
+                      onChangeText={setFreeText}
+                      multiline
+                      numberOfLines={3}
+                    />
 
-                  {suggestions.map((sug, i) => (
-                    <View key={i} style={styles.sugCard}>
-                      <View style={styles.sugHeader}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.sugName}>{sug.name}</Text>
-                          <Text style={styles.sugDesc}>{sug.description}</Text>
-                        </View>
-                        <View style={styles.matchBadge}>
-                          <Text style={styles.matchBadgeText}>{Math.round(sug.matchPercentage)}% Coincidencia</Text>
-                        </View>
+                    {/* Stored Pantry Toggle */}
+                    <TouchableOpacity
+                      style={styles.toggleRow}
+                      onPress={() => setUseStoredPantry(!useStoredPantry)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.checkbox, useStoredPantry && styles.checkboxActive]}>
+                        {useStoredPantry && <Check size={12} color={theme.colors.obsidian} />}
                       </View>
+                      <Text style={styles.toggleText}>
+                        Incluir ingredientes de Mi Despensa guardada ({pantryItems.length} items)
+                      </Text>
+                    </TouchableOpacity>
 
-                      {/* Macros row */}
-                      <View style={styles.sugMacrosRow}>
-                        <Text style={styles.sugMacroItem}>
-                          <Text style={{ color: theme.colors.text, fontFamily: 'JetBrainsMono_700Bold' }}>
-                            {Math.round(sug.totalCalories)}
-                          </Text>{' '}
-                          kcal
-                        </Text>
-                        <Text style={styles.sugMacroItem}>
-                          P:{' '}
-                          <Text style={{ color: theme.colors.neonCyan, fontFamily: 'JetBrainsMono_700Bold' }}>
-                            {Math.round(sug.totalProtein)}g
+                    {/* Meal Type Row */}
+                    <View style={styles.mealTypeRow}>
+                      {['Breakfast', 'Lunch', 'Dinner'].map((m) => (
+                        <TouchableOpacity
+                          key={m}
+                          style={[styles.chip, selectedMealType === m && styles.chipActive]}
+                          onPress={() => setSelectedMealType(m)}
+                        >
+                          <Text style={[styles.chipText, selectedMealType === m && styles.chipTextActive]}>
+                            {m === 'Breakfast' ? 'Desayuno' : m === 'Lunch' ? 'Almuerzo' : 'Cena'}
                           </Text>
-                        </Text>
-                        <Text style={styles.sugMacroItem}>
-                          C:{' '}
-                          <Text style={{ color: theme.colors.warning, fontFamily: 'JetBrainsMono_700Bold' }}>
-                            {Math.round(sug.totalCarbs)}g
-                          </Text>
-                        </Text>
-                        <Text style={styles.sugMacroItem}>
-                          G:{' '}
-                          <Text style={{ color: theme.colors.error, fontFamily: 'JetBrainsMono_700Bold' }}>
-                            {Math.round(sug.totalFat)}g
-                          </Text>
-                        </Text>
-                      </View>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
 
-                      {/* Missing Ingredients Warning (Option A) */}
-                      {sug.missingIngredients && sug.missingIngredients.length > 0 && (
-                        <View style={styles.missingBox}>
-                          <AlertCircle size={14} color={theme.colors.warning} />
-                          <Text style={styles.missingText}>
-                            Falta para compras: {sug.missingIngredients.join(', ')}
+                    {/* Action Button */}
+                    <TouchableOpacity
+                      style={[styles.searchBtn, (cookAiMutation.isPending || isOpeningRecipe) && styles.searchBtnDisabled]}
+                      onPress={handleSearchCook}
+                      disabled={cookAiMutation.isPending || isOpeningRecipe}
+                      activeOpacity={0.8}
+                    >
+                      {cookAiMutation.isPending || isOpeningRecipe ? (
+                        <View style={styles.btnRow}>
+                          <ActivityIndicator color={theme.colors.obsidian} />
+                          <Text style={styles.searchBtnText}>
+                            {isOpeningRecipe ? 'Preparando receta...' : 'Buscando recetas con Gemini...'}
                           </Text>
+                        </View>
+                      ) : (
+                        <View style={styles.btnRow}>
+                          <ChefHat size={16} color={theme.colors.obsidian} />
+                          <Text style={styles.searchBtnText}>Crear Recetas con lo que Tengo</Text>
                         </View>
                       )}
-
-                      {/* Cook & Log Button */}
-                      <TouchableOpacity
-                        style={styles.logSugBtn}
-                        onPress={() => logSuggestionMutation.mutate(sug)}
-                        disabled={logSuggestionMutation.isPending}
-                        activeOpacity={0.8}
-                      >
-                        <Plus size={15} color={theme.colors.obsidian} />
-                        <Text style={styles.logSugBtnText}>Cocinar y Registrar en Diario</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-          ) : (
-            // ================== GESTIÓN DE DESPENSA ==================
-            <View style={{ gap: 14 }}>
-              {/* Add Ingredient Card */}
-              <View style={styles.card}>
-                <Text style={styles.cardSectionLabel}>AGREGAR INGREDIENTE A TU DESPENSA</Text>
-
-                <View style={styles.inputRow}>
-                  <TextInput
-                    style={[styles.textInput, { flex: 2 }]}
-                    placeholder="Nombre (ej. Pechuga de pollo)"
-                    placeholderTextColor={theme.colors.slate600}
-                    value={newItemName}
-                    onChangeText={setNewItemName}
-                  />
-                  <TextInput
-                    style={[styles.textInput, { flex: 1 }]}
-                    placeholder="Cant."
-                    placeholderTextColor={theme.colors.slate600}
-                    value={newItemQty}
-                    onChangeText={setNewItemQty}
-                    keyboardType="numeric"
-                  />
-                  <TouchableOpacity
-                    style={styles.addBtn}
-                    onPress={() => handleAddItem()}
-                    disabled={addItemMutation.isPending}
-                    activeOpacity={0.8}
-                  >
-                    <Plus size={18} color={theme.colors.obsidian} />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Quick Add Chips */}
-                <Text style={[styles.cardSectionLabel, { marginTop: 12 }]}>AGREGADO RÁPIDO FRECUENTE</Text>
-                <View style={styles.quickChipsRow}>
-                  {['Pechuga de pollo', 'Huevos', 'Arroz blanco', 'Avena', 'Aguacate', 'Atún en lata', 'Papas'].map((ing) => (
-                    <TouchableOpacity
-                      key={ing}
-                      style={styles.quickChip}
-                      onPress={() => handleAddItem(ing)}
-                    >
-                      <Plus size={11} color={theme.colors.neonCyan} />
-                      <Text style={styles.quickChipText}>{ing}</Text>
                     </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
+                  </View>
 
-              {/* Items List */}
-              <Text style={styles.sectionTitle}>INGREDIENTES GUARDADOS ({pantryItems.length})</Text>
+                  {/* Suggestions List */}
+                  {suggestions.length > 0 && (
+                    <View style={{ gap: 12 }}>
+                      <Text style={styles.sectionTitle}>RECETAS SUGERIDAS ({suggestions.length})</Text>
 
-              {isPantryLoading ? (
-                <View style={{ gap: 8 }}>
-                  <Skeleton width="100%" height={50} borderRadius={10} />
-                  <Skeleton width="100%" height={50} borderRadius={10} />
-                </View>
-              ) : pantryItems.length === 0 ? (
-                <View style={styles.emptyBox}>
-                  <Refrigerator size={32} color={theme.colors.slate600} />
-                  <Text style={styles.emptyTitle}>Tu despensa está vacía</Text>
-                  <Text style={styles.emptySub}>Añade ingredientes frecuentes arriba para que el Chef IA los aproveche.</Text>
+                      {suggestions.map((sug, i) => (
+                        <View key={i} style={styles.sugCard}>
+                          <View style={styles.sugHeader}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.sugName}>{sug.name}</Text>
+                              <Text style={styles.sugDesc}>{sug.description}</Text>
+                            </View>
+                            <View style={styles.matchBadge}>
+                              <Text style={styles.matchBadgeText}>{Math.round(sug.matchPercentage)}% Coincidencia</Text>
+                            </View>
+                          </View>
+
+                          {/* Macros row */}
+                          <View style={styles.sugMacrosRow}>
+                            <Text style={styles.sugMacroItem}>
+                              <Text style={{ color: theme.colors.text, fontFamily: 'JetBrainsMono_700Bold' }}>
+                                {Math.round(sug.totalCalories)}
+                              </Text>{' '}
+                              kcal
+                            </Text>
+                            <Text style={styles.sugMacroItem}>
+                              P:{' '}
+                              <Text style={{ color: theme.colors.neonCyan, fontFamily: 'JetBrainsMono_700Bold' }}>
+                                {Math.round(sug.totalProtein)}g
+                              </Text>
+                            </Text>
+                            <Text style={styles.sugMacroItem}>
+                              C:{' '}
+                              <Text style={{ color: theme.colors.warning, fontFamily: 'JetBrainsMono_700Bold' }}>
+                                {Math.round(sug.totalCarbs)}g
+                              </Text>
+                            </Text>
+                            <Text style={styles.sugMacroItem}>
+                              G:{' '}
+                              <Text style={{ color: theme.colors.error, fontFamily: 'JetBrainsMono_700Bold' }}>
+                                {Math.round(sug.totalFat)}g
+                              </Text>
+                            </Text>
+                          </View>
+
+                          {/* Missing Ingredients Warning */}
+                          {sug.missingIngredients && sug.missingIngredients.length > 0 && (
+                            <View style={styles.missingBox}>
+                              <AlertCircle size={14} color={theme.colors.warning} />
+                              <Text style={styles.missingText}>
+                                Falta para compras: {sug.missingIngredients.join(', ')}
+                              </Text>
+                            </View>
+                          )}
+
+                          {/* View Recipe & Steps Button */}
+                          <TouchableOpacity
+                            style={styles.viewRecipeBtn}
+                            onPress={() => handleOpenSuggestionDetail(sug)}
+                            disabled={isOpeningRecipe}
+                            activeOpacity={0.8}
+                          >
+                            <BookOpen size={15} color={theme.colors.obsidian} />
+                            <Text style={styles.viewRecipeBtnText}>Ver Receta Completa & Pasos</Text>
+                            <ChevronRight size={15} color={theme.colors.obsidian} />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  )}
                 </View>
               ) : (
-                <View style={styles.inventoryList}>
-                  {pantryItems.map((item) => (
-                    <View key={item.id} style={styles.inventoryRow}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.inventoryName}>{item.name}</Text>
-                        <Text style={styles.inventorySub}>
-                          {item.quantity} {item.unit} • {item.category}
-                        </Text>
-                      </View>
+                // ================== GESTIÓN DE DESPENSA ==================
+                <View style={{ gap: 14 }}>
+                  {/* Add Ingredient Card */}
+                  <View style={styles.card}>
+                    <Text style={styles.cardSectionLabel}>AGREGAR INGREDIENTE A TU DESPENSA</Text>
+
+                    <View style={styles.inputRow}>
+                      <TextInput
+                        style={[styles.textInput, { flex: 2 }]}
+                        placeholder="Nombre (ej. Pechuga de pollo)"
+                        placeholderTextColor={theme.colors.slate600}
+                        value={newItemName}
+                        onChangeText={setNewItemName}
+                      />
+                      <TextInput
+                        style={[styles.textInput, { flex: 1 }]}
+                        placeholder="Cant."
+                        placeholderTextColor={theme.colors.slate600}
+                        value={newItemQty}
+                        onChangeText={setNewItemQty}
+                        keyboardType="numeric"
+                      />
                       <TouchableOpacity
-                        style={styles.deleteBtn}
-                        onPress={() => deleteItemMutation.mutate(item.id)}
+                        style={styles.addBtn}
+                        onPress={() => handleAddItem()}
+                        disabled={addItemMutation.isPending}
+                        activeOpacity={0.8}
                       >
-                        <Trash2 size={16} color={theme.colors.error} />
+                        <Plus size={18} color={theme.colors.obsidian} />
                       </TouchableOpacity>
                     </View>
-                  ))}
+
+                    {/* Quick Add Chips */}
+                    <Text style={[styles.cardSectionLabel, { marginTop: 12 }]}>AGREGADO RÁPIDO FRECUENTE</Text>
+                    <View style={styles.quickChipsRow}>
+                      {['Pechuga de pollo', 'Huevos', 'Arroz blanco', 'Avena', 'Aguacate', 'Atún en lata', 'Papas'].map((ing) => (
+                        <TouchableOpacity
+                          key={ing}
+                          style={styles.quickChip}
+                          onPress={() => handleAddItem(ing)}
+                        >
+                          <Plus size={11} color={theme.colors.neonCyan} />
+                          <Text style={styles.quickChipText}>{ing}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  {/* Items List */}
+                  <Text style={styles.sectionTitle}>INGREDIENTES GUARDADOS ({pantryItems.length})</Text>
+
+                  {isPantryLoading ? (
+                    <View style={{ gap: 8 }}>
+                      <Skeleton width="100%" height={50} borderRadius={10} />
+                      <Skeleton width="100%" height={50} borderRadius={10} />
+                    </View>
+                  ) : pantryItems.length === 0 ? (
+                    <View style={styles.emptyBox}>
+                      <Refrigerator size={32} color={theme.colors.slate600} />
+                      <Text style={styles.emptyTitle}>Tu despensa está vacía</Text>
+                      <Text style={styles.emptySub}>Añade ingredientes frecuentes arriba para que el Chef IA los aproveche.</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.inventoryList}>
+                      {pantryItems.map((item) => (
+                        <View key={item.id} style={styles.inventoryRow}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.inventoryName}>{item.name}</Text>
+                            <Text style={styles.inventorySub}>
+                              {item.quantity} {item.unit} • {item.category}
+                            </Text>
+                          </View>
+                          <TouchableOpacity
+                            style={styles.deleteBtn}
+                            onPress={() => deleteItemMutation.mutate(item.id)}
+                          >
+                            <Trash2 size={16} color={theme.colors.error} />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  )}
                 </View>
               )}
-            </View>
-          )}
-        </ScrollView>
+            </ScrollView>
+          </>
+        )}
       </SafeAreaView>
     </Modal>
   );
@@ -767,6 +989,262 @@ const createStyles = (colors: ThemeColors) =>
     },
     deleteBtn: {
       padding: 6,
+    },
+    backBtn: {
+      padding: 4,
+      marginRight: 6,
+    },
+    viewRecipeBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.neonCyan,
+      borderRadius: 10,
+      paddingVertical: 10,
+      marginTop: 6,
+    },
+    viewRecipeBtnText: {
+      fontFamily: 'Geist_700Bold',
+      fontSize: 12,
+      color: colors.obsidian,
+    },
+    detailContainer: {
+      gap: 16,
+    },
+    detailHeaderBox: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.borderGlow,
+      padding: 16,
+      gap: 6,
+    },
+    detailTitle: {
+      fontFamily: 'Geist_700Bold',
+      fontSize: 18,
+      color: colors.text,
+    },
+    detailDesc: {
+      fontFamily: 'Geist_400Regular',
+      fontSize: 12,
+      color: colors.mutedText,
+      lineHeight: 18,
+    },
+    metaRow: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    metaItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor: colors.surfaceLight,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 8,
+    },
+    metaItemText: {
+      fontFamily: 'JetBrainsMono_500Medium',
+      fontSize: 11,
+      color: colors.slate300,
+    },
+    macroGrid: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    macroCard: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.borderGlow,
+      paddingVertical: 12,
+      alignItems: 'center',
+      gap: 4,
+    },
+    macroLabel: {
+      fontFamily: 'JetBrainsMono_500Medium',
+      fontSize: 9,
+      color: colors.mutedText,
+      letterSpacing: 0.5,
+    },
+    macroVal: {
+      fontFamily: 'JetBrainsMono_700Bold',
+      fontSize: 14,
+    },
+    sectionHeader: {
+      fontFamily: 'JetBrainsMono_700Bold',
+      fontSize: 11,
+      color: colors.slate400,
+      letterSpacing: 0.8,
+      marginTop: 4,
+    },
+    ingredientsBox: {
+      backgroundColor: colors.surface,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.borderGlow,
+      padding: 14,
+      gap: 10,
+    },
+    ingredientLine: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderBottomWidth: 1,
+      borderBottomColor: colors.borderGlow,
+      paddingBottom: 8,
+    },
+    ingredientLineName: {
+      fontFamily: 'Geist_500Medium',
+      fontSize: 13,
+      color: colors.text,
+    },
+    cookingStateSub: {
+      fontFamily: 'Geist_400Regular',
+      fontSize: 10,
+      color: colors.neonCyan,
+      marginTop: 2,
+    },
+    ingredientLineQty: {
+      fontFamily: 'JetBrainsMono_500Medium',
+      fontSize: 12,
+      color: colors.slate300,
+    },
+    stepsBox: {
+      backgroundColor: colors.surface,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.borderGlow,
+      padding: 14,
+      gap: 12,
+    },
+    stepRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+    },
+    stepNumCircle: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      backgroundColor: 'rgba(56, 189, 248, 0.15)',
+      borderWidth: 1,
+      borderColor: colors.neonCyan,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 1,
+    },
+    stepNumText: {
+      fontFamily: 'JetBrainsMono_700Bold',
+      fontSize: 11,
+      color: colors.neonCyan,
+    },
+    stepInstructionText: {
+      flex: 1,
+      fontFamily: 'Geist_400Regular',
+      fontSize: 12,
+      color: colors.slate200,
+      lineHeight: 18,
+    },
+    logCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.neonCyan,
+      padding: 16,
+      gap: 12,
+      marginTop: 6,
+    },
+    logCardTitle: {
+      fontFamily: 'Geist_700Bold',
+      fontSize: 13,
+      color: colors.neonCyan,
+      letterSpacing: 0.5,
+    },
+    logCardSub: {
+      fontFamily: 'Geist_400Regular',
+      fontSize: 11,
+      color: colors.mutedText,
+      lineHeight: 16,
+    },
+    mealTypeSelectorRow: {
+      flexDirection: 'row',
+      gap: 6,
+    },
+    mealTypeChip: {
+      flex: 1,
+      paddingVertical: 7,
+      alignItems: 'center',
+      borderRadius: 8,
+      backgroundColor: colors.surfaceLight,
+      borderWidth: 1,
+      borderColor: colors.borderGlow,
+    },
+    mealTypeChipActive: {
+      backgroundColor: colors.neonCyan,
+      borderColor: colors.neonCyan,
+    },
+    mealTypeChipText: {
+      fontFamily: 'Geist_500Medium',
+      fontSize: 11,
+      color: colors.slate400,
+    },
+    mealTypeChipTextActive: {
+      fontFamily: 'Geist_700Bold',
+      color: colors.obsidian,
+    },
+    servingsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 4,
+    },
+    servingsLabel: {
+      fontFamily: 'Geist_400Regular',
+      fontSize: 12,
+      color: colors.slate300,
+    },
+    counterRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    servingBtn: {
+      width: 28,
+      height: 28,
+      borderRadius: 6,
+      backgroundColor: colors.surfaceLight,
+      borderWidth: 1,
+      borderColor: colors.borderGlow,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    servingVal: {
+      fontFamily: 'JetBrainsMono_700Bold',
+      fontSize: 14,
+      color: colors.text,
+      minWidth: 20,
+      textAlign: 'center',
+    },
+    confirmLogBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.neonCyan,
+      borderRadius: 10,
+      paddingVertical: 12,
+      marginTop: 4,
+    },
+    confirmLogBtnDisabled: {
+      opacity: 0.6,
+    },
+    confirmLogBtnText: {
+      fontFamily: 'Geist_700Bold',
+      fontSize: 13,
+      color: colors.obsidian,
     },
     emptyBox: {
       alignItems: 'center',

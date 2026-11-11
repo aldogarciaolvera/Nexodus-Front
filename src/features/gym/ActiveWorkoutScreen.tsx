@@ -1,11 +1,13 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
+  ScrollViewInstance,
   TouchableOpacity,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,8 +22,7 @@ import {
   Disc,
   Plus,
   Trophy,
-  Eye,
-  EyeOff,
+  BookOpen,
 } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { useAlertStore } from '../../store/alertStore';
@@ -35,6 +36,7 @@ import { RestTimerOverlay } from './components/RestTimerOverlay';
 import { PlateCalculatorModal } from './components/PlateCalculatorModal';
 import { WorkoutSummaryModal } from './components/WorkoutSummaryModal';
 import { ExitWorkoutModal } from './components/ExitWorkoutModal';
+import { ExerciseDetailModal } from './components/ExerciseDetailModal';
 import { Skeleton } from '../../components/Skeleton';
 
 const WorkoutTimer = React.memo(({ style }: { style: any }) => {
@@ -77,8 +79,40 @@ export const ActiveWorkoutScreen = () => {
   const [showPlateCalculator, setShowPlateCalculator] = useState(false);
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
+  const [showTechniqueModal, setShowTechniqueModal] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
-  const [showGif, setShowGif] = useState(false);
+
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
+  const [keyboardSpace, setKeyboardSpace] = useState(0);
+
+  // Dynamic keyboard listeners to prevent inputs being obscured by the software keyboard
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardSpace(e.endCoordinates.height);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardSpace(0);
+      }
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const handleFocusSet = (setIdx: number) => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        y: Math.max(0, 160 + setIdx * 54),
+        animated: true,
+      });
+    }, 120);
+  };
 
   // Auto-resume timer when entering or focusing the screen
   useEffect(() => {
@@ -303,8 +337,14 @@ export const ActiveWorkoutScreen = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          ref={scrollViewRef}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: Math.max(120, keyboardSpace + 60) },
+          ]}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
         >
           {/* Exercise Dots Carousel Indicator */}
           {exercises.length > 0 ? (
@@ -395,7 +435,7 @@ export const ActiveWorkoutScreen = () => {
               ) : null}
             </View>
 
-            {/* Quick Actions Row: Plate Calculator (Barbell only) + Demo Video Toggle */}
+            {/* Quick Actions Row: Plate Calculator (Barbell only) + Technique & Anatomy Guide */}
             <View style={styles.toolsRow}>
               {isBarbellExercise ? (
                 <TouchableOpacity
@@ -407,33 +447,14 @@ export const ActiveWorkoutScreen = () => {
                 </TouchableOpacity>
               ) : null}
 
-              {(displayExercise?.gifUrl || displayExercise?.thumbUrl) ? (
-                <TouchableOpacity
-                  style={styles.toolBtn}
-                  onPress={() => setShowGif(!showGif)}
-                >
-                  {showGif ? (
-                    <EyeOff size={14} color={theme.colors.slate400} />
-                  ) : (
-                    <Eye size={14} color={theme.colors.slate400} />
-                  )}
-                  <Text style={[styles.toolBtnText, { color: theme.colors.slate400 }]}>
-                    {showGif ? 'Ocultar GIF' : 'Ver Técnica'}
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
+              <TouchableOpacity
+                style={styles.toolBtn}
+                onPress={() => setShowTechniqueModal(true)}
+              >
+                <BookOpen size={14} color={theme.colors.neonCyan} />
+                <Text style={styles.toolBtnText}>Técnica & Músculos</Text>
+              </TouchableOpacity>
             </View>
-
-            {/* Collapsible GIF Demonstration */}
-            {showGif && (displayExercise?.gifUrl || displayExercise?.thumbUrl) ? (
-              <View style={styles.gifPreview}>
-                <Image
-                  source={{ uri: displayExercise?.gifUrl || displayExercise?.thumbUrl }}
-                  style={styles.gifImage}
-                  contentFit="contain"
-                />
-              </View>
-            ) : null}
           </View>
 
           {/* Sets Table */}
@@ -461,6 +482,7 @@ export const ActiveWorkoutScreen = () => {
                 onSaveSet={handleSaveSet}
                 onDeleteSet={handleDeleteSet}
                 onToggleComplete={handleToggleComplete}
+                onFocusInput={() => handleFocusSet(idx)}
               />
             ))}
 
@@ -555,6 +577,12 @@ export const ActiveWorkoutScreen = () => {
           navigation.goBack();
           useAlertStore.getState().showAlert('Sesión Descartada', 'El entrenamiento ha sido descartado y eliminado de la base de datos.', 'info');
         }}
+      />
+      {/* Exercise Detail: Technique, Muscles & Step-by-Step Instructions Modal */}
+      <ExerciseDetailModal
+        visible={showTechniqueModal}
+        exercise={displayExercise}
+        onClose={() => setShowTechniqueModal(false)}
       />
     </SafeAreaView>
   );
@@ -728,7 +756,7 @@ const createStyles = (colors: ThemeColors) =>
       alignItems: 'center',
       gap: 6,
       backgroundColor: colors.surfaceLight,
-      paddingHorizontal: 12,
+      paddingHorizontal: 4,
       paddingVertical: 6,
       borderRadius: 8,
       borderWidth: 1,

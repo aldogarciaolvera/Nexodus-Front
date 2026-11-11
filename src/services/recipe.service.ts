@@ -90,6 +90,7 @@ export interface LogRecipeAsMealRequest {
   date: string;
   mealType: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack' | string;
   servings: number;
+  fallbackRecipe?: CreateRecipeRequest;
 }
 
 export interface PantryItem {

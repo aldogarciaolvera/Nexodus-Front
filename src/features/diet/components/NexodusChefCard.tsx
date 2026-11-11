@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Sparkles, Utensils, Refrigerator, ChevronRight } from 'lucide-react-native';
+import { ChefHat, Utensils, Refrigerator, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
 
@@ -30,7 +30,7 @@ export const NexodusChefCard: React.FC<NexodusChefCardProps> = ({
       <View style={styles.headerRow}>
         <View style={styles.titleWithIcon}>
           <View style={styles.iconCircle}>
-            <Sparkles size={16} color={theme.colors.neonCyan} />
+            <ChefHat size={16} color={theme.colors.neonCyan} />
           </View>
           <View>
             <Text style={styles.title}>NEXODUS CHEF & RECETARIO</Text>
@@ -63,7 +63,7 @@ export const NexodusChefCard: React.FC<NexodusChefCardProps> = ({
           activeOpacity={0.8}
         >
           <View style={styles.btnIconRow}>
-            <Sparkles size={15} color={theme.colors.obsidian} />
+            <ChefHat size={15} color={theme.colors.obsidian} />
             <Text style={styles.btnPrimaryText}>Completar Macros</Text>
           </View>
           <Text style={styles.btnPrimarySub}>Genera receta para tus macros</Text>

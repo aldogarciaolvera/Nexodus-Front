@@ -21,7 +21,6 @@ import {
   Check,
   ChevronLeft,
   Users,
-  Sparkles,
 } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -38,6 +37,17 @@ interface RecipeCatalogModalProps {
   selectedDate: string;
 }
 
+const UNIFIED_FILTERS = [
+  { id: 'all', label: 'Todos', mealType: 'Any', dietType: 'Standard' },
+  { id: 'breakfast', label: 'Desayuno', mealType: 'Breakfast', dietType: 'Standard' },
+  { id: 'lunch', label: 'Almuerzo', mealType: 'Lunch', dietType: 'Standard' },
+  { id: 'dinner', label: 'Cena', mealType: 'Dinner', dietType: 'Standard' },
+  { id: 'snack', label: 'Snacks', mealType: 'Snack', dietType: 'Standard' },
+  { id: 'protein', label: 'Alta Proteína', mealType: 'Any', dietType: 'HighProtein' },
+  { id: 'keto', label: 'Keto', mealType: 'Any', dietType: 'Keto' },
+  { id: 'lowcarb', label: 'Baja Grasa', mealType: 'Any', dietType: 'LowCarb' },
+] as const;
+
 export const RecipeCatalogModal: React.FC<RecipeCatalogModalProps> = ({
   visible,
   onClose,
@@ -49,14 +59,17 @@ export const RecipeCatalogModal: React.FC<RecipeCatalogModalProps> = ({
   const queryClient = useQueryClient();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedMealType, setSelectedMealType] = useState('Any');
-  const [selectedDietType, setSelectedDietType] = useState('Standard');
+  const [activeFilterId, setActiveFilterId] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<'all' | 'community'>('all');
 
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [targetMealType, setTargetMealType] = useState<'Breakfast' | 'Lunch' | 'Dinner' | 'Snack'>('Lunch');
   const [servings, setServings] = useState(1);
   const [isLogging, setIsLogging] = useState(false);
+
+  const activeFilter = UNIFIED_FILTERS.find((f) => f.id === activeFilterId) || UNIFIED_FILTERS[0];
+  const selectedMealType = activeFilter.mealType;
+  const selectedDietType = activeFilter.dietType;
 
   // Query recipes
   const { data: recipesData, isLoading } = useQuery({
@@ -80,11 +93,18 @@ export const RecipeCatalogModal: React.FC<RecipeCatalogModalProps> = ({
 
   // Log Recipe as Meal Mutation (Option A: Whole plate title + atomic ingredients)
   const logMealMutation = useMutation({
-    mutationFn: (data: { recipeId: string; date: string; mealType: string; servings: number }) =>
-      recipeService.logRecipeAsMeal(data),
+    mutationFn: (data: {
+      recipeId: string;
+      date: string;
+      mealType: string;
+      servings: number;
+      fallbackRecipe?: any;
+    }) => recipeService.logRecipeAsMeal(data),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.diet.daily(vars.date) });
-      showAlert('Plato Registrado', `"${selectedRecipe?.name}" agregado a tu diario con sus ingredientes desglosados.`, 'success');
+      queryClient.invalidateQueries({ queryKey: queryKeys.diet.pantry });
+      queryClient.invalidateQueries({ queryKey: ['recipes'] });
+      showAlert('Plato Registrado', `"${selectedRecipe?.name}" agregado a tu diario e inventario actualizado.`, 'success');
       setSelectedRecipe(null);
       onClose();
     },
@@ -342,46 +362,30 @@ export const RecipeCatalogModal: React.FC<RecipeCatalogModalProps> = ({
               </TouchableOpacity>
             </View>
 
-            {/* Filter Chips Scroll */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterScroll}
-            >
-              {[
-                { label: 'Todos', val: 'Any' },
-                { label: 'Desayunos', val: 'Breakfast' },
-                { label: 'Almuerzos', val: 'Lunch' },
-                { label: 'Cenas', val: 'Dinner' },
-                { label: 'Snacks', val: 'Snack' },
-              ].map((f) => (
-                <TouchableOpacity
-                  key={f.val}
-                  style={[styles.chipBtn, selectedMealType === f.val && styles.chipBtnActive]}
-                  onPress={() => setSelectedMealType(f.val)}
-                >
-                  <Text style={[styles.chipBtnText, selectedMealType === f.val && styles.chipBtnTextActive]}>
-                    {f.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-
-              {[
-                { label: 'Alto en Proteína', val: 'HighProtein' },
-                { label: 'Keto', val: 'Keto' },
-                { label: 'Bajo en Grasa', val: 'LowCarb' },
-              ].map((d) => (
-                <TouchableOpacity
-                  key={d.val}
-                  style={[styles.chipBtn, selectedDietType === d.val && styles.chipBtnActive]}
-                  onPress={() => setSelectedDietType(selectedDietType === d.val ? 'Standard' : d.val)}
-                >
-                  <Text style={[styles.chipBtnText, selectedDietType === d.val && styles.chipBtnTextActive]}>
-                    {d.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            {/* Unified Single Filter Row */}
+            <View style={styles.filtersContainer}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.unifiedFilterScroll}
+              >
+                {UNIFIED_FILTERS.map((f) => {
+                  const isActive = activeFilterId === f.id;
+                  return (
+                    <TouchableOpacity
+                      key={f.id}
+                      style={[styles.chipBtn, isActive && styles.chipBtnActive]}
+                      onPress={() => setActiveFilterId(f.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.chipBtnText, isActive && styles.chipBtnTextActive]}>
+                        {f.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
 
             {/* Recipes List */}
             {isLoading ? (
@@ -563,15 +567,26 @@ const createStyles = (colors: ThemeColors) =>
       fontFamily: 'Geist_700Bold',
       color: colors.neonCyan,
     },
-    filterScroll: {
+    filtersContainer: {
       paddingHorizontal: 16,
-      paddingVertical: 6,
+      marginBottom: 10,
+    },
+    unifiedFilterScroll: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingRight: 16,
+    },
+    filterRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
       gap: 6,
     },
     chipBtn: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 20,
+      paddingHorizontal: 11,
+      paddingVertical: 5,
+      borderRadius: 16,
       backgroundColor: colors.surfaceLight,
       borderWidth: 1,
       borderColor: colors.borderGlow,
@@ -580,13 +595,23 @@ const createStyles = (colors: ThemeColors) =>
       backgroundColor: colors.neonCyan,
       borderColor: colors.neonCyan,
     },
+    chipBtnDietActive: {
+      backgroundColor: colors.neonIce,
+      borderColor: colors.neonIce,
+    },
     chipBtnText: {
-      fontFamily: 'JetBrainsMono_400Regular',
+      fontFamily: 'JetBrainsMono_500Medium',
       fontSize: 11,
       color: colors.slate400,
     },
     chipBtnTextActive: {
       fontFamily: 'JetBrainsMono_700Bold',
+      fontSize: 11,
+      color: colors.obsidian,
+    },
+    chipBtnDietTextActive: {
+      fontFamily: 'JetBrainsMono_700Bold',
+      fontSize: 11,
       color: colors.obsidian,
     },
     scrollContent: {
