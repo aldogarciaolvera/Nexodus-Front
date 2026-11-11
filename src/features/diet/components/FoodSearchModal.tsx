@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   TextInput,
   FlatList,
+  ScrollView,
   KeyboardAvoidingView,
   Platform,
   Keyboard,
@@ -48,6 +49,133 @@ const getFoodKey = (f: Partial<Food>): string => {
   return `name:${normName}::brand:${normBrand}`;
 };
 
+export interface CategoryFilterOption {
+  id: string;
+  label: string;
+}
+
+export const CATEGORY_FILTERS: CategoryFilterOption[] = [
+  { id: 'all', label: 'Todos' },
+  { id: 'custom', label: 'Mis Alimentos' },
+  { id: 'recipes', label: 'Recetas y Platos' },
+  { id: 'carnes', label: 'Carnes' },
+  { id: 'pescados', label: 'Pescados' },
+  { id: 'verduras', label: 'Verduras' },
+  { id: 'frutas', label: 'Frutas' },
+  { id: 'lacteos', label: 'Lácteos y Huevos' },
+  { id: 'cereales', label: 'Cereales y Granos' },
+  { id: 'legumbres', label: 'Legumbres' },
+  { id: 'grasas', label: 'Grasas y Aceites' },
+  { id: 'suplementos', label: 'Suplementos' },
+  { id: 'snacks', label: 'Snacks' },
+  { id: 'bebidas', label: 'Bebidas' },
+];
+
+const matchesCategory = (item: Food, catId: string): boolean => {
+  if (catId === 'all') return true;
+  if (catId === 'custom') return !!item.isCustom;
+
+  const itemCat = normalizeText(item.category || '');
+  const itemCatId = normalizeText(item.categoryId || '');
+
+  switch (catId) {
+    case 'recipes':
+      return (
+        itemCat.includes('receta') ||
+        itemCat.includes('plato') ||
+        itemCat.includes('preparado') ||
+        itemCatId.includes('receta')
+      );
+    case 'carnes':
+      return (
+        itemCat.includes('carne') ||
+        itemCat.includes('pollo') ||
+        itemCat.includes('pavo') ||
+        itemCat.includes('res') ||
+        itemCat.includes('cerdo') ||
+        itemCatId === 'carnes'
+      );
+    case 'pescados':
+      return (
+        itemCat.includes('pescado') ||
+        itemCat.includes('marisco') ||
+        itemCat.includes('atun') ||
+        itemCat.includes('salmon') ||
+        itemCatId === 'pescados'
+      );
+    case 'verduras':
+      return (
+        itemCat.includes('verdura') ||
+        itemCat.includes('vegetal') ||
+        itemCat.includes('hortaliza') ||
+        itemCatId === 'verduras'
+      );
+    case 'frutas':
+      return itemCat.includes('fruta') || itemCatId === 'frutas';
+    case 'lacteos':
+      return (
+        itemCat.includes('lacteo') ||
+        itemCat.includes('leche') ||
+        itemCat.includes('queso') ||
+        itemCat.includes('yogur') ||
+        itemCat.includes('huevo') ||
+        itemCatId === 'lacteos'
+      );
+    case 'cereales':
+      return (
+        itemCat.includes('cereal') ||
+        itemCat.includes('grano') ||
+        itemCat.includes('arroz') ||
+        itemCat.includes('avena') ||
+        itemCat.includes('pasta') ||
+        itemCat.includes('pan') ||
+        itemCatId === 'cereales'
+      );
+    case 'legumbres':
+      return (
+        itemCat.includes('legumbre') ||
+        itemCat.includes('frijol') ||
+        itemCat.includes('lenteja') ||
+        itemCat.includes('garbanzo') ||
+        itemCatId === 'legumbres'
+      );
+    case 'grasas':
+      return (
+        itemCat.includes('grasa') ||
+        itemCat.includes('aceite') ||
+        itemCat.includes('mantequilla') ||
+        itemCat.includes('aguacate') ||
+        itemCatId === 'grasas'
+      );
+    case 'suplementos':
+      return (
+        itemCat.includes('suplemento') ||
+        itemCat.includes('proteina') ||
+        itemCat.includes('whey') ||
+        itemCat.includes('creatina') ||
+        itemCatId === 'suplementos'
+      );
+    case 'snacks':
+      return (
+        itemCat.includes('snack') ||
+        itemCat.includes('dulce') ||
+        itemCat.includes('barra') ||
+        itemCat.includes('galleta') ||
+        itemCatId === 'snacks'
+      );
+    case 'bebidas':
+      return (
+        itemCat.includes('bebida') ||
+        itemCat.includes('agua') ||
+        itemCat.includes('cafe') ||
+        itemCat.includes('te') ||
+        itemCatId === 'bebidas'
+      );
+    default:
+      return itemCat.includes(catId) || itemCatId.includes(catId);
+  }
+};
+
 export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
   visible,
   onClose,
@@ -60,6 +188,7 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
   const queryClient = useQueryClient();
 
   const [query, setQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isBarcodeSearch, setIsBarcodeSearch] = useState(false);
   const [barcodeQuery, setBarcodeQuery] = useState('');
   const [barcodeFoods, setBarcodeFoods] = useState<Food[]>([]);
@@ -138,18 +267,25 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
     return Array.from(map.values());
   }, [catalogFoods, customAddedFoods]);
 
-  // Filtrado reactivo e instantáneo en memoria a 60 FPS
+  // Filtrado reactivo e instantáneo en memoria a 60 FPS por categoría y texto
   const filteredNameFoods = useMemo(() => {
     const q = normalizeText(query);
-    if (!q) {
-      return allAvailableFoods;
-    }
     return allAvailableFoods.filter((item) => {
+      // 1. Filtro por categoría seleccionada
+      if (!matchesCategory(item, selectedCategory)) {
+        return false;
+      }
+
+      // 2. Filtro por consulta de texto si existe
+      if (!q) {
+        return true;
+      }
       const nameMatch = normalizeText(item.name).includes(q);
       const brandMatch = item.brand ? normalizeText(item.brand).includes(q) : false;
-      return nameMatch || brandMatch;
+      const categoryMatch = item.category ? normalizeText(item.category).includes(q) : false;
+      return nameMatch || brandMatch || categoryMatch;
     });
-  }, [query, allAvailableFoods]);
+  }, [query, selectedCategory, allAvailableFoods]);
 
   // Búsqueda remota complementaria si se escribe un término poco común
   useEffect(() => {
@@ -186,6 +322,7 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
       setSelectedFood(null);
       setQuantity('100');
       setQuery('');
+      setSelectedCategory('all');
       setBarcodeQuery('');
       setBarcodeFoods([]);
       setIsBarcodeSearch(false);
@@ -599,6 +736,42 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
             </TouchableOpacity>
           </View>
 
+          {/* Category Filter Chips Bar */}
+          {!isBarcodeSearch && (
+            <View style={styles.categoryFiltersContainer}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categoryFiltersScroll}
+                keyboardShouldPersistTaps="handled"
+              >
+                {CATEGORY_FILTERS.map((cat) => {
+                  const isActive = selectedCategory === cat.id;
+                  return (
+                    <TouchableOpacity
+                      key={cat.id}
+                      style={[styles.categoryChip, isActive && styles.categoryChipActive]}
+                      onPress={() => setSelectedCategory(cat.id)}
+                      activeOpacity={0.7}
+                      accessibilityRole="tab"
+                      accessibilityState={{ selected: isActive }}
+                      accessibilityLabel={`Filtrar por categoría ${cat.label}`}
+                    >
+                      <Text
+                        style={[
+                          styles.categoryChipText,
+                          isActive && styles.categoryChipTextActive,
+                        ]}
+                      >
+                        {cat.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
+
           {/* Results List Container */}
           <View style={styles.listContainer}>
             {isBarcodeSearch ? (
@@ -676,6 +849,9 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
                       <Text style={styles.resultsCount}>
                         {filteredNameFoods.length}{' '}
                         {filteredNameFoods.length === 1 ? 'ALIMENTO DISPONIBLE' : 'ALIMENTOS DISPONIBLES'}
+                        {selectedCategory !== 'all'
+                          ? ` • ${CATEGORY_FILTERS.find((c) => c.id === selectedCategory)?.label.toUpperCase()}`
+                          : ''}
                       </Text>
                     </View>
                   </View>
@@ -687,6 +863,8 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
                     <Text style={styles.emptyDesc}>
                       {query
                         ? `No hay coincidencias para "${query}". Puedes crear un alimento personalizado.`
+                        : selectedCategory !== 'all'
+                        ? 'No hay alimentos registrados en esta categoría. Puedes seleccionar "Todos" o crear un nuevo alimento.'
                         : 'No hay alimentos registrados en el catálogo.'}
                     </Text>
                   </View>
@@ -931,6 +1109,36 @@ const createStyles = (colors: ThemeColors) =>
       fontFamily: 'Geist_600SemiBold',
       fontSize: 12,
       color: colors.neonCyan,
+    },
+    categoryFiltersContainer: {
+      paddingBottom: 8,
+    },
+    categoryFiltersScroll: {
+      paddingHorizontal: 20,
+      gap: 8,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    categoryChip: {
+      paddingHorizontal: 13,
+      paddingVertical: 6,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceLight,
+      borderWidth: 1,
+      borderColor: colors.borderGlow,
+    },
+    categoryChipActive: {
+      backgroundColor: colors.neonCyan,
+      borderColor: colors.neonCyan,
+    },
+    categoryChipText: {
+      fontFamily: 'JetBrainsMono_500Medium',
+      fontSize: 11,
+      color: colors.slate400,
+    },
+    categoryChipTextActive: {
+      fontFamily: 'JetBrainsMono_700Bold',
+      color: colors.obsidian,
     },
     listContainer: {
       flex: 1,

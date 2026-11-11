@@ -36,6 +36,33 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
 
 ## 🆕 Últimos Cambios
 
+- **Filtros por Categoría, Traducción de Cocción al Español, Formato Numérico de Calorías y Estabilización de Gemini (`FoodSearchModal.tsx`, `RecipeCatalogModal.tsx`, `ChefAiModal.tsx`, `PantryModal.tsx`, `NexodusLensModal.tsx`, `NexodusChefCard.tsx`, `DietView.tsx`, `api.ts`, `RecipeAiService.cs`, `GeminiVisionService.cs`):**
+  - **Filtros por Categoría en Búsqueda y Adición de Alimentos (`FoodSearchModal.tsx`):**
+    - Se incorporó una barra horizontal de chips desplazable con geometría de cápsula Obsidian Cyan (`Todos`, `Mis Alimentos`, `Recetas y Platos`, `Carnes`, `Pescados`, `Verduras`, `Frutas`, `Lácteos y Huevos`, `Cereales y Granos`, `Legumbres`, `Grasas y Aceites`, `Suplementos`, `Snacks`, `Bebidas`).
+    - Permite filtrar reactivamente el catálogo en memoria combinando el filtro de categoría con la búsqueda por texto a 60 FPS, con actualización en tiempo real de los contadores y mensajes de estado vacío adaptados.
+  - **Traducción Integral de Estados de Cocción al Español (`recipe.service.ts`, `RecipeCatalogModal.tsx`, `ChefAiModal.tsx`, `PantryModal.tsx`, `NexodusLensModal.tsx`, `RecipeService.cs`, `RecipeAiService.cs`):**
+    - Se creó la función unificada `translateCookingState` que traduce de forma determinista términos en inglés como `Liquid` -> `Líquido`, `Grilled` -> `A la plancha`, `Boiled` -> `Hervido`, `Fried` -> `Frito`, `Baked` -> `Horneado`, `Steamed` -> `Al vapor`, `Raw` -> `Crudo`, `Sauteed` -> `Salteado`, `AirFried` -> `En freidora de aire`, etc.
+    - Se aplicó en la vista detallada de ingredientes de todas las recetas (catálogo, chef IA, despensa y lens) y en el backend tanto en las instrucciones del prompt como en la generación de nombres descriptivos para el registro de comidas.
+  - **Limpieza Decimal en el Hub de Dieta (`NexodusChefCard.tsx`, `DietView.tsx`):**
+    - Se eliminó el ruido de punto flotante (`154.599999999999 kcal`) limitando el cálculo de calorías y macronutrientes restantes a un máximo de 2 decimales limpios mediante formateo controlado en la tarjeta principal de Nexodus Chef y en el cálculo diario de macronutrientes.
+  - **Uso Exclusivo de Gemini 3.5 Flash Lite y Protección contra Cancelación de Fetch (`RecipeAiService.cs`, `GeminiVisionService.cs`, `api.ts`):**
+    - Se removió `gemini-3.8-flash` de los candidatos del backend y se fijó `gemini-3.5-flash-lite` como modelo primario por defecto tanto para la generación de recetas como para el análisis visual multimodal de Nexodus Lens.
+    - En el cliente de red (`api.ts`), se amplió el tiempo de espera (timeout) a 60 segundos específicamente para los endpoints de inteligencia artificial (`/api/recipes/ai/`, `/api/diet/vision`), evitando cancelaciones o errores de aborto de fetch en peticiones que requieran procesamiento generativo intensivo.
+
+- **Auto-incorporación de Alimentos e Ingredientes de Recetas Completadas a la BD de Alimentos (`RecipeService.cs`, `RecipeCatalogModal.tsx`, `ChefAiModal.tsx`, `PantryModal.tsx`):**
+  - **Auto-registro de Ingredientes en el Catálogo de Alimentos (`RecipeService.cs`):**
+    - Al completar o registrar cualquier receta en el diario de comidas (`POST /api/recipes/log`), el servicio de backend examina automáticamente cada ingrediente de la receta frente a la base de datos de alimentos (`Foods`).
+    - Si el alimento no existe en el catálogo personalizado del usuario ni en el catálogo público (por ejemplo, ingredientes de recetas generadas por Chef IA o recetas personalizadas), se calcula su porción y macros estándar (normalizados a 100g/ml o su unidad de medida) y se registra automáticamente como nuevo alimento personalizado (`IsCustom = true, UserId = userId, Category = "Ingredientes de Recetas"`).
+    - El registro de la comida (`MealItem.FoodId`) y la receta se enlazan directamente con el identificador del alimento recién creado.
+  - **Auto-registro del Plato Preparado Completo (`RecipeService.cs`):**
+    - Se registra además el plato preparado completo como alimento en la base de datos (`Category = "Platos Preparados"`, 1 porción) con las calorías y macronutrientes por porción de la receta, permitiendo al usuario buscar directamente la receta por su nombre al registrar cualquier otra comida futura.
+  - **Invalidación Reactiva y Disponibilidad Instantánea en Frontend (`RecipeCatalogModal.tsx`, `ChefAiModal.tsx`, `PantryModal.tsx`):**
+    - Tras registrar una receta en el diario, se invalida la clave de consulta de alimentos `queryKeys.diet.foods` (`['dietFoods']`), provocando que el modal de búsqueda de alimentos (`FoodSearchModal.tsx`) actualice su catálogo instantáneamente sin requerir recargas ni reiniciar la sesión.
+
+- **Eliminación de Ciclo de Dependencias / Require Cycle (`authStore.ts`, `auth.service.ts`, `api.ts`):**
+  - Se desacopló la importación de `AuthService` dentro de `authStore.ts`, ejecutando la revocación segura de tokens en `/api/auth/logout` directamente mediante `fetch` nativo con la URL obtenida de `get().getApiUrl()`.
+  - Esto erradicó el ciclo circular `api.ts -> authStore.ts -> auth.service.ts -> api.ts`, convirtiendo el grafo de dependencias en un DAG estrictamente unidireccional y eliminando cualquier riesgo de valores no inicializados en tiempo de ejecución.
+
 - **Verificación Integral de Contratos de API Frontend-Backend y Resiliencia en Registro de Series (`WorkoutSessionService.cs`, `ActiveWorkoutScreen.tsx`, `authStore.ts`, `auth.service.ts`):**
   - **Auditoría Completa de Endpoints Frontend vs Backend:**
     - Se comprobó la totalidad de las 14 familias de endpoints de `Nexodus-Back` (Auth, User, Categories, Finances, TodoList, Gamification, Notes, Diet, Pantry, Recipes, Exercises, Routines, Gym Sessions, Workouts) contra los servicios cliente en `Nexodus-Front`.

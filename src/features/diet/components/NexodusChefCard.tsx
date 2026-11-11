@@ -13,6 +13,11 @@ interface NexodusChefCardProps {
   onOpenPantry: () => void;
 }
 
+const formatDecimals = (val: number): string => {
+  const safe = Math.max(0, val);
+  return Number(safe.toFixed(2)).toString();
+};
+
 export const NexodusChefCard: React.FC<NexodusChefCardProps> = ({
   remainingCals,
   remainingProtein,
@@ -44,11 +49,11 @@ export const NexodusChefCard: React.FC<NexodusChefCardProps> = ({
         <Text style={styles.macroHintText}>
           Faltan{' '}
           <Text style={{ color: theme.colors.neonCyan, fontFamily: 'JetBrainsMono_700Bold' }}>
-            {Math.max(0, remainingCals)} kcal
+            {formatDecimals(remainingCals)} kcal
           </Text>
           {' '}y{' '}
           <Text style={{ color: theme.colors.neonCyan, fontFamily: 'JetBrainsMono_700Bold' }}>
-            {Math.max(0, remainingProtein)}g de proteína
+            {formatDecimals(remainingProtein)}g de proteína
           </Text>{' '}
           para completar tu meta de hoy.
         </Text>

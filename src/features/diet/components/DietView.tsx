@@ -177,11 +177,11 @@ export const DietView = () => {
   const consumedCarbs = dailySummary?.consumedCarbs ?? meals.reduce((sum, m) => sum + (m.carbs || 0), 0);
   const consumedFat = dailySummary?.consumedFat ?? meals.reduce((sum, m) => sum + (m.fat || 0), 0);
 
-  // Remaining Macros for Chef AI
-  const remainingCals = Math.max(0, targetCals - consumedCals);
-  const remainingProtein = Math.max(0, targetProtein - consumedProtein);
-  const remainingCarbs = Math.max(0, targetCarbs - consumedCarbs);
-  const remainingFat = Math.max(0, targetFat - consumedFat);
+  // Remaining Macros for Chef AI (redondeados a 2 decimales para evitar ruido de punto flotante)
+  const remainingCals = Math.round(Math.max(0, targetCals - consumedCals) * 100) / 100;
+  const remainingProtein = Math.round(Math.max(0, targetProtein - consumedProtein) * 100) / 100;
+  const remainingCarbs = Math.round(Math.max(0, targetCarbs - consumedCarbs) * 100) / 100;
+  const remainingFat = Math.round(Math.max(0, targetFat - consumedFat) * 100) / 100;
 
   const currentWater = waterData?.consumedWaterMl ?? waterData?.totalMl ?? dailySummary?.consumedWaterMl ?? consumedWaterMl;
 

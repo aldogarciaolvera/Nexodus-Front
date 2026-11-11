@@ -37,6 +37,7 @@ import {
   PantryItem,
   PantryCookSuggestion,
   PantryCookRequest,
+  translateCookingState,
 } from '../../../services/recipe.service';
 import { Skeleton } from '../../../components/Skeleton';
 
@@ -158,9 +159,10 @@ export const PantryModal: React.FC<PantryModalProps> = ({
       queryClient.invalidateQueries({ queryKey: queryKeys.diet.daily(selectedDate) });
       queryClient.invalidateQueries({ queryKey: queryKeys.diet.pantry });
       queryClient.invalidateQueries({ queryKey: ['recipes'] });
+      queryClient.invalidateQueries({ queryKey: ['dietFoods'] });
       showAlert(
         'Plato Registrado',
-        `"${selectedRecipe?.name}" agregado a tu diario e ingredientes descontados de tu despensa.`,
+        `"${selectedRecipe?.name}" agregado a tu diario, alimentos guardados en el catálogo e ingredientes descontados de tu despensa.`,
         'success'
       );
       setSelectedRecipe(null);
@@ -333,9 +335,13 @@ export const PantryModal: React.FC<PantryModalProps> = ({
                   <View key={i} style={styles.ingredientLine}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.ingredientLineName}>{ing.customFoodName}</Text>
-                      {ing.cookingState && ing.cookingState !== 'Raw' && (
-                        <Text style={styles.cookingStateSub}>Cocción: {ing.cookingState}</Text>
-                      )}
+                      {ing.cookingState &&
+                        ing.cookingState.toLowerCase() !== 'raw' &&
+                        ing.cookingState.toLowerCase() !== 'crudo' && (
+                          <Text style={styles.cookingStateSub}>
+                            Cocción: {translateCookingState(ing.cookingState)}
+                          </Text>
+                        )}
                     </View>
                     <Text style={styles.ingredientLineQty}>
                       {Math.round(ing.quantity * servings)} {ing.unit}

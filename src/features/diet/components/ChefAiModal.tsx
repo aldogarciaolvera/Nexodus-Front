@@ -27,7 +27,7 @@ import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
 import { useAlertStore } from '../../../store/alertStore';
 import { queryKeys } from '../../../services/queryKeys';
-import { recipeService, Recipe, MatchMacrosRequest } from '../../../services/recipe.service';
+import { recipeService, Recipe, MatchMacrosRequest, translateCookingState } from '../../../services/recipe.service';
 import { Skeleton } from '../../../components/Skeleton';
 
 interface ChefAiModalProps {
@@ -85,7 +85,8 @@ export const ChefAiModal: React.FC<ChefAiModalProps> = ({
       queryClient.invalidateQueries({ queryKey: queryKeys.diet.daily(vars.date) });
       queryClient.invalidateQueries({ queryKey: queryKeys.diet.pantry });
       queryClient.invalidateQueries({ queryKey: ['recipes'] });
-      showAlert('Plato Registrado', `"${generatedRecipe?.name}" registrado en tu diario e inventario actualizado.`, 'success');
+      queryClient.invalidateQueries({ queryKey: ['dietFoods'] });
+      showAlert('Plato Registrado', `"${generatedRecipe?.name}" registrado en tu diario, alimentos guardados e inventario actualizado.`, 'success');
       handleClose();
     },
     onError: (e: any) => {
@@ -357,9 +358,13 @@ export const ChefAiModal: React.FC<ChefAiModalProps> = ({
                   <View key={i} style={styles.ingredientRow}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.ingName}>{ing.customFoodName}</Text>
-                      {ing.cookingState && ing.cookingState !== 'Raw' && (
-                        <Text style={styles.ingCooking}>Cocción: {ing.cookingState}</Text>
-                      )}
+                      {ing.cookingState &&
+                        ing.cookingState.toLowerCase() !== 'raw' &&
+                        ing.cookingState.toLowerCase() !== 'crudo' && (
+                          <Text style={styles.ingCooking}>
+                            Cocción: {translateCookingState(ing.cookingState)}
+                          </Text>
+                        )}
                     </View>
                     <Text style={styles.ingQty}>
                       {ing.quantity} {ing.unit}

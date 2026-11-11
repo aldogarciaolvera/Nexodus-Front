@@ -16,6 +16,47 @@ export interface RecipeIngredient {
   isOptional: boolean;
 }
 
+export const translateCookingState = (state?: string): string => {
+  if (!state) return '';
+  const clean = state.trim().toLowerCase();
+  switch (clean) {
+    case 'liquid':
+      return 'Líquido';
+    case 'raw':
+      return 'Crudo';
+    case 'boiled':
+      return 'Hervido';
+    case 'grilled':
+      return 'A la plancha';
+    case 'fried':
+      return 'Frito';
+    case 'baked':
+      return 'Horneado';
+    case 'steamed':
+      return 'Al vapor';
+    case 'roasted':
+      return 'Asado';
+    case 'sauteed':
+    case 'sautéed':
+      return 'Salteado';
+    case 'airfried':
+    case 'air fryer':
+      return 'En freidora de aire';
+    case 'cooked':
+      return 'Cocido';
+    case 'mashed':
+      return 'En puré';
+    case 'toasted':
+      return 'Tostado';
+    case 'powder':
+      return 'En polvo';
+    case 'melted':
+      return 'Fundido';
+    default:
+      return state.charAt(0).toUpperCase() + state.slice(1);
+  }
+};
+
 export interface RecipeStep {
   id: string;
   recipeId: string;

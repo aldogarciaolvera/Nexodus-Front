@@ -3,7 +3,7 @@ import { useAuthStore } from '../store/authStore';
 let isRefreshing = false;
 let refreshPromise: Promise<boolean> | null = null;
 
-export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
+export const apiFetch = async (endpoint: string, options: RequestInit & { timeout?: number } = {}) => {
   const { accessToken } = useAuthStore.getState();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -17,7 +17,10 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
   const API_URL = useAuthStore.getState().getApiUrl();
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  const isAiEndpoint = endpoint.includes('/ai/') || endpoint.includes('/vision');
+  const defaultTimeout = isAiEndpoint ? 60000 : 30000;
+  const requestTimeout = options.timeout ?? defaultTimeout;
+  const timeoutId = setTimeout(() => controller.abort(), requestTimeout);
 
   try {
     const response = await fetch(`${API_URL}${endpoint}`, {

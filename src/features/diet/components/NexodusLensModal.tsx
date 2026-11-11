@@ -30,6 +30,7 @@ import { ThemeColors } from '../../../utils/theme';
 import { useAlertStore } from '../../../store/alertStore';
 import { requestCameraPermissions } from '../../../utils/camera';
 import { dietService, FoodAnalysisResult, MealItem } from '../../../services/diet.service';
+import { translateCookingState } from '../../../services/recipe.service';
 import { Skeleton } from '../../../components/Skeleton';
 
 interface NexodusLensModalProps {
@@ -148,17 +149,19 @@ export const NexodusLensModal: React.FC<NexodusLensModalProps> = ({
   const handleApplyToMeal = () => {
     if (!analysisResult) return;
 
-    const mappedItems: MealItem[] = analysisResult.items.map((item) => ({
-      foodName: item.cookingState && item.cookingState !== 'Raw'
-        ? `${item.foodName} (${item.cookingState})`
-        : item.foodName,
-      quantity: item.estimatedGrams || 100,
-      unit: 'g',
-      calories: item.calories,
-      protein: item.protein,
-      carbs: item.carbs,
-      fat: item.fat,
-    }));
+    const mappedItems: MealItem[] = analysisResult.items.map((item) => {
+      const cookingSpanish = translateCookingState(item.cookingState);
+      const isRaw = !cookingSpanish || cookingSpanish.toLowerCase() === 'crudo';
+      return {
+        foodName: !isRaw ? `${item.foodName} (${cookingSpanish})` : item.foodName,
+        quantity: item.estimatedGrams || 100,
+        unit: 'g',
+        calories: item.calories,
+        protein: item.protein,
+        carbs: item.carbs,
+        fat: item.fat,
+      };
+    });
 
     if (onAddAnalyzedMeal) {
       onAddAnalyzedMeal(mappedItems, analysisResult.dishName || 'Comida Analizada');
@@ -363,11 +366,13 @@ export const NexodusLensModal: React.FC<NexodusLensModalProps> = ({
                       <View style={{ flex: 1 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                           <Text style={styles.ingredientName}>{item.foodName}</Text>
-                          {item.cookingState && item.cookingState !== 'Raw' && (
-                            <View style={styles.cookingStateBadge}>
-                              <Text style={styles.cookingStateText}>{item.cookingState}</Text>
-                            </View>
-                          )}
+                          {item.cookingState &&
+                            item.cookingState.toLowerCase() !== 'raw' &&
+                            item.cookingState.toLowerCase() !== 'crudo' && (
+                              <View style={styles.cookingStateBadge}>
+                                <Text style={styles.cookingStateText}>{translateCookingState(item.cookingState)}</Text>
+                              </View>
+                            )}
                         </View>
                         <Text style={styles.ingredientSub}>
                           ~{item.estimatedGrams}g • P: {item.protein}g • C: {item.carbs}g • G: {item.fat}g

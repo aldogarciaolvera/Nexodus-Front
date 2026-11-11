@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import { jwtDecode } from 'jwt-decode';
-import { AuthService } from '../services/auth.service';
 
 interface User {
   name: string;
@@ -51,7 +50,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     const refreshToken = await SecureStore.getItemAsync('refreshToken');
     if (refreshToken) {
-      await AuthService.logout(refreshToken).catch(() => {});
+      try {
+        const apiUrl = get().getApiUrl();
+        await fetch(`${apiUrl}/api/auth/logout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken }),
+        });
+      } catch {
+        // Silencioso si no hay conexión o token ya revocado
+      }
     }
     await SecureStore.deleteItemAsync('accessToken');
     await SecureStore.deleteItemAsync('refreshToken');

@@ -30,7 +30,7 @@ import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
 import { useAlertStore } from '../../../store/alertStore';
 import { queryKeys } from '../../../services/queryKeys';
-import { recipeService, Recipe, CreateRecipeRequest } from '../../../services/recipe.service';
+import { recipeService, Recipe, CreateRecipeRequest, translateCookingState } from '../../../services/recipe.service';
 import { Skeleton } from '../../../components/Skeleton';
 
 interface RecipeCatalogModalProps {
@@ -106,7 +106,8 @@ export const RecipeCatalogModal: React.FC<RecipeCatalogModalProps> = ({
       queryClient.invalidateQueries({ queryKey: queryKeys.diet.daily(vars.date) });
       queryClient.invalidateQueries({ queryKey: queryKeys.diet.pantry });
       queryClient.invalidateQueries({ queryKey: ['recipes'] });
-      showAlert('Plato Registrado', `"${selectedRecipe?.name}" agregado a tu diario e inventario actualizado.`, 'success');
+      queryClient.invalidateQueries({ queryKey: ['dietFoods'] });
+      showAlert('Plato Registrado', `"${selectedRecipe?.name}" agregado a tu diario, alimentos añadidos al catálogo e inventario actualizado.`, 'success');
       setSelectedRecipe(null);
       onClose();
     },
@@ -253,9 +254,13 @@ export const RecipeCatalogModal: React.FC<RecipeCatalogModalProps> = ({
                   <View key={i} style={styles.ingredientLine}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.ingredientLineName}>{ing.customFoodName}</Text>
-                      {ing.cookingState && ing.cookingState !== 'Raw' && (
-                        <Text style={styles.cookingStateSub}>Cocción: {ing.cookingState}</Text>
-                      )}
+                      {ing.cookingState &&
+                        ing.cookingState.toLowerCase() !== 'raw' &&
+                        ing.cookingState.toLowerCase() !== 'crudo' && (
+                          <Text style={styles.cookingStateSub}>
+                            Cocción: {translateCookingState(ing.cookingState)}
+                          </Text>
+                        )}
                     </View>
                     <Text style={styles.ingredientLineQty}>
                       {Math.round(ing.quantity * servings)} {ing.unit}
