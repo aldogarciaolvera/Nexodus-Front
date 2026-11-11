@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import { jwtDecode } from 'jwt-decode';
+import { AuthService } from '../services/auth.service';
 
 interface User {
   name: string;
@@ -48,6 +49,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ accessToken, refreshToken, isAuthenticated: true, user: decodeUser(accessToken) });
   },
   logout: async () => {
+    const refreshToken = await SecureStore.getItemAsync('refreshToken');
+    if (refreshToken) {
+      await AuthService.logout(refreshToken).catch(() => {});
+    }
     await SecureStore.deleteItemAsync('accessToken');
     await SecureStore.deleteItemAsync('refreshToken');
     await SecureStore.deleteItemAsync('lastActiveAt');

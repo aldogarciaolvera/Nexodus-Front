@@ -189,7 +189,7 @@ export const ActiveWorkoutScreen = () => {
     );
   }, [displayExercise]);
 
-  // Current exercise sets in active session
+  // Current exercise sets in active session (combinando series guardadas y plantilla de la rutina)
   const currentExerciseSets = useMemo(() => {
     if (!currentRoutineExercise) return [];
     const exerciseId = currentRoutineExercise.exerciseId;
@@ -197,23 +197,30 @@ export const ActiveWorkoutScreen = () => {
       .filter((s) => s.exerciseId === exerciseId)
       .sort((a, b) => a.setOrder - b.setOrder);
 
-    if (sessionSets.length > 0) {
-      return sessionSets;
+    const targetCount = currentRoutineExercise.sets || 3;
+    const maxOrder = Math.max(
+      targetCount, 
+      sessionSets.length, 
+      ...(sessionSets.length > 0 ? sessionSets.map((s) => s.setOrder) : [0])
+    );
+    const mergedSets: WorkoutSetDto[] = [];
+
+    for (let i = 1; i <= maxOrder; i++) {
+      const existing = sessionSets.find((s) => s.setOrder === i);
+      if (existing) {
+        mergedSets.push(existing);
+      } else {
+        mergedSets.push({
+          setOrder: i,
+          type: 'Normal',
+          weightKg: currentRoutineExercise.weight || 0,
+          reps: currentRoutineExercise.reps || 10,
+          isCompleted: false,
+        } as WorkoutSetDto);
+      }
     }
 
-    // Default template sets based on routine exercise count
-    const targetCount = currentRoutineExercise.sets || 3;
-    const defaultSets: Partial<WorkoutSetDto>[] = [];
-    for (let i = 1; i <= targetCount; i++) {
-      defaultSets.push({
-        setOrder: i,
-        type: 'Normal',
-        weightKg: currentRoutineExercise.weight || 0,
-        reps: currentRoutineExercise.reps || 10,
-        isCompleted: false,
-      });
-    }
-    return defaultSets as WorkoutSetDto[];
+    return mergedSets;
   }, [session?.sets, currentRoutineExercise]);
 
   if (!isActive) {
@@ -471,7 +478,7 @@ export const ActiveWorkoutScreen = () => {
 
             {currentExerciseSets.map((set, idx) => (
               <SetRowItem
-                key={set.id || idx}
+                key={`${currentRoutineExercise?.exerciseId}_${set.setOrder}`}
                 setOrder={idx + 1}
                 initialSet={set}
                 previousRecord={

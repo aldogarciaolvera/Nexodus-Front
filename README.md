@@ -36,6 +36,18 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
 
 ## 🆕 Últimos Cambios
 
+- **Verificación Integral de Contratos de API Frontend-Backend y Resiliencia en Registro de Series (`WorkoutSessionService.cs`, `ActiveWorkoutScreen.tsx`, `authStore.ts`, `auth.service.ts`):**
+  - **Auditoría Completa de Endpoints Frontend vs Backend:**
+    - Se comprobó la totalidad de las 14 familias de endpoints de `Nexodus-Back` (Auth, User, Categories, Finances, TodoList, Gamification, Notes, Diet, Pantry, Recipes, Exercises, Routines, Gym Sessions, Workouts) contra los servicios cliente en `Nexodus-Front`.
+  - **Mecanismo Robusto de Upsert en Registro de Series (`WorkoutSessionService.cs`):**
+    - Se corrigió el flujo de `LogSetAsync`: si la serie se identifica por `SetId` o por la combinación `(ExerciseId, SetOrder)` dentro de la sesión activa, se actualiza el registro existente en lugar de arrojar `NotFoundException` o intentar insertar un duplicado en la base de datos.
+    - Esto resuelve permanentemente los errores al alternar el tipo de serie (N, W, D, F, T) o marcar series como completadas en el HUD en vivo.
+  - **Fusión Dinámica de Series Plantilla y Series Guardadas (`ActiveWorkoutScreen.tsx`):**
+    - Se adaptó el cálculo de `currentExerciseSets` para combinar las series ya persistidas en base de datos con las series restantes definidas en la plantilla de la rutina. Esto evita que las series no completadas desaparezcan de la pantalla al guardar la primera serie.
+    - Se estabilizó la `key` de renderizado en `SetRowItem` (`${exerciseId}_${setOrder}`), previniendo desmontajes y pérdidas de foco en inputs de peso y repeticiones.
+  - **Revocación de Sesión en Backend al Cerrar Sesión (`authStore.ts`, `auth.service.ts`):**
+    - Se conectó el método `logout` de `useAuthStore` con el endpoint `/api/auth/logout` del backend, revocando inmediatamente el refresh token en el servidor además de limpiar el almacenamiento seguro local.
+
 - **Auditoría Integral y Optimización Global con Skills (`global-rules`, `accessibility`, `security-audit`, `building-native-ui`):**
   - **Cumplimiento Estricto de Regla de Teclado (`KeyboardAvoidingView` + `ScrollView`):**
     - Se incorporó `KeyboardAvoidingView` (con `behavior="padding"` en iOS) y `ScrollView` con `keyboardShouldPersistTaps="handled"` y `showsVerticalScrollIndicator={false}` en todos los formularios modales y vistas que contenían inputs de texto sin protección (`ChefAiModal.tsx`, `PantryModal.tsx`, `RecipeCatalogModal.tsx` y `DietView.tsx` durante el onboarding de dieta).
