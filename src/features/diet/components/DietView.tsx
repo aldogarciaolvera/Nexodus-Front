@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
 import { 
@@ -126,18 +126,30 @@ export const DietView = () => {
     );
   }
 
-  // Si la dieta está en false en el perfil del usuario, mostrar pantalla de onboarding / creación de plan
+  // Si la dieta está en false en el perfil del usuario, mostrar pantalla de onboarding / creación de plan con soporte de teclado y scroll
   if (!isDietActive) {
     return (
-      <DietOnboardingView 
-        profile={profile} 
-        isEditing={false} 
-        onCompleted={() => {
-          queryClient.invalidateQueries({ queryKey: queryKeys.user.profile });
-          queryClient.invalidateQueries({ queryKey: queryKeys.diet.target });
-          queryClient.invalidateQueries({ queryKey: queryKeys.diet.daily(selectedDate) });
-        }} 
-      />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingBottom: 60 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <DietOnboardingView 
+            profile={profile} 
+            isEditing={false} 
+            onCompleted={() => {
+              queryClient.invalidateQueries({ queryKey: queryKeys.user.profile });
+              queryClient.invalidateQueries({ queryKey: queryKeys.diet.target });
+              queryClient.invalidateQueries({ queryKey: queryKeys.diet.daily(selectedDate) });
+            }} 
+          />
+        </ScrollView>
+      </KeyboardAvoidingView>
     );
   }
 

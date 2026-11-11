@@ -93,7 +93,6 @@ const createStyles = (colors: ThemeColors) =>
       borderColor: colors.borderGlow,
       overflow: 'hidden',
       zIndex: 999,
-      elevation: 6,
     },
     trackBackground: {
       width: '100%',

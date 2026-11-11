@@ -8,6 +8,8 @@ import {
   ScrollView,
   TextInput,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -136,7 +138,13 @@ export const RecipeCatalogModal: React.FC<RecipeCatalogModalProps> = ({
         <View style={styles.header}>
           <View style={styles.headerTitleRow}>
             {selectedRecipe ? (
-              <TouchableOpacity onPress={() => setSelectedRecipe(null)} style={styles.backBtn}>
+              <TouchableOpacity 
+                onPress={() => setSelectedRecipe(null)} 
+                style={styles.backBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Volver al recetario"
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
                 <ChevronLeft size={22} color={theme.colors.neonCyan} />
               </TouchableOpacity>
             ) : (
@@ -154,14 +162,29 @@ export const RecipeCatalogModal: React.FC<RecipeCatalogModalProps> = ({
             </View>
           </View>
 
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+          <TouchableOpacity 
+            onPress={onClose} 
+            style={styles.closeBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Cerrar recetario"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <X size={20} color={theme.colors.slate400} />
           </TouchableOpacity>
         </View>
 
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
         {selectedRecipe ? (
           // ================== DETALLE DE RECETA ==================
-          <ScrollView style={styles.scrollContent} contentContainerStyle={{ paddingBottom: 40 }}>
+          <ScrollView 
+            style={styles.scrollContent} 
+            contentContainerStyle={{ paddingBottom: 40 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             {selectedRecipe.imageUrl && (
               <Image source={{ uri: selectedRecipe.imageUrl }} style={styles.detailImage} contentFit="cover" />
             )}
@@ -401,7 +424,12 @@ export const RecipeCatalogModal: React.FC<RecipeCatalogModalProps> = ({
                 <Text style={styles.emptySub}>Prueba ajustando los filtros o el texto de búsqueda.</Text>
               </View>
             ) : (
-              <ScrollView style={styles.scrollContent} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 40 }}>
+              <ScrollView 
+                style={styles.scrollContent} 
+                contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 40 }}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
                 {recipes.map((recipe) => (
                   <TouchableOpacity
                     key={recipe.id}
@@ -464,6 +492,7 @@ export const RecipeCatalogModal: React.FC<RecipeCatalogModalProps> = ({
             )}
           </View>
         )}
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </Modal>
   );

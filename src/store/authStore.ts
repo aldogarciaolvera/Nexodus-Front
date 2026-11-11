@@ -13,14 +13,12 @@ interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
   isAuthenticated: boolean;
-  apiEnv: 'local' | 'production';
   user: User | null;
   login: (accessToken: string, refreshToken: string) => Promise<void>;
   logout: () => Promise<void>;
   updateAccessToken: (token: string) => Promise<void>;
   updateTokens: (accessToken: string, refreshToken: string) => Promise<void>;
   updateLastActive: () => Promise<void>;
-  setApiEnv: (env: 'local' | 'production') => Promise<void>;
   getApiUrl: () => string;
   initialize: () => Promise<void>;
 }
@@ -42,7 +40,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   accessToken: null,
   refreshToken: null,
   isAuthenticated: false,
-  apiEnv: 'local',
   user: null,
   login: async (accessToken: string, refreshToken: string) => {
     await SecureStore.setItemAsync('accessToken', accessToken);
@@ -70,32 +67,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await SecureStore.setItemAsync('lastActiveAt', Date.now().toString());
     }
   },
-  setApiEnv: async (env: 'local' | 'production') => {
-    await SecureStore.setItemAsync('apiEnv', env);
-    set({ apiEnv: env });
-  },
   getApiUrl: () => {
-    // If not in development mode, always enforce production URL
-    if (!__DEV__) {
-      return process.env.EXPO_PUBLIC_API_URL || 'https://nexodusback.atomsystems.org';
+    // 1. Variable explícita de entorno (inyectada por EAS Build o .env)
+    if (process.env.EXPO_PUBLIC_API_URL) {
+      return process.env.EXPO_PUBLIC_API_URL;
     }
-    
-    const env = get().apiEnv;
-    // For local dev server (default for expo usually)
-    const localUrl = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.33:5079';
-    // The production url
-    const prodUrl = 'https://nexodusback.atomsystems.org';
-    return env === 'production' ? prodUrl : localUrl;
+    // 2. Compilaciones preview, producción o modo release fuera de desarrollo local
+    if (!__DEV__ || process.env.APP_VARIANT === 'preview' || process.env.APP_VARIANT === 'production') {
+      return 'https://nexodusback.atomsystems.org';
+    }
+    // 3. Fallback en desarrollo local
+    return 'http://192.168.1.33:5079';
   },
   initialize: async () => {
     const SESSION_TIMEOUT = 48 * 60 * 60 * 1000; // 48 hours
     const accessToken = await SecureStore.getItemAsync('accessToken');
     const refreshToken = await SecureStore.getItemAsync('refreshToken');
     const lastActiveAtStr = await SecureStore.getItemAsync('lastActiveAt');
-    const savedApiEnv = await SecureStore.getItemAsync('apiEnv') as 'local' | 'production' | null;
     
-    if (savedApiEnv) {
-      set({ apiEnv: savedApiEnv });
+    // Limpieza segura de llaves obsoletas
+    try {
+      await SecureStore.deleteItemAsync('apiEnv');
+    } catch {
+      // Ignorar si no existe
     }
     
     if (accessToken && refreshToken) {

@@ -36,6 +36,34 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
 
 ## 🆕 Últimos Cambios
 
+- **Auditoría Integral y Optimización Global con Skills (`global-rules`, `accessibility`, `security-audit`, `building-native-ui`):**
+  - **Cumplimiento Estricto de Regla de Teclado (`KeyboardAvoidingView` + `ScrollView`):**
+    - Se incorporó `KeyboardAvoidingView` (con `behavior="padding"` en iOS) y `ScrollView` con `keyboardShouldPersistTaps="handled"` y `showsVerticalScrollIndicator={false}` en todos los formularios modales y vistas que contenían inputs de texto sin protección (`ChefAiModal.tsx`, `PantryModal.tsx`, `RecipeCatalogModal.tsx` y `DietView.tsx` durante el onboarding de dieta).
+    - Esto previene que el teclado de software oculte los campos de entrada de preferencias, búsqueda, ingredientes o datos biométricos.
+  - **Alineación de Identidad Visual Obsidian Cyan (`RestTimerOverlay.tsx`):**
+    - Se depuró la propiedad `elevation: 6` en el overlay de descanso del entrenamiento, erradicando sombras artificiales y basando el 100% de la elevación en capas tonales y bordes estructurales de 1px (`#222836`), en estricto cumplimiento con la regla de diseño Obsidian Cyan.
+  - **Accesibilidad Móvil Universal (WCAG 2.2 AA):**
+    - Se añadieron roles semánticos (`accessibilityRole="button"`), etiquetas descriptivas (`accessibilityLabel`) y áreas de toque aumentadas (`hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}`) a todos los botones de sólo iconos (botones de cierre `X`, botones de navegación de retorno `ChevronLeft` y botones de eliminación `Trash2`), garantizando accesibilidad óptima con lectores de pantalla (TalkBack y VoiceOver).
+  - **Verificación de Cero Advertencias de Deprecación:**
+    - Se verificó que el 100% de los componentes utilizan `SafeAreaView` proveniente de `'react-native-safe-area-context'`, suprimiendo por completo los warnings de deprecación de React Native 0.88 y Expo SDK 58.
+
+- **Blindaje de Seguridad en Frontend y Gestión Determinista de Entornos (`app.json`, `app.config.js`, `eas.json`, `authStore.ts`, `SettingsScreen.tsx`):**
+  - **Erradicación de Tráfico Cleartext (HTTP Inseguro) en Compilaciones Preview y Producción (Punto 2 de Auditoría):**
+    - Se eliminó la directiva global insegura `usesCleartextTraffic: true` de `app.json`.
+    - Se implementó la configuración dinámica de `expo-build-properties` dentro de `app.config.js` basada en la variante de compilación (`APP_VARIANT`):
+      - **Compilación Preview (`preview`) y Producción (`production`):** Se establece `usesCleartextTraffic: false`, forzando que Android bloquee tajantemente cualquier tráfico HTTP plano y obligue a todo el tráfico de red a viajar cifrado por HTTPS/TLS hacia el backend de producción.
+      - **Compilación de Desarrollo (`development`):** Se habilita `usesCleartextTraffic: true` exclusivamente en el entorno de desarrollo local para permitir la comunicación con la API en red local LAN (`http://192.168.1.33:5079`).
+  - **Alineación Determinista de URLs de API por Perfil de EAS Build (`eas.json`):**
+    - **Perfil Preview (`preview`):** Inyecta en el paquete compilado `EXPO_PUBLIC_API_URL: "https://nexodusback.atomsystems.org"` y `APP_VARIANT: "preview"`.
+    - **Perfil Development (`development`):** Inyecta en el paquete compilado `EXPO_PUBLIC_API_URL: "http://192.168.1.33:5079"` y `APP_VARIANT: "development"`.
+    - **Perfil Production (`production`):** Inyecta en el paquete compilado `EXPO_PUBLIC_API_URL: "https://nexodusback.atomsystems.org"` y `APP_VARIANT: "production"`.
+  - **Eliminación del Selector Manual de Entornos en Configuración (`SettingsScreen.tsx`):**
+    - Se removió por completo de la pantalla de Configuración la tarjeta de alternancia manual ("Entorno Producción" / switch / botón de prueba de refresh token), impidiendo que el usuario o tester modifique la URL base en tiempo de ejecución o corrompa el estado de autenticación.
+  - **Simplificación y Reforzamiento del Store de Autenticación (`authStore.ts`):**
+    - Se eliminó el estado mutable `apiEnv` y la acción `setApiEnv` de la interfaz y del store de Zustand.
+    - Se añadió una rutina de auto-limpieza segura en `initialize()` para depurar cualquier clave obsoleta `apiEnv` remanente en `expo-secure-store`.
+    - `getApiUrl()` ahora resuelve determinísticamente la URL correcta según la variable inyectada `process.env.EXPO_PUBLIC_API_URL` o el modo de compilación (`!__DEV__` / `preview` / `production` hacia PR, y desarrollo local como fallback seguro).
+
 - **Evolución del Módulo de Dieta: Unificación de Filtros, Descuento Automático de Despensa, Navegación Directa de Recetas y Difusión Comunitaria (`RecipeCatalogModal.tsx`, `PantryModal.tsx`, `ChefAiModal.tsx` & Backend `RecipeService.cs`, `RecipeAiService.cs`):**
   - **Filtro Unificado en el Recetario (`RecipeCatalogModal.tsx`):**
     - Se integraron las dos filas separadas de filtros (tipo de comida y enfoque nutricional) en una única barra horizontal limpia y deslizante (`Todos`, `Desayuno`, `Almuerzo`, `Cena`, `Snacks`, `Alta Proteína`, `Keto`, `Baja Grasa`).

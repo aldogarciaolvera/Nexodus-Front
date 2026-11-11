@@ -8,6 +8,8 @@ import {
   ScrollView,
   TextInput,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -228,7 +230,13 @@ export const PantryModal: React.FC<PantryModalProps> = ({
         <View style={styles.header}>
           <View style={styles.headerTitleRow}>
             {selectedRecipe ? (
-              <TouchableOpacity onPress={() => setSelectedRecipe(null)} style={styles.backBtn}>
+              <TouchableOpacity 
+                onPress={() => setSelectedRecipe(null)} 
+                style={styles.backBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Volver a la despensa"
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
                 <ChevronLeft size={22} color={theme.colors.neonCyan} />
               </TouchableOpacity>
             ) : (
@@ -245,14 +253,29 @@ export const PantryModal: React.FC<PantryModalProps> = ({
               </Text>
             </View>
           </View>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+          <TouchableOpacity 
+            onPress={onClose} 
+            style={styles.closeBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Cerrar modal de despensa"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <X size={20} color={theme.colors.slate400} />
           </TouchableOpacity>
         </View>
 
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
         {selectedRecipe ? (
           // ================== PANTALLA DETALLADA DE LA RECETA ==================
-          <ScrollView style={styles.scrollContent} contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
+          <ScrollView 
+            style={styles.scrollContent} 
+            contentContainerStyle={{ padding: 16, paddingBottom: 60 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.detailContainer}>
               <View style={styles.detailHeaderBox}>
                 <Text style={styles.detailTitle}>{selectedRecipe.name}</Text>
@@ -422,7 +445,12 @@ export const PantryModal: React.FC<PantryModalProps> = ({
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.scrollContent} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+            <ScrollView 
+              style={styles.scrollContent} 
+              contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
               {activeTab === 'cook' ? (
                 // ================== MODO COCINAR CON IA ==================
                 <View style={{ gap: 14 }}>
@@ -638,6 +666,9 @@ export const PantryModal: React.FC<PantryModalProps> = ({
                           <TouchableOpacity
                             style={styles.deleteBtn}
                             onPress={() => deleteItemMutation.mutate(item.id)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Eliminar ${item.name} de la despensa`}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                           >
                             <Trash2 size={16} color={theme.colors.error} />
                           </TouchableOpacity>
@@ -650,6 +681,7 @@ export const PantryModal: React.FC<PantryModalProps> = ({
             </ScrollView>
           </>
         )}
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </Modal>
   );

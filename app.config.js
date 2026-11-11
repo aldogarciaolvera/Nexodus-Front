@@ -24,6 +24,14 @@ module.exports = ({ config }) => {
       package: IS_DEV ? `${config.android?.package}.dev` : config.android?.package,
     },
     plugins: [
+      [
+        "expo-build-properties",
+        {
+          android: {
+            usesCleartextTraffic: IS_DEV,
+          },
+        },
+      ],
       ...(config.plugins || []),
       "expo-image"
     ],

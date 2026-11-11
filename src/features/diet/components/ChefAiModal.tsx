@@ -8,6 +8,8 @@ import {
   ScrollView,
   TextInput,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -165,12 +167,27 @@ export const ChefAiModal: React.FC<ChefAiModalProps> = ({
               <Text style={styles.headerSub}>Generador inteligente por macros restantes</Text>
             </View>
           </View>
-          <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
+          <TouchableOpacity 
+            onPress={handleClose} 
+            style={styles.closeBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Cerrar asistente Chef IA"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <X size={20} color={theme.colors.slate400} />
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.scrollContent} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <ScrollView 
+            style={styles.scrollContent} 
+            contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
           {/* Target Banner */}
           <View style={styles.targetBanner}>
             <Text style={styles.bannerLabel}>MACROS OBJETIVO A CUBRIR</Text>
@@ -394,6 +411,7 @@ export const ChefAiModal: React.FC<ChefAiModalProps> = ({
             </View>
           )}
         </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </Modal>
   );
