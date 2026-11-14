@@ -36,6 +36,12 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
 
 ## 🆕 Últimos Cambios
 
+- **Corrección de Resolución de Dependencias en Metro Bundler con `pnpm` (`.npmrc`, `metro.config.js`, `node_modules`):**
+  - Se resolvió el fallo de bundling en Android (`Unable to resolve "expo" from "index.ts"`).
+  - La causa raíz era la estructura de enlaces simbólicos aislados (`node_modules/.pnpm`) que genera `pnpm` por defecto, los cuales el resolver de Metro en Windows no recorre adecuadamente.
+  - Se fijó formalmente `node-linker=hoisted` en la configuración del proyecto y se reinstalaron las dependencias, aplanando `node_modules/expo` como directorio nativo directo sin junctions.
+  - Se añadió [`metro.config.js`](./metro.config.js) con la configuración oficial `getDefaultConfig(__dirname)` para garantizar la compatibilidad total entre Expo SDK 58 y Metro.
+
 - **Filtros por Categoría, Traducción de Cocción al Español, Formato Numérico de Calorías y Estabilización de Gemini (`FoodSearchModal.tsx`, `RecipeCatalogModal.tsx`, `ChefAiModal.tsx`, `PantryModal.tsx`, `NexodusLensModal.tsx`, `NexodusChefCard.tsx`, `DietView.tsx`, `api.ts`, `RecipeAiService.cs`, `GeminiVisionService.cs`):**
   - **Filtros por Categoría en Búsqueda y Adición de Alimentos (`FoodSearchModal.tsx`):**
     - Se incorporó una barra horizontal de chips desplazable con geometría de cápsula Obsidian Cyan (`Todos`, `Mis Alimentos`, `Recetas y Platos`, `Carnes`, `Pescados`, `Verduras`, `Frutas`, `Lácteos y Huevos`, `Cereales y Granos`, `Legumbres`, `Grasas y Aceites`, `Suplementos`, `Snacks`, `Bebidas`).

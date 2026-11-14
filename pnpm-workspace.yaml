@@ -23,6 +23,7 @@ minimumReleaseAgeExclude:
   - '@expo/metro-file-map@57.0.4'
   - '@expo/require-utils@57.0.6'
   - expo-eas-client@57.0.5
+nodeLinker: hoisted
 overrides:
   brace-expansion@>=4.0.0 <5.0.12: ^5.0.12
   compression@<1.8.2: ^1.8.2
