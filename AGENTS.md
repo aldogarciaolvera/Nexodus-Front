@@ -36,7 +36,11 @@ description: Reglas críticas del sistema, restricciones y directrices de compor
 * Progress Bars: Solid `#38BDF8` / `#00F0FF` fill, `4px` or `6px` track height.
 * **Custom Alert Rule:** All errors, warnings, or notifications MUST use the custom `GlobalAlert` component via `useAlertStore.getState().showAlert(...)`. NEVER use the native `Alert.alert()` or local state text to ensure visual consistency across the app.
 * **Loading State Rule:** Always use the reusable `Skeleton` component (`src/components/Skeleton.tsx`) for data fetching states instead of native `ActivityIndicator` to prevent UI jumps. However, `ActivityIndicator` SHOULD still be used inside action buttons (e.g., Save, Submit).
-* **Keyboard Handling Rule:** Every screen or modal with text inputs MUST wrap its form content with a combination of `KeyboardAvoidingView` (with `behavior="padding"` on iOS) and `ScrollView` (with `keyboardShouldPersistTaps="handled"`) to prevent the software keyboard from covering the inputs.
+* **Keyboard Handling Rule:** Every screen or modal with text inputs MUST guarantee that the software keyboard never obscures the focused field or what the user is typing:
+  1. Wrap form content with `KeyboardAvoidingView` (`behavior={Platform.OS === 'ios' ? 'padding' : undefined}`) and `ScrollView` (`keyboardShouldPersistTaps="handled"`, `automaticallyAdjustKeyboardInsets={true}`, `keyboardDismissMode="on-drag"`).
+  2. Implement dynamic keyboard tracking via `Keyboard.addListener` (`keyboardWillShow`/`keyboardDidShow` and `keyboardWillHide`/`keyboardDidHide`) to dynamically expand scroll boundaries (`paddingBottom: keyboardHeight > 0 ? keyboardHeight + 80 : 80`) and switch `justifyContent` to `'flex-start'` when the keyboard is active (to prevent content clipping when using `flexGrow: 1`).
+  3. Form inputs MUST trigger auto-scroll on focus (`onFocus={() => handleFocusField(offsetY)}` via `scrollViewRef.current?.scrollTo({ y, animated: true })` with ~120ms delay) so the active input is smoothly positioned into full visibility above the keyboard.
+  4. Footer labels or version strings (`versionText`) must NEVER use `position: 'absolute'` at the bottom of the screen; they must flow naturally at the end of the `ScrollView` content to prevent overlapping text, links, or buttons.
 
 ## 4. Coding Standards
 * Do not mix domains across the `src/features/` folders.

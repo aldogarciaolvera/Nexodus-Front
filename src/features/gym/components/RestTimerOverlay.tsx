@@ -15,13 +15,9 @@ export const RestTimerOverlay = React.memo(() => {
   const addRestTime = useWorkoutStore((state) => state.addRestTime);
 
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
     if (restTimer.isRunning) {
-      interval = setInterval(() => {
-        tickRestTimer();
-      }, 1000);
+      tickRestTimer();
     }
-    return () => clearInterval(interval);
   }, [restTimer.isRunning, tickRestTimer]);
 
   if (!restTimer.isRunning || restTimer.remainingSeconds <= 0) {

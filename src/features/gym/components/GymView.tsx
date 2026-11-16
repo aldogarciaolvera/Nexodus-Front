@@ -15,6 +15,21 @@ import { MuscleRecoveryCard } from './MuscleRecoveryCard';
 import { AppNavigationProp } from '../../../utils/navigation';
 import { queryKeys } from '../../../services/queryKeys';
 
+const SessionDurationText = React.memo(({ style }: { style: any }) => {
+  const elapsedSeconds = useWorkoutStore((s) => s.elapsedSeconds);
+  const isActive = useWorkoutStore((s) => s.isActive);
+  const isPaused = useWorkoutStore((s) => s.isPaused);
+  const activeRoutine = useWorkoutStore((s) => s.activeRoutine);
+  const mins = Math.floor(elapsedSeconds / 60);
+  const secs = elapsedSeconds % 60;
+  const formatted = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  return (
+    <Text style={style}>
+      {isActive && activeRoutine ? (isPaused ? `${formatted} (PAUSA)` : formatted) : '00:00'}
+    </Text>
+  );
+});
+
 export const GymView = () => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
@@ -23,8 +38,8 @@ export const GymView = () => {
 
   const { 
     isActive, 
+    isPaused,
     activeRoutine, 
-    elapsedSeconds, 
     currentExerciseIndex,
     startWorkout, 
     resumeWorkout,
@@ -209,9 +224,7 @@ export const GymView = () => {
           <View style={styles.metricsRow}>
             <View style={styles.metricItem}>
               <Text style={styles.metricLabel}>DURACION</Text>
-              <Text style={styles.metricValue}>
-                {isActive && activeRoutine ? formatTime(elapsedSeconds) : '00:00'}
-              </Text>
+              <SessionDurationText style={styles.metricValue} />
             </View>
           </View>
 
@@ -233,7 +246,11 @@ export const GymView = () => {
             </View>
             <View>
               <Text style={styles.resumeTitle}>{isActive && activeRoutine ? 'Continuar Rutina' : 'Comenzar Rutina'}</Text>
-              <Text style={styles.resumeSub}>{isActive && activeRoutine ? 'Rutina en progreso' : 'Listo para empezar'}</Text>
+              <Text style={styles.resumeSub}>
+                {isActive && activeRoutine
+                  ? (isPaused ? 'Rutina en pausa' : 'Rutina en progreso')
+                  : 'Listo para empezar'}
+              </Text>
             </View>
             <View style={{flex: 1}}/>
             <Text style={{color: theme.colors.mutedText}}>→</Text>

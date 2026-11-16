@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { AppState, AppStateStatus } from 'react-native';
 import { 
   Routine, 
   WorkoutSessionDto, 
@@ -23,6 +24,12 @@ interface WorkoutState {
   completedSets: Record<string, number>; // exerciseId -> count
   restTimer: RestTimerState;
   lastBackendSync: number;
+
+  // Wall-Clock Timestamps for zero-drift, multi-instance-safe timing
+  workoutStartMs: number;
+  totalPausedMs: number;
+  pauseStartMs: number | null;
+  restEndTimeMs: number;
   
   // Core Actions
   initFromBackend: () => Promise<void>;
@@ -60,6 +67,76 @@ interface WorkoutState {
   addRestTime: (seconds: number) => void;
 }
 
+// Module-level singletons to ensure ONLY ONE timer runs globally
+let timerInterval: ReturnType<typeof setInterval> | null = null;
+let appStateSubscription: { remove: () => void } | null = null;
+let wasAutoPausedByBackground = false;
+
+function ensureTimerRunning() {
+  if (!timerInterval) {
+    timerInterval = setInterval(() => {
+      const state = useWorkoutStore.getState();
+      const shouldRunSession = state.isActive && !state.isPaused;
+      const shouldRunRest = state.restTimer.isRunning;
+
+      if (!shouldRunSession && !shouldRunRest) {
+        stopTimerInterval();
+        return;
+      }
+
+      if (shouldRunSession) {
+        state.tickTimer();
+      }
+      if (shouldRunRest) {
+        state.tickRestTimer();
+      }
+    }, 500);
+  }
+
+  if (!appStateSubscription) {
+    appStateSubscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      const state = useWorkoutStore.getState();
+      if (nextState === 'background' || nextState === 'inactive') {
+        // Automatically pause workout when app is closed, minimized or sent to background
+        if (state.isActive && !state.isPaused) {
+          wasAutoPausedByBackground = true;
+          state.pauseWorkout();
+        }
+      } else if (nextState === 'active') {
+        // Automatically resume workout only if it was paused by backgrounding
+        if (state.isActive) {
+          if (state.isPaused && wasAutoPausedByBackground) {
+            wasAutoPausedByBackground = false;
+            state.resumeWorkout();
+          } else if (!state.isPaused) {
+            state.tickTimer();
+            ensureTimerRunning();
+          }
+        }
+        if (state.restTimer.isRunning) {
+          state.tickRestTimer();
+        }
+      }
+    });
+  }
+}
+
+function stopTimerInterval() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+}
+
+function stopTimerIfIdle() {
+  const state = useWorkoutStore.getState();
+  const shouldRunSession = state.isActive && !state.isPaused;
+  const shouldRunRest = state.restTimer.isRunning;
+  if (!shouldRunSession && !shouldRunRest) {
+    stopTimerInterval();
+  }
+}
+
 export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   isActive: false,
   isPaused: false,
@@ -74,6 +151,10 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
     remainingSeconds: 90,
   },
   lastBackendSync: 0,
+  workoutStartMs: 0,
+  totalPausedMs: 0,
+  pauseStartMs: null,
+  restEndTimeMs: 0,
 
   initFromBackend: async () => {
     const { lastBackendSync, isActive } = get();
@@ -95,10 +176,11 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
           }
         }
 
-        // Calculate elapsed seconds from startTime
-        const startMs = new Date(activeSession.startTime).getTime();
         const nowMs = Date.now();
-        const elapsed = Math.max(0, Math.floor((nowMs - startMs) / 1000));
+        const durationSec = activeSession.durationSeconds || 0;
+        const startMs = activeSession.startTime ? new Date(activeSession.startTime).getTime() : nowMs;
+        const elapsed = durationSec > 0 ? durationSec : Math.max(0, Math.floor((nowMs - startMs) / 1000));
+        const effectiveStartMs = nowMs - elapsed * 1000;
 
         // Reconstruct completed sets mapping
         const completedMap: Record<string, number> = {};
@@ -116,7 +198,13 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
           elapsedSeconds: elapsed,
           currentExerciseIndex: 0,
           completedSets: completedMap,
+          workoutStartMs: effectiveStartMs,
+          totalPausedMs: 0,
+          pauseStartMs: null,
+          restEndTimeMs: 0,
         });
+
+        ensureTimerRunning();
       }
     } catch {
       // Backend unavailable or user offline
@@ -139,21 +227,32 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
         }
       }
 
+      const initialDuration = createdSession.durationSeconds || 0;
+      const now = Date.now();
+      const sessionStartMs = createdSession.startTime ? new Date(createdSession.startTime).getTime() : now;
+      const effectiveStartMs = initialDuration > 0 ? now - initialDuration * 1000 : sessionStartMs;
+
       set({
         isActive: true,
         isPaused: false,
         session: createdSession,
         activeRoutine: routine || null,
-        elapsedSeconds: createdSession.durationSeconds || 0,
+        elapsedSeconds: initialDuration,
         currentExerciseIndex: 0,
         completedSets: completedMap,
         restTimer: { isRunning: false, targetSeconds: 90, remainingSeconds: 90 },
+        workoutStartMs: effectiveStartMs,
+        totalPausedMs: 0,
+        pauseStartMs: null,
+        restEndTimeMs: 0,
       });
 
+      ensureTimerRunning();
       return createdSession;
     } catch (err) {
       console.error('Failed to start workout session on backend:', err);
       // Fallback local start
+      const now = Date.now();
       set({
         isActive: true,
         isPaused: false,
@@ -162,25 +261,60 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
         elapsedSeconds: 0,
         currentExerciseIndex: 0,
         completedSets: {},
+        workoutStartMs: now,
+        totalPausedMs: 0,
+        pauseStartMs: null,
+        restEndTimeMs: 0,
       });
+      ensureTimerRunning();
       return null;
     }
   },
 
-  pauseWorkout: () => set({ isPaused: true }),
+  pauseWorkout: () => {
+    const { isPaused, isActive } = get();
+    if (!isActive || isPaused) return;
+    set({
+      isPaused: true,
+      pauseStartMs: Date.now(),
+    });
+    stopTimerIfIdle();
+  },
   
-  resumeWorkout: () => set({ isPaused: false }),
+  resumeWorkout: () => {
+    const { isPaused, pauseStartMs, totalPausedMs, isActive } = get();
+    if (!isActive || !isPaused) return;
+    const additionalPaused = pauseStartMs ? Math.max(0, Date.now() - pauseStartMs) : 0;
+    set({
+      isPaused: false,
+      pauseStartMs: null,
+      totalPausedMs: totalPausedMs + additionalPaused,
+    });
+    ensureTimerRunning();
+  },
   
-  endWorkout: () => set({
-    isActive: false,
-    isPaused: false,
-    session: null,
-    activeRoutine: null,
-    elapsedSeconds: 0,
-    currentExerciseIndex: 0,
-    completedSets: {},
-    restTimer: { isRunning: false, targetSeconds: 90, remainingSeconds: 90 },
-  }),
+  endWorkout: () => {
+    stopTimerInterval();
+    wasAutoPausedByBackground = false;
+    if (appStateSubscription) {
+      appStateSubscription.remove();
+      appStateSubscription = null;
+    }
+    set({
+      isActive: false,
+      isPaused: false,
+      session: null,
+      activeRoutine: null,
+      elapsedSeconds: 0,
+      currentExerciseIndex: 0,
+      completedSets: {},
+      workoutStartMs: 0,
+      totalPausedMs: 0,
+      pauseStartMs: null,
+      restEndTimeMs: 0,
+      restTimer: { isRunning: false, targetSeconds: 90, remainingSeconds: 90 },
+    });
+  },
 
   cancelWorkout: async () => {
     const { session } = get();
@@ -212,9 +346,23 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   },
 
   tickTimer: () => {
-    const { isActive, isPaused } = get();
-    if (isActive && !isPaused) {
-      set((state) => ({ elapsedSeconds: state.elapsedSeconds + 1 }));
+    const { isActive, isPaused, workoutStartMs, totalPausedMs, pauseStartMs, elapsedSeconds } = get();
+    if (!isActive) return;
+    if (isPaused) {
+      if (pauseStartMs && workoutStartMs > 0) {
+        const pausedElapsedMs = pauseStartMs - workoutStartMs - totalPausedMs;
+        const currentSec = Math.max(0, Math.floor(pausedElapsedMs / 1000));
+        if (currentSec !== elapsedSeconds) {
+          set({ elapsedSeconds: currentSec });
+        }
+      }
+      return;
+    }
+    if (workoutStartMs <= 0) return;
+    const currentElapsedMs = Date.now() - workoutStartMs - totalPausedMs;
+    const currentSec = Math.max(0, Math.floor(currentElapsedMs / 1000));
+    if (currentSec !== elapsedSeconds) {
+      set({ elapsedSeconds: currentSec });
     }
   },
 
@@ -355,47 +503,76 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
 
   // Rest Timer Controls
   startRestTimer: (seconds) => {
+    const restEndTimeMs = Date.now() + seconds * 1000;
     set({
+      restEndTimeMs,
       restTimer: {
         isRunning: true,
         targetSeconds: seconds,
         remainingSeconds: seconds,
       }
     });
+    ensureTimerRunning();
   },
 
   stopRestTimer: () => {
     set((state) => ({
+      restEndTimeMs: 0,
       restTimer: {
         ...state.restTimer,
         isRunning: false,
         remainingSeconds: 0,
       }
     }));
+    stopTimerIfIdle();
   },
 
   tickRestTimer: () => {
-    const { restTimer } = get();
-    if (restTimer.isRunning && restTimer.remainingSeconds > 0) {
-      const nextRemaining = restTimer.remainingSeconds - 1;
+    const { restTimer, restEndTimeMs } = get();
+    if (!restTimer.isRunning) return;
+
+    const diffMs = restEndTimeMs - Date.now();
+    const nextRemaining = Math.max(0, Math.ceil(diffMs / 1000));
+
+    if (nextRemaining <= 0) {
+      set({
+        restEndTimeMs: 0,
+        restTimer: {
+          ...restTimer,
+          remainingSeconds: 0,
+          isRunning: false,
+        }
+      });
+      stopTimerIfIdle();
+    } else if (nextRemaining !== restTimer.remainingSeconds) {
       set({
         restTimer: {
           ...restTimer,
           remainingSeconds: nextRemaining,
-          isRunning: nextRemaining > 0,
+          isRunning: true,
         }
       });
     }
   },
 
   addRestTime: (seconds) => {
-    set((state) => ({
+    const { restTimer, restEndTimeMs } = get();
+    const now = Date.now();
+    const currentRemaining = restTimer.isRunning && restEndTimeMs > now
+      ? Math.ceil((restEndTimeMs - now) / 1000)
+      : 0;
+    const newRemaining = currentRemaining + seconds;
+    const newEndTimeMs = now + newRemaining * 1000;
+
+    set({
+      restEndTimeMs: newEndTimeMs,
       restTimer: {
-        ...state.restTimer,
-        remainingSeconds: Math.max(0, state.restTimer.remainingSeconds + seconds),
-        targetSeconds: Math.max(state.restTimer.targetSeconds, state.restTimer.remainingSeconds + seconds),
+        ...restTimer,
+        remainingSeconds: newRemaining,
+        targetSeconds: Math.max(restTimer.targetSeconds, newRemaining),
         isRunning: true,
       }
-    }));
+    });
+    ensureTimerRunning();
   },
 }));

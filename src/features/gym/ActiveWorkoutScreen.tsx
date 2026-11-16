@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Keyboard,
   Platform,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../utils/ThemeContext';
@@ -62,8 +63,6 @@ export const ActiveWorkoutScreen = () => {
     session,
     activeRoutine,
     currentExerciseIndex,
-    elapsedSeconds,
-    tickTimer,
     pauseWorkout,
     resumeWorkout,
     nextExercise,
@@ -114,23 +113,25 @@ export const ActiveWorkoutScreen = () => {
     }, 120);
   };
 
-  // Auto-resume timer when entering or focusing the screen
+  // Auto-resume workout only when initially entering screen if session was paused
   useEffect(() => {
-    if (isActive && isPaused) {
+    const state = useWorkoutStore.getState();
+    if (state.isActive && state.isPaused) {
       resumeWorkout();
+    } else if (state.isActive) {
+      state.tickTimer();
     }
-  }, [isActive, isPaused, resumeWorkout]);
+  }, []);
 
-  // Tick main session timer
+  // Intercept Android hardware back button so it opens ExitWorkoutModal and pauses
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-    if (isActive && !isPaused) {
-      interval = setInterval(() => {
-        tickTimer();
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isActive, isPaused, tickTimer]);
+    const onBackPress = () => {
+      handleGoBack();
+      return true;
+    };
+    const backSub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => backSub.remove();
+  }, []);
 
   const exercises = activeRoutine?.exercises || [];
   const currentRoutineExercise = exercises[currentExerciseIndex];
@@ -198,20 +199,19 @@ export const ActiveWorkoutScreen = () => {
       .sort((a, b) => a.setOrder - b.setOrder);
 
     const targetCount = currentRoutineExercise.sets || 3;
-    const maxOrder = Math.max(
-      targetCount, 
-      sessionSets.length, 
-      ...(sessionSets.length > 0 ? sessionSets.map((s) => s.setOrder) : [0])
-    );
+    const totalCount = Math.max(targetCount, sessionSets.length);
     const mergedSets: WorkoutSetDto[] = [];
 
-    for (let i = 1; i <= maxOrder; i++) {
-      const existing = sessionSets.find((s) => s.setOrder === i);
+    for (let i = 0; i < totalCount; i++) {
+      const existing = sessionSets[i];
       if (existing) {
-        mergedSets.push(existing);
+        mergedSets.push({
+          ...existing,
+          setOrder: i + 1, // Numeración relativa 1, 2, 3... por ejercicio
+        });
       } else {
         mergedSets.push({
-          setOrder: i,
+          setOrder: i + 1,
           type: 'Normal',
           weightKg: currentRoutineExercise.weight || 0,
           reps: currentRoutineExercise.reps || 10,
@@ -478,7 +478,7 @@ export const ActiveWorkoutScreen = () => {
 
             {currentExerciseSets.map((set, idx) => (
               <SetRowItem
-                key={`${currentRoutineExercise?.exerciseId}_${set.setOrder}`}
+                key={`${currentRoutineExercise?.exerciseId}_set_${idx + 1}`}
                 setOrder={idx + 1}
                 initialSet={set}
                 previousRecord={
@@ -558,7 +558,7 @@ export const ActiveWorkoutScreen = () => {
       <WorkoutSummaryModal
         visible={showSummaryModal}
         session={session}
-        elapsedSeconds={elapsedSeconds}
+        elapsedSeconds={useWorkoutStore.getState().elapsedSeconds}
         isLoading={isFinishing}
         onConfirmFinish={handleConfirmFinish}
         onCancel={() => {
@@ -575,6 +575,7 @@ export const ActiveWorkoutScreen = () => {
           resumeWorkout();
         }}
         onPauseAndExit={() => {
+          pauseWorkout();
           setShowExitModal(false);
           navigation.goBack();
         }}

@@ -101,9 +101,9 @@ export const ExitWorkoutModal = React.memo(({
                 <AlertTriangle size={28} color="#FF3366" />
               </View>
 
-              <Text style={styles.title}>¿Eliminar de la BD?</Text>
+              <Text style={styles.title}>¿Eliminar la sesión?</Text>
               <Text style={styles.message}>
-                Se eliminarán permanentemente de la base de datos la sesión y las series registradas. Esta acción no se puede deshacer.
+                Se eliminarán permanentemente la sesión y las series registradas. Esta acción no se puede deshacer.
               </Text>
 
               <View style={styles.buttonGroup}>

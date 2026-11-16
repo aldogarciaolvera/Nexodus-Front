@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity, ScrollView, ScrollViewInstance, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import { Input } from '../../components/Input';
@@ -9,6 +9,9 @@ import { ThemeColors, ThemeTypography, ThemeMetrics } from '../../utils/theme';
 import { AuthService } from '../../services/auth.service';
 import { useAuthStore } from '../../store/authStore';
 import { useNavigation } from '@react-navigation/native';
+
+import { useAlertStore } from '../../store/alertStore';
+import { normalizeErrorMessage } from '../../services/api';
 
 export const LoginScreen = () => {
   const [email, setEmail] = useState('');
@@ -21,9 +24,43 @@ export const LoginScreen = () => {
   const login = useAuthStore(state => state.login);
   const navigation = useNavigation<any>();
 
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  // Dynamic keyboard height listener to expand scroll bounds and prevent inputs being obscured
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const handleFocusField = (yOffset: number) => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        y: yOffset,
+        animated: true,
+      });
+    }, 120);
+  };
+
   const handleLogin = async () => {
     if (!email || !password) {
-      setError('Please enter email and password');
+      const msg = 'Por favor ingresa tu correo y contraseña';
+      setError(msg);
+      useAlertStore.getState().showAlert('Campos Incompletos', msg, 'info');
       return;
     }
     
@@ -33,10 +70,12 @@ export const LoginScreen = () => {
     try {
       const data = await AuthService.login({ email, password });
       const token = data.token || data.accessToken;
-      if (!token) throw new Error('Token is missing from server response');
+      if (!token) throw new Error('No se recibió el token de autenticación del servidor');
       await login(token, data.refreshToken);
     } catch (err: any) {
-      setError(err.message || 'Login failed');
+      const msg = normalizeErrorMessage(err);
+      setError(msg);
+      useAlertStore.getState().showAlert('Error al Iniciar Sesión', msg, 'error');
     } finally {
       setLoading(false);
     }
@@ -49,8 +88,17 @@ export const LoginScreen = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView 
-          contentContainerStyle={styles.scrollContent} 
+          ref={scrollViewRef}
+          contentContainerStyle={[
+            styles.scrollContent,
+            keyboardHeight > 0 && {
+              paddingBottom: keyboardHeight + 80,
+              justifyContent: 'flex-start',
+            }
+          ]} 
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets={true}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
@@ -66,6 +114,7 @@ export const LoginScreen = () => {
               onChangeText={setEmail}
               autoCapitalize="none"
               keyboardType="email-address"
+              onFocus={() => handleFocusField(0)}
             />
             <Input 
               label="PASSWORD" 
@@ -73,6 +122,7 @@ export const LoginScreen = () => {
               value={password}
               onChangeText={setPassword}
               isPassword
+              onFocus={() => handleFocusField(80)}
             />
             
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -90,10 +140,11 @@ export const LoginScreen = () => {
                 <Text style={styles.registerLink}>Regístrate</Text>
               </TouchableOpacity>
             </View>
+
+            <Text style={styles.versionText}>v{Constants.expoConfig?.version || '0.0.10'}</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-      <Text style={styles.versionText}>v{Constants.expoConfig?.version || '0.0.3'}</Text>
     </SafeAreaView>
   );
 };
@@ -143,16 +194,6 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography, metrics:
     textAlign: 'center',
     marginTop: 8,
   },
-  versionText: {
-    position: 'absolute',
-    bottom: 24,
-    width: '100%',
-    textAlign: 'center',
-    color: colors.slate500,
-    fontFamily: typography.fontMono,
-    fontSize: 10,
-    letterSpacing: 1,
-  },
   registerContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -168,5 +209,13 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography, metrics:
     fontFamily: typography.fontFamilyBold,
     fontSize: 14,
     textDecorationLine: 'underline',
-  }
+  },
+  versionText: {
+    marginTop: 24,
+    textAlign: 'center',
+    color: colors.slate500,
+    fontFamily: typography.fontMono,
+    fontSize: 10,
+    letterSpacing: 1,
+  },
 });

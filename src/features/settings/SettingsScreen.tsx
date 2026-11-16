@@ -20,6 +20,7 @@ import { useEquipmentStore } from '../../store/equipmentStore';
 import { EquipmentModal } from '../gym/components/EquipmentModal';
 import { useDietStore } from '../../store/dietStore';
 import { DietSetupModal } from '../diet/components/DietSetupModal';
+import { normalizeErrorMessage } from '../../services/api';
 import { 
   getGlobalReminderConfig, 
   scheduleGlobalReminder, 
@@ -148,7 +149,7 @@ export const SettingsScreen = () => {
                     ]
                   });
                 } catch (fetchErr: any) {
-                  useAlertStore.getState().showAlert('Error', `No se pudo descargar la actualización: ${fetchErr.message}`);
+                  useAlertStore.getState().showAlert('Error al Descargar', normalizeErrorMessage(fetchErr), 'error');
                 }
               }
             }
@@ -165,7 +166,7 @@ export const SettingsScreen = () => {
         );
       }
     } catch (error: any) {
-      showAlert('Error', `No se pudo comprobar actualizaciones: ${error.message}`);
+      showAlert('Error', `No se pudo comprobar actualizaciones: ${normalizeErrorMessage(error)}`, 'error');
     } finally {
       setIsCheckingUpdates(false);
     }

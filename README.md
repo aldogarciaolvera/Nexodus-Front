@@ -36,6 +36,60 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
 
 ## 🆕 Últimos Cambios
 
+- **Corrección de Aislamiento y Mapeo de Series por Ejercicio en Entrenamiento Activo (`ActiveWorkoutScreen.tsx`, `WorkoutSessionService.cs`):**
+  - **Causa Raíz Identificada:**
+    - En el backend (`WorkoutSessionService.cs`), al iniciar una sesión de entrenamiento (`StartSessionAsync`), las series pre-cargadas de la rutina se numeraban con un acumulador global (`int globalOrder = 1; SetOrder = globalOrder++`) a través de todos los ejercicios (ej. Ejercicio 1 con órdenes 1..3, Ejercicio 2 con órdenes 4..6, Ejercicio 3 con órdenes 7..9).
+    - En el frontend (`ActiveWorkoutScreen.tsx`), la lógica calculaba `maxOrder` usando el `s.setOrder` más alto de las series (`Math.max(..., sessionSets.map(s => s.setOrder))`) y luego iteraba de `1` a `maxOrder` buscando `sessionSets.find(s => s.setOrder === i)`.
+    - Al pasar al Ejercicio 2 (`setOrder` 4, 5, 6), `maxOrder` resultaba en 6 y, al no encontrar series con orden 1, 2 y 3, generaba 3 series fantasma vacías sumadas a las 3 reales (total 6 series). En el Ejercicio 3 (`setOrder` 7, 8, 9), generaba 6 series fantasma más las 3 reales (total 9 series).
+  - **Solución Implementada:**
+    - **Frontend Resiliente y Determinista (`ActiveWorkoutScreen.tsx`):** Se rediseñó el cómputo `currentExerciseSets` para filtrar exclusivamente las series correspondientes al `exerciseId` actual, ordenarlas por `setOrder` y mapearlas por índice de posición relativa (`sessionSets[i]`). Se eliminó la dependencia de órdenes absolutos globales y se asignó un `setOrder` relativo (1, 2, 3...) por ejercicio. Esto resuelve tanto las sesiones nuevas como cualquier sesión activa preexistente en la base de datos.
+    - **Estabilización de Componentes (`SetRowItem`):** Se actualizó la clave de renderizado React a un identificador estable `${exerciseId}_set_${idx + 1}`, garantizando que las filas no se desmonten ni pierdan el foco del teclado al guardar o completar una serie.
+    - **Backend (`WorkoutSessionService.cs`):** Se corrigió la inicialización en `StartSessionAsync` para asignar `SetOrder = s` (1..`re.Sets`) por cada ejercicio en lugar de incrementar un orden global a nivel de sesión.
+
+- **Pausa y Reanudación Automática y Manual de Rutinas de Entrenamiento (`workoutStore.ts`, `ActiveWorkoutScreen.tsx`, `GymView.tsx`, `WorkoutCard.tsx`):**
+  - **Pausa Automática al Salir de la App / Segundo Plano:**
+    - Se incorporó soporte bidireccional en el listener global de ciclo de vida (`AppState.addEventListener`) dentro del store de entrenamiento (`workoutStore.ts`).
+    - Al enviar la aplicación a segundo plano o minimizarla (`background` / `inactive`), si una sesión de entrenamiento está en marcha y no estaba pausada manualmente, el temporizador se pausa de forma automática y transparente registrando la marca de tiempo de suspensión (`pauseStartMs`).
+    - Al regresar a la aplicación (`active`), si la sesión fue suspendida por el paso a segundo plano (`wasAutoPausedByBackground`), se reanuda de inmediato acumulando los milisegundos en pausa en `totalPausedMs`, evitando cualquier desfase temporal.
+  - **Pausa y Salida Controlada ("Pausar y Salir" y Hardware Back en Android):**
+    - Se corrigió el bug de auto-reanudación inmediata en `ActiveWorkoutScreen.tsx` donde un efecto dependiente de `[isPaused]` volvía a iniciar la sesión inmediatamente tras pausar.
+    - Se configuró la acción *"Pausar y Salir"* del modal de salida (`ExitWorkoutModal`) para invocar `pauseWorkout()` y retornar a la vista principal del gimnasio manteniendo el estado de pausa.
+    - Se integró el interceptor de botón físico y gestos de retroceso en Android (`BackHandler.addEventListener('hardwareBackPress')`) para abrir el modal de salida y pausar el cronómetro de forma segura en lugar de desmontar la pantalla abruptamente.
+  - **Indicadores Visuales de Estado en Pausa en Toda la App:**
+    - En `GymView.tsx`: la tarjeta de sesión activa muestra la duración congelada con la etiqueta identificadora `${duracion} (PAUSA)` y el subtítulo *"Rutina en pausa"*. Al presionar *"Continuar Rutina"*, se llama a `resumeWorkout()` y se transiciona de nuevo a la sesión activa.
+    - En `WorkoutCard.tsx` (Dashboard principal): la tarjeta del dashboard ahora detecta `isPaused` mostrando *"Entrenamiento en Pausa"* y *"En Pausa: {nombreRutina}"* con retroalimentación precisa del estado de la sesión.
+
+- **Normalización Integral de Excepciones de Red y Servidor (`api.ts`, `LoginScreen.tsx`, `RegisterScreen.tsx`, `SettingsScreen.tsx`):**
+  - **Erradicación de Stack Traces y Excepciones Nativas (`java.net.ConnectException`, `faildFetch`, `TypeError`):**
+    - Se implementó la función centralizada `normalizeErrorMessage` en el cliente HTTP del núcleo (`api.ts`), interceptando todos los errores de bajo nivel en las peticiones de red de la aplicación.
+    - Captura y traduce de forma elegante fallos de host inalcanzable, errores de DNS, sockets de Java en Android (`ConnectException`, `SocketTimeoutException`), timeouts abortados y respuestas de error HTML de servidores web (502, 503, 504, ASP.NET stack traces) a mensajes en español claros, amigables y orientados al usuario.
+  - **Alineación con la Regla de Alertas Globales (`GlobalAlert`):**
+    - Se integró `useAlertStore.getState().showAlert(...)` en los flujos de autenticación (`LoginScreen` y `RegisterScreen`), reemplazando mensajes crudos de sistema por notificaciones consistentes con la estética Obsidian Cyan ante problemas de conexión o credenciales inválidas.
+
+- **Enfoque Automático, Compensación Dinámica de Teclado y Flujo Natural de Versión en Pantallas de Autenticación (`RegisterScreen.tsx`, `LoginScreen.tsx`):**
+  - **Eliminación de Empalme del Texto de Versión (`versionText`):**
+    - Se corrigió el empalme de la versión (`v0.0.10`) que flotaba de manera fija con `position: 'absolute'` sobre el enlace de *"¿Ya tienes cuenta? Inicia Sesión"* / *"¿No tienes cuenta? Regístrate"*.
+    - Se reubicó el componente dentro del flujo natural del `ScrollView` al final del formulario con `marginTop: 24`, garantizando que nunca se sobreponga a ningún texto ni entrada interactiva en pantallas de cualquier tamaño o durante el desplazamiento.
+  - **Eliminación de Obscurecimiento en Campos de Contraseña:**
+    - Se solucionó la incidencia en la pantalla de registro donde el teclado cubría el campo de contraseña ("Crea una contraseña" y "Confirma tu contraseña") impidiendo visualizar lo que se escribía.
+    - Se integraron listeners reactivos de `Keyboard.addListener` (`keyboardWillShow`/`keyboardDidShow` y `keyboardWillHide`/`keyboardDidHide`) para capturar la altura exacta del teclado en tiempo real y expandir dinámicamente el `paddingBottom` del `ScrollView` (`keyboardHeight + 80px`).
+    - Se añadió auto-desplazamiento suave (`scrollTo`) sincronizado con el evento `onFocus` de cada entrada de texto, posicionando automáticamente el campo enfocado en la mitad superior de la vista libre de teclado.
+    - Se habilitó `automaticallyAdjustKeyboardInsets={true}` y `keyboardDismissMode="on-drag"`, garantizando una experiencia fluida y consistente tanto en iOS como en Android Edge-to-Edge.
+
+- **Estabilización de Cronómetros de Rutina y Descanso a Tiempo Real sin Deriva (`workoutStore.ts`, `ActiveWorkoutScreen.tsx`, `RestTimerOverlay.tsx`, `GymView.tsx`):**
+  - **Erradicación del Avance Rápido (2 segundos por segundo):**
+    - Se identificó la causa raíz por la cual tanto el cronómetro de la sesión activa como el temporizador de descanso avanzaban a doble velocidad ("de 2 en 2 segundos"): el cronometraje dependía de llamadas locales a `setInterval` dentro de múltiples componentes UI con incrementos relativos (`elapsedSeconds + 1` y `remainingSeconds - 1`), los cuales se duplicaban ante montajes concurrentes, navegación apilada o re-renderizados frecuentes.
+    - Se sustituyó el modelo de ticks acumulativos por un sistema de **cálculo de reloj de pared (Wall-Clock / Timestamp-based Timing)**:
+      - Para la sesión: se registran marcas de tiempo absolutas (`workoutStartMs`, `totalPausedMs`, `pauseStartMs`). El tiempo transcurrido se calcula de forma puramente determinista como `Math.floor((Date.now() - workoutStartMs - totalPausedMs) / 1000)`.
+      - Para el descanso: se almacena la marca de finalización exacta (`restEndTimeMs`). El tiempo restante se calcula como `Math.ceil((restEndTimeMs - Date.now()) / 1000)`.
+      - Esta formulación matemática garantiza que, incluso ante múltiples ticks, re-renders o saltos de pantalla, el tiempo mostrado coincida con exactitud milimétrica con el reloj real y sea físicamente imposible avanzar más rápido de 1 segundo por segundo.
+  - **Singleton Global de Temporización y Resiliencia en Segundo Plano:**
+    - Se centralizó el bucle de temporización en un singleton a nivel de módulo en `workoutStore.ts`, desmantelando los intervalos duplicados en `ActiveWorkoutScreen.tsx` y `RestTimerOverlay.tsx`.
+    - Se incorporó soporte para `AppState`: al regresar a la aplicación desde el segundo plano o tras suspender la pantalla del dispositivo, los cronómetros se sincronizan inmediatamente con el tiempo transcurrido en el reloj del sistema sin perder segundos ni congelarse.
+  - **Aislamiento de Rendimiento en Pantallas y Vistas:**
+    - Se desacopló la suscripción a `elapsedSeconds` de los componentes contenedores principales (`ActiveWorkoutScreen` y `GymView`), delegando la reactividad segundo a segundo exclusivamente a subcomponentes memoizados (`WorkoutTimer` y `SessionDurationText`).
+    - Esto previene 60 re-renderizados innecesarios por minuto del árbol completo de ejercicios, tablas de series y métricas en ambas vistas.
+
 - **Corrección de Resolución de Dependencias en Metro Bundler con `pnpm` (`.npmrc`, `metro.config.js`, `node_modules`):**
   - Se resolvió el fallo de bundling en Android (`Unable to resolve "expo" from "index.ts"`).
   - La causa raíz era la estructura de enlaces simbólicos aislados (`node_modules/.pnpm`) que genera `pnpm` por defecto, los cuales el resolver de Metro en Windows no recorre adecuadamente.

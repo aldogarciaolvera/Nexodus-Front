@@ -21,7 +21,7 @@ export const WorkoutCard = () => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
 
-  const { isActive, activeRoutine, completedSets } = useWorkoutStore();
+  const { isActive, isPaused, activeRoutine, completedSets } = useWorkoutStore();
 
   const { data: routines = EMPTY_ROUTINES, isLoading: isLoadingRoutines } = useQuery<Routine[]>({
     queryKey: queryKeys.gym.routines,
@@ -91,7 +91,7 @@ export const WorkoutCard = () => {
         <View style={styles.header}>
           <Dumbbell size={16} color={theme.colors.neonCyan} />
           <Text style={styles.headerTitle} numberOfLines={1}>
-            {isActive ? 'Entrenamiento Activo' : 'Rutina Gym'}
+            {isActive ? (isPaused ? 'Entrenamiento en Pausa' : 'Entrenamiento Activo') : 'Rutina Gym'}
           </Text>
         </View>
         
@@ -100,7 +100,7 @@ export const WorkoutCard = () => {
         ) : (
           <Text style={styles.subtitle} numberOfLines={1}>
             {isActive 
-              ? `En Curso: ${activeRoutine?.name}` 
+              ? `${isPaused ? 'En Pausa' : 'En Curso'}: ${activeRoutine?.name}` 
               : todayRoutine 
                 ? `Hoy: ${todayRoutine.name}`
                 : routines.length > 0
