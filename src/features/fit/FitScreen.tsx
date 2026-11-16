@@ -52,7 +52,7 @@ export const FitScreen: React.FC<FitScreenProps> = ({ mode, initialTab }) => {
               dots={{
                 total: 2,
                 active: isGym ? 0 : 1,
-                onPressDot: (idx) => navigateToPage(idx === 0 ? 4 : 5),
+                onPressDot: (idx) => navigateToPage(idx === 0 ? 5 : 6),
               }}
             />
 

@@ -2,6 +2,12 @@ export const queryKeys = {
   todos: {
     all: ['todos'] as const,
   },
+  habits: {
+    all: ['habits'] as const,
+    detail: (id?: string) => ['habit', id] as const,
+    stats: (id?: string) => ['habitStats', id] as const,
+    history: (id?: string, days?: number) => ['habitHistory', id, days] as const,
+  },
   gym: {
     profile: ['profile'] as const,
     routines: ['routines'] as const,

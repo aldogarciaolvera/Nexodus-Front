@@ -17,6 +17,15 @@ import { Skeleton } from '../../components/Skeleton';
 import { useAlertStore } from '../../store/alertStore';
 import { scheduleTodoNotification, cancelTodoNotification } from '../../utils/notifications';
 import { queryKeys } from '../../services/queryKeys';
+import { HabitsView } from '../habits/HabitsView';
+import { useCarouselNavStore } from '../../store/carouselNavStore';
+
+export type TasksTabType = 'tasks' | 'habits';
+
+interface TasksScreenProps {
+  mode?: TasksTabType;
+  initialTab?: TasksTabType;
+}
 
 const EMPTY_TODOS: TodoDto[] = [];
 
@@ -31,12 +40,18 @@ const FILTERS = [
   { id: 'health', label: 'SALUD' },
 ];
 
-export const TasksScreen = () => {
+export const TasksScreen: React.FC<TasksScreenProps> = ({ mode = 'tasks', initialTab }) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors, theme.typography, theme.metrics);
   const queryClient = useQueryClient();
   const navigation = useNavigation();
   const alertStore = useAlertStore();
+  const navigateToPage = useCarouselNavStore((s) => s.navigateToPage);
+
+  const [internalMode, setInternalMode] = useState<TasksTabType>(mode || initialTab || 'tasks');
+  const selectedMode = mode || internalMode;
+  const isHabits = selectedMode === 'habits';
+
   const [filter, setFilter] = useState('today');
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selectedItem, setSelectedItem] = useState<TaskHabitItem | null>(null);
@@ -250,9 +265,21 @@ export const TasksScreen = () => {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <Header title="Tareas & Habitos" />
+          <Header 
+            title={isHabits ? 'Mis Hábitos' : 'Mis Tareas'} 
+            dots={{
+              total: 2,
+              active: isHabits ? 1 : 0,
+              onPressDot: (idx) => {
+                setInternalMode(idx === 1 ? 'habits' : 'tasks');
+                navigateToPage(idx === 0 ? 3 : 4);
+              },
+            }}
+          />
 
-          {isLoading ? (
+          {isHabits ? (
+            <HabitsView />
+          ) : isLoading ? (
             <>
               <Skeleton height={80} borderRadius={16} style={{ marginBottom: 16 }} />
               <View style={styles.listHeader}>
@@ -304,17 +331,19 @@ export const TasksScreen = () => {
         </ScrollView>
       </View>
 
-      {/* Floating Action Button */}
-      <TouchableOpacity 
-        style={styles.fab} 
-        activeOpacity={0.8} 
-        onPress={() => {
-          setEditingItemDto(null);
-          setIsModalVisible(true);
-        }}
-      >
-        <Text style={styles.fabIcon}>+</Text>
-      </TouchableOpacity>
+      {/* Floating Action Button (solo en modo Tareas) */}
+      {!isHabits && (
+        <TouchableOpacity 
+          style={styles.fab} 
+          activeOpacity={0.8} 
+          onPress={() => {
+            setEditingItemDto(null);
+            setIsModalVisible(true);
+          }}
+        >
+          <Text style={styles.fabIcon}>+</Text>
+        </TouchableOpacity>
+      )}
 
       <CreateTaskModal 
         visible={isModalVisible}

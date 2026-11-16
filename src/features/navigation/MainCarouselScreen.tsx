@@ -23,7 +23,8 @@ import { FinanceScreen } from '../finance/FinanceScreen';
 const MemoDashboard = React.memo(DashboardScreen);
 const MemoIdeas = React.memo(() => <JournalScreen mode="idea" />);
 const MemoDiario = React.memo(() => <JournalScreen mode="diario" />);
-const MemoTasks = React.memo(TasksScreen);
+const MemoTasks = React.memo(() => <TasksScreen mode="tasks" />);
+const MemoHabits = React.memo(() => <TasksScreen mode="habits" />);
 const MemoGym = React.memo(() => <FitScreen mode="gym" />);
 const MemoDiet = React.memo(() => <FitScreen mode="diet" />);
 const MemoFinance = React.memo(FinanceScreen);
@@ -113,17 +114,22 @@ export const MainCarouselScreen = () => {
           <MemoTasks />
         </View>
 
-        {/* Página 4: Gym & Rutinas */}
+        {/* Página 4: Mis Hábitos */}
+        <View style={{ width: screenWidth, flex: 1 }}>
+          <MemoHabits />
+        </View>
+
+        {/* Página 5: Gym & Rutinas */}
         <View style={{ width: screenWidth, flex: 1 }}>
           <MemoGym />
         </View>
 
-        {/* Página 5: Dieta & Macros */}
+        {/* Página 6: Dieta & Macros */}
         <View style={{ width: screenWidth, flex: 1 }}>
           <MemoDiet />
         </View>
 
-        {/* Página 6: Finanzas */}
+        {/* Página 7: Finanzas */}
         <View style={{ width: screenWidth, flex: 1 }}>
           <MemoFinance />
         </View>
