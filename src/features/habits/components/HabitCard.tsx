@@ -1,12 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { HabitDto } from '../../../services/habit.service';
+import { HabitDto, getHabitTodayStatus } from '../../../services/habit.service';
 import { HabitHeatmapGrid } from './HabitHeatmapGrid';
 import { useTheme } from '../../../utils/ThemeContext';
 import {
   Flame,
   Check,
   Plus,
+  Minus,
   AlertTriangle,
   Shield,
   Dumbbell,
@@ -24,6 +25,7 @@ interface HabitCardProps {
   habit: HabitDto;
   onPressCard: (habit: HabitDto) => void;
   onQuickCheckIn: (habit: HabitDto) => void;
+  onDecrement?: (habit: HabitDto) => void;
   onManualLog?: (habit: HabitDto) => void;
 }
 
@@ -31,12 +33,14 @@ export const HabitCard: React.FC<HabitCardProps> = ({
   habit,
   onPressCard,
   onQuickCheckIn,
+  onDecrement,
   onManualLog,
 }) => {
   const theme = useTheme();
   const habitColor = habit.color || theme.colors.neonCyan;
   const isQuit = habit.habitType === 'Quit';
-  const isTodayDone = habit.todayStatus?.isCompleted;
+  const todayStatus = getHabitTodayStatus(habit);
+  const isTodayDone = todayStatus.isCompleted;
 
   // Render appropriate icon based on habit icon key
   const renderIcon = () => {
@@ -179,14 +183,14 @@ export const HabitCard: React.FC<HabitCardProps> = ({
           ) : (
             <View style={styles.progressContainer}>
               <Text style={[styles.progressText, { color: theme.colors.text }]}>
-                Hoy: {habit.todayStatus?.currentAmount || 0} / {habit.targetValue} {habit.targetUnit || ''}
+                Hoy: {todayStatus.currentAmount || 0} / {habit.targetValue} {habit.targetUnit || ''}
               </Text>
               <View style={[styles.progressBarTrack, { backgroundColor: theme.colors.surfaceLight }]}>
                 <View
                   style={[
                     styles.progressBarFill,
                     {
-                      width: `${Math.min(100, habit.todayStatus?.percentage || 0)}%`,
+                      width: `${Math.min(100, todayStatus.percentage || 0)}%`,
                       backgroundColor: habitColor,
                     },
                   ]}
@@ -198,6 +202,21 @@ export const HabitCard: React.FC<HabitCardProps> = ({
 
         {/* Quick Check-in Button */}
         <View style={styles.actionButtonsRow}>
+          {onDecrement && (todayStatus.currentAmount > 0 || isTodayDone) && (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => onDecrement(habit)}
+              style={[
+                styles.smallActionButton,
+                { borderColor: theme.colors.borderGlow, backgroundColor: theme.colors.surfaceLight },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={`Restar avance para ${habit.name}`}
+            >
+              <Minus size={14} color={theme.colors.mutedText} />
+            </TouchableOpacity>
+          )}
+
           {habit.trackingType !== 'YesNo' && onManualLog && (
             <TouchableOpacity
               activeOpacity={0.7}

@@ -7,14 +7,13 @@ interface ProgressTelemetryProps {
   completed: number;
   total: number;
   urgent: number;
-  activeHabits: number;
+  activeHabits?: number;
 }
 
 export const ProgressTelemetry: React.FC<ProgressTelemetryProps> = ({ 
   completed, 
   total, 
   urgent,
-  activeHabits
 }) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors, theme.typography);
@@ -46,17 +45,12 @@ export const ProgressTelemetry: React.FC<ProgressTelemetryProps> = ({
         
         <View style={styles.statBox}>
           <Text style={styles.statLabel}>PENDIENTE</Text>
-          <Text style={styles.statValue}>{total - completed}</Text>
+          <Text style={styles.statValue}>{Math.max(0, total - completed)}</Text>
         </View>
 
         <View style={styles.statBox}>
           <Text style={[styles.statLabel, { color: theme.colors.error }]}>URGENTES</Text>
           <Text style={[styles.statValue, { color: theme.colors.error }]}>{urgent}</Text>
-        </View>
-
-        <View style={styles.statBox}>
-          <Text style={styles.statLabel}>HÁBITOS</Text>
-          <Text style={styles.statValue}>{activeHabits}</Text>
         </View>
       </View>
     </View>

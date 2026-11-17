@@ -1,17 +1,15 @@
 import React, { useState, useMemo } from 'react';
-import { View, StyleSheet, ScrollView, Text, TouchableOpacity, Platform, Modal, TouchableWithoutFeedback } from 'react-native';
+import { View, StyleSheet, ScrollView, Text, TouchableOpacity, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '../../utils/ThemeContext';
 import { ThemeColors, ThemeTypography, ThemeMetrics } from '../../utils/theme';
 import { ProgressTelemetry } from './components/ProgressTelemetry';
-import { FilterPills } from './components/FilterPills';
 import { TaskHabitCard, TaskHabitItem } from './components/TaskHabitCard';
 import { CreateTaskModal } from './components/CreateTaskModal';
 import { ActionSheet } from '../../components/ActionSheet';
 import { TodoService, CreateTodoDto, TodoDto } from '../../services/todo.service';
-import { isItemActiveForDate } from '../../utils/todoHelpers';
 import { Header } from '../../components/Header';
 import { Skeleton } from '../../components/Skeleton';
 import { useAlertStore } from '../../store/alertStore';
@@ -29,17 +27,6 @@ interface TasksScreenProps {
 
 const EMPTY_TODOS: TodoDto[] = [];
 
-const FILTERS = [
-  { id: 'today', label: 'HOY' },
-  { id: 'upcoming', label: 'MAÑANA' },
-  { id: 'all', label: 'TODOS LOS SECTORES' },
-  { id: 'tasks', label: 'SOLO TAREAS' },
-  { id: 'habits', label: 'SOLO HÁBITOS' },
-  { id: 'work', label: 'TRABAJO' },
-  { id: 'personal', label: 'PERSONAL' },
-  { id: 'health', label: 'SALUD' },
-];
-
 export const TasksScreen: React.FC<TasksScreenProps> = ({ mode = 'tasks', initialTab }) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors, theme.typography, theme.metrics);
@@ -52,8 +39,8 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ mode = 'tasks', initia
   const selectedMode = mode || internalMode;
   const isHabits = selectedMode === 'habits';
 
-  const [filter, setFilter] = useState('today');
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isHabitCreateVisible, setIsHabitCreateVisible] = useState(false);
   const [selectedItem, setSelectedItem] = useState<TaskHabitItem | null>(null);
   const [isActionModalVisible, setActionModalVisible] = useState(false);
   const [editingItemDto, setEditingItemDto] = useState<TodoDto | null>(null);
@@ -121,18 +108,14 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ mode = 'tasks', initia
     },
   });
 
-  const { items, completedCount, totalCount, urgentCount, activeHabitsCount, sortedItems, pendingExecutionCount } = useMemo(() => {
-    // Compute date context for habits based on filter
-    const viewingDate = new Date();
-    if (filter === 'upcoming') {
-      viewingDate.setDate(viewingDate.getDate() + 1);
-    }
-    const viewingDateStr = viewingDate.toDateString();
+  const { completedCount, totalCount, urgentCount, sortedItems, pendingExecutionCount } = useMemo(() => {
+    // Only pure tasks in this screen (habits are in their dedicated Habits screen)
+    const tasksOnly = todos.filter((t) => !t.isHabit);
+    const viewingDateStr = new Date().toDateString();
 
-    // Map Backend DTO to Frontend Item
-    const mappedItems: TaskHabitItem[] = todos.map(t => {
+    const mappedItems: TaskHabitItem[] = tasksOnly.map((t) => {
       let computedCompleted = t.isCompleted;
-      const isRepeating = t.isHabit || (t.frequency && t.frequency !== 'Ninguna' && t.frequency !== 'Un solo día' && t.frequency !== '');
+      const isRepeating = t.frequency && t.frequency !== 'Ninguna' && t.frequency !== 'Un solo día' && t.frequency !== '';
 
       if (isRepeating && t.isCompleted) {
         if (t.lastCompletedAt) {
@@ -145,11 +128,10 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ mode = 'tasks', initia
 
       return {
         id: t.id,
-        type: t.isHabit ? 'habit' : 'task',
+        type: 'task',
         title: t.task,
         subtitle: t.subtitle,
         tag: t.tag,
-        streak: t.currentStreak,
         isCompleted: computedCompleted,
         urgent: t.urgent,
         frequency: t.frequency,
@@ -161,26 +143,11 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ mode = 'tasks', initia
       };
     });
 
-    const completed = mappedItems.filter(i => i.isCompleted).length;
+    const completed = mappedItems.filter((i) => i.isCompleted).length;
     const total = mappedItems.length;
-    const urgent = mappedItems.filter(i => i.type === 'task' && i.urgent && !i.isCompleted).length;
-    const habits = mappedItems.filter(i => i.type === 'habit').length;
+    const urgent = mappedItems.filter((i) => i.urgent && !i.isCompleted).length;
 
-    let filtered = mappedItems;
-    if (filter === 'today') {
-      const today = new Date();
-      filtered = mappedItems.filter(i => isItemActiveForDate(i, today, false));
-    } else if (filter === 'upcoming') {
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      filtered = mappedItems.filter(i => isItemActiveForDate(i, tomorrow, true));
-    } else if (filter === 'work') filtered = mappedItems.filter(i => i.tag === 'TRABAJO');
-    else if (filter === 'personal') filtered = mappedItems.filter(i => i.tag === 'PERSONAL');
-    else if (filter === 'health') filtered = mappedItems.filter(i => i.tag === 'SALUD');
-    else if (filter === 'tasks') filtered = mappedItems.filter(i => i.type === 'task');
-    else if (filter === 'habits') filtered = mappedItems.filter(i => i.type === 'habit');
-
-    const sorted = [...filtered].sort((a, b) => {
+    const sorted = [...mappedItems].sort((a, b) => {
       if (a.isCompleted !== b.isCompleted) {
         return a.isCompleted ? 1 : -1;
       }
@@ -190,18 +157,16 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ mode = 'tasks', initia
       return 0;
     });
 
-    const pendingExecution = sorted.filter(i => !i.isCompleted).length;
+    const pendingExecution = sorted.filter((i) => !i.isCompleted).length;
 
     return {
-      items: mappedItems,
       completedCount: completed,
       totalCount: total,
       urgentCount: urgent,
-      activeHabitsCount: habits,
       sortedItems: sorted,
       pendingExecutionCount: pendingExecution,
     };
-  }, [todos, filter]);
+  }, [todos]);
 
   const handleToggle = (id: string) => {
     const item = todos.find(t => t.id === id);
@@ -278,7 +243,10 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ mode = 'tasks', initia
           />
 
           {isHabits ? (
-            <HabitsView />
+            <HabitsView
+              isCreateModalOpen={isHabitCreateVisible}
+              onCloseCreateModal={() => setIsHabitCreateVisible(false)}
+            />
           ) : isLoading ? (
             <>
               <Skeleton height={80} borderRadius={16} style={{ marginBottom: 16 }} />
@@ -297,13 +265,6 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ mode = 'tasks', initia
                 completed={completedCount}
                 total={totalCount}
                 urgent={urgentCount}
-                activeHabits={activeHabitsCount}
-              />
-
-              <FilterPills 
-                options={FILTERS}
-                selectedId={filter}
-                onSelect={setFilter}
               />
 
               <View style={styles.listHeader}>
@@ -331,19 +292,23 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ mode = 'tasks', initia
         </ScrollView>
       </View>
 
-      {/* Floating Action Button (solo en modo Tareas) */}
-      {!isHabits && (
-        <TouchableOpacity 
-          style={styles.fab} 
-          activeOpacity={0.8} 
-          onPress={() => {
+      {/* Floating Action Button (Disponible tanto en tareas como en hábitos) */}
+      <TouchableOpacity 
+        style={styles.fab} 
+        activeOpacity={0.8} 
+        onPress={() => {
+          if (isHabits) {
+            setIsHabitCreateVisible(true);
+          } else {
             setEditingItemDto(null);
             setIsModalVisible(true);
-          }}
-        >
-          <Text style={styles.fabIcon}>+</Text>
-        </TouchableOpacity>
-      )}
+          }
+        }}
+        accessibilityRole="button"
+        accessibilityLabel={isHabits ? "Crear nuevo hábito" : "Crear nueva tarea"}
+      >
+        <Text style={styles.fabIcon}>+</Text>
+      </TouchableOpacity>
 
       <CreateTaskModal 
         visible={isModalVisible}

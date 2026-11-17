@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity, ScrollView, Text } from 'react-native';
-import { HabitDayCellDto } from '../../../services/habit.service';
+import { HabitDayCellDto, getLocalDateString } from '../../../services/habit.service';
 import { useTheme } from '../../../utils/ThemeContext';
 
 interface HabitHeatmapGridProps {
@@ -106,7 +106,8 @@ export const HabitHeatmapGrid: React.FC<HabitHeatmapGridProps> = ({
         break;
     }
 
-    if (cell.isToday) {
+    const isCellToday = cell.isToday || cell.date === getLocalDateString();
+    if (isCellToday) {
       cellBorder = theme.colors.white;
       borderWidth = 1.5;
     }

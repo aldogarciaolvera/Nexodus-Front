@@ -36,6 +36,47 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
 
 ## 🆕 Últimos Cambios
 
+- **Sincronización de Cambio de Día Local (Medianoche 00:00) y Sugerencias Rápidas sin Iconos (`habit.service.ts`, `CreateHabitModal.tsx`, `HabitCard.tsx`, `HabitsView.tsx`, `HabitsCard.tsx`, `HabitHeatmapGrid.tsx`):**
+  - **Resolución de Zona Horaria y Rollover a Medianoche (`getLocalDateString`, `getHabitTodayStatus`):**
+    - Se identificó la causa por la cual los hábitos no cambiaban al siguiente día tras la medianoche: el backend operaba con marcas de tiempo en UTC (`DateTime.UtcNow`). En la zona horaria del usuario (UTC-6, México/Centro), el servidor pasaba de fecha a las **6:00 PM (18:00 hrs)** en lugar de la medianoche local. Por ello, cualquier check-in o prueba realizada en la noche quedaba registrada con la fecha del día siguiente en UTC, causando que al llegar las 12:00 AM ya figurara como completada en ese mismo día.
+    - Se implementaron las funciones utilitarias `getLocalDateString` y `getHabitTodayStatus` en `habit.service.ts`:
+      - Todo registro táctil (`checkIn`) envía explícitamente la fecha local del dispositivo (`YYYY-MM-DD`).
+      - La determinación del estado de "Hoy" y los totales completados en `HabitsView`, `HabitCard` y el Dashboard (`HabitsCard`) evalúan la fecha local del cliente.
+      - La cuadrícula `HabitHeatmapGrid` resalta el azulejo del día actual según el calendario local.
+      - El cambio de día ocurre exactamente a las **00:00:00 (12:00 AM medianoche hora local)** sin depender del meridiano de Greenwich.
+  - **Sugerencias Rápidas Limpias en Modal de Creación (`CreateHabitModal.tsx`):**
+    - Se retiraron todos los emojis e iconos de las sugerencias rápidas (`💧`, `🏋️‍♂️`, `📖`, `🚭`, `🍬`, `🍔`), dejando exclusivamente texto limpio (*"2.5L Agua"*, *"Ir al Gym"*, *"Leer 20 pág"*, *"No Fumar"*, *"Cero Azúcar"*, *"Cero Chatarra"*).
+
+- **Separación Arquitectural Estricta de Tareas y Hábitos, Rediseño de Modales Flotantes y Persistencia de Entrenamiento (`HabitsView.tsx`, `CreateHabitModal.tsx`, `HabitCard.tsx`, `TasksScreen.tsx`, `CreateTaskModal.tsx`, `ProgressTelemetry.tsx`, `workoutStore.ts`):**
+  - **Persistencia de Pausa de Entrenamiento sin Desbordamiento Temporal (`workoutStore.ts`):**
+    - Se solucionó la anomalía donde el cronómetro de rutina mostraba tiempos desorbitados (ej. `1357:29`) y estado *"Rutina en progreso"* tras pausar y minimizar o salir de la aplicación.
+    - Se implementó persistencia en `SecureStore` para el estado exacto de entrenamiento (`isPaused`, `elapsedSeconds`, `workoutStartMs`, `totalPausedMs`). Al reabrir la app o montar `GymView`, `initFromBackend` restaura con prioridad el estado local congelado, asegurando que las rutinas pausadas permanezcan congeladas y no se reanuden de forma espuria.
+  - **Mejoras y Experiencia Visual en Hábitos (`HabitsView.tsx`, `HabitCard.tsx`):**
+    - **Eliminación de Filtros Innecesarios:** Se removieron los chips de filtrado superior (`TODOS`, `CONSTRUIR`, `ROMPER VICIOS`, etc.) para mostrar la lista completa y limpia de hábitos.
+    - **Corrección de Desplazamiento y Visibilidad:** Se incorporó un espaciador inferior (`height: 120`) garantizando que el último hábito de la lista ("Meditar") nunca sea recortado ni ocultado por la barra de navegación flotante inferior.
+    - **Botón de Decremento (`-`):** Se añadió un botón para restar cantidad o desmarcar el avance (`Minus` icon) en las tarjetas de hábito, permitiendo corregir errores de registro o avances parciales sin necesidad de reiniciar el día.
+    - **FAB Circular Unificado:** Se retiró el botón comprimido `+ HÁBITO` de la tarjeta de telemetría y se integró el botón de acción flotante circular (`+`) en la esquina inferior derecha (`bottom: 100, right: 20`), idéntico al estándar visual del resto de pantallas de la app.
+  - **Rediseño del Modal de Creación de Hábitos (`CreateHabitModal.tsx`):**
+    - **Modal Flotante Centrado:** Se rediseñó el componente a un modal flotante centrado con fondo translúcido (`rgba(13, 14, 17, 0.85)`), bordes sutiles y radio de 24px, matching el diseño de `CreateTaskModal`.
+    - **Selector de Tipo de Hábito Limpio:** Se retiraron los emojis y glifos (`✨`, `🛡️`), dejando exclusivamente texto limpio y legible: *"Construir Hábito"* y *"Romper Vicio"*.
+    - **Cumplimiento Estricto de la Regla de Teclado:** Se implementó compensación de teclado con `Keyboard.addListener`, `handleFocusField(yOffset)` con `setTimeout` de 120ms para auto-scroll dinámico del campo enfocado (nombre, meta diaria, unidad, etc.) y expansión de padding inferior, impidiendo que el teclado tape los inputs numéricos.
+    - **Recordatorios y Notificaciones para Hábitos:** Se añadió la sección de activación de notificaciones con switch y selector de hora (`CustomTimePicker`), programando alertas locales con `expo-notifications` (diarias o en días específicos de la semana seleccionados).
+  - **Depuración y Enfoque Exclusivo de Tareas (`TasksScreen.tsx`, `CreateTaskModal.tsx`, `ProgressTelemetry.tsx`):**
+    - **Eliminación de Filtros Temporales en Tareas:** Se eliminaron los botones de filtrado de "Hoy", "Mañana", etc., ya que esta vista ahora maneja exclusivamente tareas pendientes.
+    - **Filtrado Estricto de Tareas:** Se filtró la lista de elementos para excluir cualquier hábito (`!t.isHabit`) y se removieron los íconos de racha (`🔥`) de las tarjetas de tareas.
+    - **Telemetría Balanceada en 3 Columnas (`ProgressTelemetry.tsx`):** Se removió el contador de hábitos de la telemetría superior, redistribuyendo de forma armónica 3 columnas simétricas: `COMPLETOS`, `PENDIENTES` y `URGENTES`.
+    - **Modal de Tareas Puro (`CreateTaskModal.tsx`):** Se eliminó el selector Tarea / Hábito, estableciendo el modal puramente para *"Nueva Tarea"* / *"Editar Tarea"*, conservando la opción de repetición programada y recordatorios sin alterar la entidad de hábitos.
+
+- **Tarjeta de Hábitos Diarios en el Dashboard Principal (`HabitsCard.tsx`, `DashboardScreen.tsx`):**
+  - **Nueva Tarjeta de Resumen (`HabitsCard.tsx`):**
+    - Se diseñó e implementó el componente `HabitsCard` en `src/features/dashboard/components/HabitsCard.tsx`, siguiendo rigurosamente las pautas de diseño **Obsidian Cyan** (bordes estructurales de 1px en `#222836`, superficie `#14171F`, acentos en `#00F0FF`/`#38BDF8` y tipografías Geist/JetBrains Mono).
+    - Muestra métricas clave en tiempo real: total de hábitos, hábitos completados en el día (`todayStatus.isCompleted`), indicador de racha activa (`🔥 streak`) y un medidor circular SVG con porcentaje dinámico de cumplimiento.
+    - Presenta un desglose de hasta 3 hábitos priorizados (pendientes primero, seguidos de completados tachados sutilmente y con su racha actual).
+    - Incorpora estados de carga deterministas con `Skeleton` para evitar saltos visuales durante la sincronización de datos con `HabitService.getAll`.
+  - **Integración y Balance del Grid en el Dashboard (`DashboardScreen.tsx`):**
+    - Se integró `HabitsCard` en la columna derecha del grid principal, equilibrando armónicamente la pantalla (Columna Izquierda: Tareas, Dieta e Ideas; Columna Derecha: Rutina Gym, Finanzas y Hábitos).
+    - Al presionar la tarjeta, redirige fluidamente a la pestaña de Hábitos del carrusel mediante `useCarouselNavStore.getState().navigateToTab('Tasks', 'habits')`.
+
 - **Corrección de Aislamiento y Mapeo de Series por Ejercicio en Entrenamiento Activo (`ActiveWorkoutScreen.tsx`, `WorkoutSessionService.cs`):**
   - **Causa Raíz Identificada:**
     - En el backend (`WorkoutSessionService.cs`), al iniciar una sesión de entrenamiento (`StartSessionAsync`), las series pre-cargadas de la rutina se numeraban con un acumulador global (`int globalOrder = 1; SetOrder = globalOrder++`) a través de todos los ejercicios (ej. Ejercicio 1 con órdenes 1..3, Ejercicio 2 con órdenes 4..6, Ejercicio 3 con órdenes 7..9).

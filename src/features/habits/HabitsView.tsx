@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
 } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '../../utils/ThemeContext';
@@ -13,6 +12,7 @@ import {
   HabitService,
   CreateHabitDto,
   UpdateHabitDto,
+  getHabitTodayStatus,
 } from '../../services/habit.service';
 import { queryKeys } from '../../services/queryKeys';
 import { HabitCard } from './components/HabitCard';
@@ -20,26 +20,33 @@ import { CreateHabitModal } from './components/CreateHabitModal';
 import { HabitDetailModal } from './components/HabitDetailModal';
 import { Skeleton } from '../../components/Skeleton';
 import { useAlertStore } from '../../store/alertStore';
-import { Plus, Flame, CheckCircle2, Shield, Sparkles } from 'lucide-react-native';
+import { Plus, Flame, Sparkles } from 'lucide-react-native';
+import { scheduleHabitNotification, cancelHabitNotification } from '../../utils/notifications';
 
-const CATEGORY_FILTERS = [
-  { id: 'all', label: 'TODOS' },
-  { id: 'build', label: 'CONSTRUIR' },
-  { id: 'quit', label: 'ROMPER VICIOS' },
-  { id: 'fitness', label: 'FITNESS' },
-  { id: 'salud', label: 'SALUD' },
-  { id: 'mente', label: 'MENTE' },
-];
+export interface HabitsViewProps {
+  isCreateModalOpen?: boolean;
+  onCloseCreateModal?: () => void;
+}
 
-export const HabitsView: React.FC = () => {
+export const HabitsView: React.FC<HabitsViewProps> = ({
+  isCreateModalOpen,
+  onCloseCreateModal,
+}) => {
   const theme = useTheme();
   const queryClient = useQueryClient();
   const alertStore = useAlertStore();
 
-  const [filter, setFilter] = useState('all');
-  const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
+  const [internalCreateModalVisible, setInternalCreateModalVisible] = useState(false);
   const [selectedHabitForDetail, setSelectedHabitForDetail] = useState<HabitDto | null>(null);
   const [editingHabit, setEditingHabit] = useState<HabitDto | null>(null);
+
+  const isModalVisible = isCreateModalOpen ?? internalCreateModalVisible;
+
+  const handleCloseModal = () => {
+    setInternalCreateModalVisible(false);
+    onCloseCreateModal?.();
+    setEditingHabit(null);
+  };
 
   const { data: habits = [], isLoading } = useQuery({
     queryKey: queryKeys.habits.all,
@@ -48,20 +55,20 @@ export const HabitsView: React.FC = () => {
 
   const createMutation = useMutation({
     mutationFn: (newHabit: CreateHabitDto) => HabitService.create(newHabit),
-    onSuccess: () => {
+    onSuccess: async (data) => {
+      await scheduleHabitNotification(data);
       queryClient.invalidateQueries({ queryKey: queryKeys.habits.all });
-      setIsCreateModalVisible(false);
-      setEditingHabit(null);
+      handleCloseModal();
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateHabitDto }) =>
       HabitService.update(id, data),
-    onSuccess: () => {
+    onSuccess: async (data) => {
+      await scheduleHabitNotification(data);
       queryClient.invalidateQueries({ queryKey: queryKeys.habits.all });
-      setIsCreateModalVisible(false);
-      setEditingHabit(null);
+      handleCloseModal();
       if (selectedHabitForDetail) {
         setSelectedHabitForDetail(null);
       }
@@ -70,7 +77,8 @@ export const HabitsView: React.FC = () => {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => HabitService.delete(id),
-    onSuccess: () => {
+    onSuccess: async (_, id) => {
+      await cancelHabitNotification({ id });
       queryClient.invalidateQueries({ queryKey: queryKeys.habits.all });
       setSelectedHabitForDetail(null);
     },
@@ -95,6 +103,18 @@ export const HabitsView: React.FC = () => {
     }
   };
 
+  const handleDecrement = (habit: HabitDto) => {
+    if (habit.habitType === 'Quit' || habit.trackingType === 'YesNo') {
+      checkInMutation.mutate({ id: habit.id, toggle: true });
+    } else {
+      const todayStatus = getHabitTodayStatus(habit);
+      const current = todayStatus.currentAmount ?? 0;
+      const step = 1;
+      const nextAmount = Math.max(0, current - step);
+      checkInMutation.mutate({ id: habit.id, amount: nextAmount });
+    }
+  };
+
   const handleDeleteHabit = (id: string) => {
     alertStore.showAlert({
       title: 'Eliminar Hábito',
@@ -111,24 +131,16 @@ export const HabitsView: React.FC = () => {
     });
   };
 
-  const { filteredHabits, totalActive, completedTodayCount, bestCurrentStreak } = useMemo(() => {
-    let list = habits;
-    if (filter === 'build') list = habits.filter((h) => h.habitType === 'Build');
-    else if (filter === 'quit') list = habits.filter((h) => h.habitType === 'Quit');
-    else if (filter === 'fitness') list = habits.filter((h) => h.category.toLowerCase() === 'fitness');
-    else if (filter === 'salud') list = habits.filter((h) => h.category.toLowerCase() === 'salud');
-    else if (filter === 'mente') list = habits.filter((h) => h.category.toLowerCase() === 'mente');
-
-    const completedToday = habits.filter((h) => h.todayStatus?.isCompleted).length;
+  const { totalActive, completedTodayCount, bestCurrentStreak } = useMemo(() => {
+    const completedToday = habits.filter((h) => getHabitTodayStatus(h).isCompleted).length;
     const maxStreak = habits.length > 0 ? Math.max(...habits.map((h) => h.currentStreak)) : 0;
 
     return {
-      filteredHabits: list,
       totalActive: habits.length,
       completedTodayCount: completedToday,
       bestCurrentStreak: maxStreak,
     };
-  }, [habits, filter]);
+  }, [habits]);
 
   return (
     <View style={styles.container}>
@@ -156,51 +168,7 @@ export const HabitsView: React.FC = () => {
             MEJOR RACHA
           </Text>
         </View>
-
-        <View style={[styles.telemetryDivider, { backgroundColor: theme.colors.borderGlow }]} />
-
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => {
-            setEditingHabit(null);
-            setIsCreateModalVisible(true);
-          }}
-          style={[styles.addBtnSmall, { backgroundColor: theme.colors.neonCyan }]}
-        >
-          <Plus size={16} color={theme.colors.obsidian} />
-          <Text style={[styles.addBtnText, { color: theme.colors.obsidian }]}>
-            HÁBITO
-          </Text>
-        </TouchableOpacity>
       </View>
-
-      {/* Filter Pills */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow}>
-        {CATEGORY_FILTERS.map((f) => {
-          const isSelected = filter === f.id;
-          return (
-            <TouchableOpacity
-              key={f.id}
-              onPress={() => setFilter(f.id)}
-              style={[
-                styles.filterPill,
-                isSelected
-                  ? { backgroundColor: theme.colors.neonCyan + '20', borderColor: theme.colors.neonCyan }
-                  : { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderGlow },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.filterPillText,
-                  { color: isSelected ? theme.colors.neonCyan : theme.colors.mutedText },
-                ]}
-              >
-                {f.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
 
       {/* Habit Cards List */}
       {isLoading ? (
@@ -209,22 +177,20 @@ export const HabitsView: React.FC = () => {
           <Skeleton height={140} borderRadius={14} />
           <Skeleton height={140} borderRadius={14} />
         </View>
-      ) : filteredHabits.length === 0 ? (
+      ) : habits.length === 0 ? (
         <View style={[styles.emptyContainer, { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderGlow }]}>
           <Sparkles size={36} color={theme.colors.neonCyan} style={{ marginBottom: 12 }} />
           <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
-            {habits.length === 0 ? 'Comienza tu Primera Racha' : 'No hay hábitos en este filtro'}
+            Comienza tu Primera Racha
           </Text>
           <Text style={[styles.emptySubtitle, { color: theme.colors.mutedText }]}>
-            {habits.length === 0
-              ? 'Crea hábitos positivos o rompe vicios con seguimiento visual en cuadrícula diaria estilo HabitKit.'
-              : 'Selecciona otro filtro o crea un nuevo hábito para esta categoría.'}
+            Crea hábitos positivos o rompe vicios con seguimiento visual en cuadrícula diaria estilo HabitKit.
           </Text>
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={() => {
               setEditingHabit(null);
-              setIsCreateModalVisible(true);
+              setInternalCreateModalVisible(true);
             }}
             style={[styles.createFirstBtn, { backgroundColor: theme.colors.neonCyan }]}
           >
@@ -235,26 +201,26 @@ export const HabitsView: React.FC = () => {
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={{ marginTop: 12 }}>
-          {filteredHabits.map((habit) => (
+        <View style={{ marginTop: 8 }}>
+          {habits.map((habit) => (
             <HabitCard
               key={habit.id}
               habit={habit}
               onPressCard={(h) => setSelectedHabitForDetail(h)}
               onQuickCheckIn={handleQuickCheckIn}
+              onDecrement={handleDecrement}
               onManualLog={(h) => setSelectedHabitForDetail(h)}
             />
           ))}
+          {/* Bottom spacing so the last habit is fully visible and not covered by floating navbar */}
+          <View style={{ height: 120 }} />
         </View>
       )}
 
       {/* Modals */}
       <CreateHabitModal
-        visible={isCreateModalVisible}
-        onClose={() => {
-          setIsCreateModalVisible(false);
-          setEditingHabit(null);
-        }}
+        visible={isModalVisible}
+        onClose={handleCloseModal}
         onSubmit={(data) => createMutation.mutate(data)}
         onUpdate={(id, data) => updateMutation.mutate({ id, data })}
         initialHabit={editingHabit}
@@ -266,7 +232,7 @@ export const HabitsView: React.FC = () => {
         onClose={() => setSelectedHabitForDetail(null)}
         onEdit={(h) => {
           setEditingHabit(h);
-          setIsCreateModalVisible(true);
+          setInternalCreateModalVisible(true);
         }}
         onDelete={handleDeleteHabit}
       />
@@ -281,18 +247,18 @@ const styles = StyleSheet.create({
   telemetryCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 14,
+    justifyContent: 'space-around',
+    padding: 16,
     borderRadius: 14,
     borderWidth: 1,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   telemetryItem: {
     flex: 1,
     alignItems: 'center',
   },
   telemetryValue: {
-    fontSize: 16,
+    fontSize: 18,
     fontFamily: 'JetBrainsMono-Bold',
     fontWeight: '700',
   },
@@ -301,6 +267,7 @@ const styles = StyleSheet.create({
     fontFamily: 'JetBrainsMono-Bold',
     fontWeight: '700',
     marginTop: 2,
+    letterSpacing: 0.5,
   },
   streakInline: {
     flexDirection: 'row',
@@ -309,36 +276,7 @@ const styles = StyleSheet.create({
   },
   telemetryDivider: {
     width: 1,
-    height: 30,
-  },
-  addBtnSmall: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 9,
-  },
-  addBtnText: {
-    fontSize: 11,
-    fontFamily: 'JetBrainsMono-Bold',
-    fontWeight: '700',
-  },
-  filterRow: {
-    flexDirection: 'row',
-    marginBottom: 4,
-  },
-  filterPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginRight: 8,
-  },
-  filterPillText: {
-    fontSize: 10,
-    fontFamily: 'JetBrainsMono-Bold',
-    fontWeight: '700',
+    height: 32,
   },
   emptyContainer: {
     padding: 32,

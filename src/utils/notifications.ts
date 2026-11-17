@@ -229,6 +229,85 @@ export async function cancelTodoNotification(todo: TodoDto | { id: string }) {
 }
 
 /**
+ * Schedules notification for a Habit with active reminder
+ */
+export async function scheduleHabitNotification(habit: {
+  id: string;
+  name: string;
+  frequencyType?: string;
+  frequencyDays?: string;
+  reminders?: { time: string; daysOfWeek?: string; isEnabled: boolean }[];
+}) {
+  await cancelHabitNotification(habit);
+
+  const activeReminder = habit.reminders?.find((r) => r.isEnabled);
+  if (!activeReminder || !activeReminder.time) return;
+
+  const hasPermission = await requestNotificationPermissions();
+  if (!hasPermission) return;
+
+  const time = parseNotificationHourAndMinute(activeReminder.time);
+  if (!time) return;
+
+  const { hour, minute } = time;
+  const rawFreq = (habit.frequencyType || '').toLowerCase().trim();
+  const isDaily = rawFreq === 'daily' || !activeReminder.daysOfWeek;
+
+  if (isDaily) {
+    await Notifications.scheduleNotificationAsync({
+      identifier: `habit-${habit.id}`,
+      content: {
+        title: '🔥 Hora de tu hábito',
+        body: habit.name,
+        sound: true,
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        channelId: 'default',
+        hour,
+        minute,
+      },
+    });
+  } else {
+    const days = (activeReminder.daysOfWeek || habit.frequencyDays || '').split(',');
+    for (const d of days) {
+      const weekday = parseCustomDayToExpoWeekday(d);
+      if (weekday) {
+        await Notifications.scheduleNotificationAsync({
+          identifier: `habit-${habit.id}-weekday-${weekday}`,
+          content: {
+            title: '🔥 Hora de tu hábito',
+            body: habit.name,
+            sound: true,
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+            channelId: 'default',
+            weekday,
+            hour,
+            minute,
+          },
+        });
+      }
+    }
+  }
+}
+
+/**
+ * Cancels all scheduled notifications for a habit
+ */
+export async function cancelHabitNotification(habit: { id: string }) {
+  try {
+    await Notifications.cancelScheduledNotificationAsync(`habit-${habit.id}`);
+    for (let weekday = 1; weekday <= 7; weekday++) {
+      await Notifications.cancelScheduledNotificationAsync(`habit-${habit.id}-weekday-${weekday}`);
+    }
+  } catch (e) {
+    console.warn('Error canceling habit notification:', e);
+  }
+}
+
+/**
  * Retrieves the stored global daily reminder configuration
  */
 export async function getGlobalReminderConfig(): Promise<{ enabled: boolean; time: string }> {

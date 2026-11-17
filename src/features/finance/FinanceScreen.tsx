@@ -45,7 +45,7 @@ export const FinanceScreen = () => {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <Header title="Finanzas" />
+          <Header title="Mis Finanzas" />
           
           <View style={styles.stack}>
             <NetWorthCard summary={summary} transactions={transactions} loading={loading} />

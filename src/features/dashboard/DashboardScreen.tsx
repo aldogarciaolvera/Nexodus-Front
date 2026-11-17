@@ -7,6 +7,7 @@ import { DailyTodoCard } from './components/DailyTodoCard';
 import { WorkoutCard } from './components/WorkoutCard';
 import { DietCard } from './components/DietCard';
 import { FinanceCard } from './components/FinanceCard';
+import { HabitsCard } from './components/HabitsCard';
 import { IdeasCard } from './components/IdeasCard';
 import { StreakCard } from './components/StreakCard';
 import { ObsidianTierCard } from './components/ObsidianTierCard';
@@ -47,6 +48,7 @@ export const DashboardScreen = () => {
             <View style={styles.gridColumn}>
               <WorkoutCard />
               <FinanceCard />
+              <HabitsCard />
             </View>
           </View>
           

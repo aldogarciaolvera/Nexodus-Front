@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,12 +7,20 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
+  ScrollViewInstance,
   Platform,
   KeyboardAvoidingView,
+  Keyboard,
   Switch,
 } from 'react-native';
 import { useTheme } from '../../../utils/ThemeContext';
-import { CreateHabitDto, HabitDto, UpdateHabitDto } from '../../../services/habit.service';
+import {
+  CreateHabitDto,
+  HabitDto,
+  UpdateHabitDto,
+  CreateHabitReminderDto,
+} from '../../../services/habit.service';
+import { CustomTimePicker } from '../../../components/CustomTimePicker';
 import {
   X,
   Dumbbell,
@@ -95,6 +103,43 @@ export const CreateHabitModal: React.FC<CreateHabitModalProps> = ({
   const [everyNDaysInterval, setEveryNDaysInterval] = useState('2');
   const [autoCompleteSource, setAutoCompleteSource] = useState<string | undefined>(undefined);
 
+  // Notifications state
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [notificationTime, setNotificationTime] = useState<Date>(() => new Date(new Date().setHours(9, 0, 0, 0)));
+  const [showTimePicker, setShowTimePicker] = useState(false);
+
+  // Keyboard handling state & ref
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const handleFocusField = (yOffset: number) => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        y: yOffset,
+        animated: true,
+      });
+    }, 120);
+  };
+
   useEffect(() => {
     if (initialHabit) {
       setHabitType(initialHabit.habitType || 'Build');
@@ -116,6 +161,20 @@ export const CreateHabitModal: React.FC<CreateHabitModalProps> = ({
       setFrequencyTargetCount(initialHabit.frequencyTargetCount ? initialHabit.frequencyTargetCount.toString() : '3');
       setEveryNDaysInterval(initialHabit.everyNDaysInterval ? initialHabit.everyNDaysInterval.toString() : '2');
       setAutoCompleteSource(initialHabit.autoCompleteSource);
+
+      // Load reminder if present
+      if (initialHabit.reminders && initialHabit.reminders.length > 0) {
+        const activeReminder = initialHabit.reminders.find((r) => r.isEnabled) || initialHabit.reminders[0];
+        setNotificationsEnabled(activeReminder.isEnabled);
+        if (activeReminder.time) {
+          const parts = activeReminder.time.split(':');
+          const d = new Date();
+          d.setHours(parseInt(parts[0], 10) || 9, parseInt(parts[1], 10) || 0, 0, 0);
+          setNotificationTime(d);
+        }
+      } else {
+        setNotificationsEnabled(false);
+      }
     } else {
       resetForm();
     }
@@ -137,6 +196,8 @@ export const CreateHabitModal: React.FC<CreateHabitModalProps> = ({
     setFrequencyTargetCount('3');
     setEveryNDaysInterval('2');
     setAutoCompleteSource(undefined);
+    setNotificationsEnabled(false);
+    setNotificationTime(new Date(new Date().setHours(9, 0, 0, 0)));
   };
 
   const handleDayToggle = (dayIndex: string) => {
@@ -174,6 +235,17 @@ export const CreateHabitModal: React.FC<CreateHabitModalProps> = ({
   const handleSave = () => {
     if (!name.trim()) return;
 
+    const timeStr = `${notificationTime.getHours().toString().padStart(2, '0')}:${notificationTime.getMinutes().toString().padStart(2, '0')}`;
+    const remindersPayload: CreateHabitReminderDto[] = notificationsEnabled
+      ? [
+          {
+            time: timeStr,
+            daysOfWeek: frequencyType === 'SpecificDays' ? selectedDays.join(',') : undefined,
+            isEnabled: true,
+          },
+        ]
+      : [];
+
     const payload: CreateHabitDto = {
       name: name.trim(),
       description: description.trim() || undefined,
@@ -192,6 +264,7 @@ export const CreateHabitModal: React.FC<CreateHabitModalProps> = ({
       streakUnit: 'Days',
       fillMetPeriods: true,
       autoCompleteSource,
+      reminders: remindersPayload,
     };
 
     if (initialHabit && onUpdate) {
@@ -208,482 +281,570 @@ export const CreateHabitModal: React.FC<CreateHabitModalProps> = ({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
-        style={styles.modalOverlay}
+        style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={[styles.modalContent, { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderGlow }]}>
-          {/* Header */}
-          <View style={[styles.modalHeader, { borderBottomColor: theme.colors.borderGlow }]}>
-            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
-              {initialHabit ? 'Editar Hábito' : 'Nuevo Hábito'}
-            </Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={20} color={theme.colors.mutedText} />
-            </TouchableOpacity>
-          </View>
+        <View style={styles.modalOverlay}>
+          {/* Dimmed backdrop dismiss */}
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={Keyboard.dismiss}
+          />
 
-          <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false}>
-            {/* Build vs Quit Selector */}
-            <View style={[styles.typeSwitchContainer, { backgroundColor: theme.colors.surfaceLight }]}>
+          <View
+            style={[
+              styles.modalContent,
+              {
+                backgroundColor: theme.colors.surfaceLight,
+                borderColor: theme.colors.borderGlow,
+              },
+            ]}
+          >
+            {/* Header */}
+            <View style={[styles.modalHeader, { borderBottomColor: theme.colors.borderGlow }]}>
+              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+                {initialHabit ? 'Editar Hábito' : 'Nuevo Hábito'}
+              </Text>
               <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => setHabitType('Build')}
-                style={[
-                  styles.typeTab,
-                  habitType === 'Build' && { backgroundColor: theme.colors.surface, borderColor: color },
-                ]}
+                onPress={onClose}
+                style={styles.closeBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Cerrar modal"
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
-                <Text
-                  style={[
-                    styles.typeTabText,
-                    { color: habitType === 'Build' ? theme.colors.text : theme.colors.mutedText },
-                  ]}
-                >
-                  ✨ Construir Hábito
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => setHabitType('Quit')}
-                style={[
-                  styles.typeTab,
-                  habitType === 'Quit' && { backgroundColor: theme.colors.surface, borderColor: '#EF4444' },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.typeTabText,
-                    { color: habitType === 'Quit' ? theme.colors.text : theme.colors.mutedText },
-                  ]}
-                >
-                  🛡️ Romper Vicio
-                </Text>
+                <X size={20} color={theme.colors.mutedText} />
               </TouchableOpacity>
             </View>
 
-            {/* Presets */}
-            {!initialHabit && (
-              <View style={styles.section}>
-                <Text style={[styles.sectionLabel, { color: theme.colors.mutedText }]}>
-                  SUGERENCIAS RÁPIDAS
-                </Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.presetsRow}>
-                  {habitType === 'Build' ? (
-                    <>
-                      <TouchableOpacity
-                        style={[styles.presetChip, { borderColor: theme.colors.borderGlow, backgroundColor: theme.colors.surfaceLight }]}
-                        onPress={() => applyPreset({
-                          name: 'Beber 2.5L Agua',
-                          type: 'Build',
-                          icon: 'droplets',
-                          color: '#00F0FF',
-                          category: 'Salud',
-                          trackingType: 'Measure',
-                          targetValue: '2.5',
-                          targetUnit: 'L',
-                          autoSource: 'WaterLog',
-                        })}
-                      >
-                        <Text style={[styles.presetText, { color: theme.colors.text }]}>💧 2.5L Agua</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={[styles.presetChip, { borderColor: theme.colors.borderGlow, backgroundColor: theme.colors.surfaceLight }]}
-                        onPress={() => applyPreset({
-                          name: 'Ir al Gimnasio',
-                          type: 'Build',
-                          icon: 'dumbbell',
-                          color: '#F59E0B',
-                          category: 'Fitness',
-                          trackingType: 'YesNo',
-                          targetValue: '1',
-                          targetUnit: '',
-                          autoSource: 'WorkoutSession',
-                        })}
-                      >
-                        <Text style={[styles.presetText, { color: theme.colors.text }]}>🏋️‍♂️ Ir al Gym</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={[styles.presetChip, { borderColor: theme.colors.borderGlow, backgroundColor: theme.colors.surfaceLight }]}
-                        onPress={() => applyPreset({
-                          name: 'Leer 20 páginas',
-                          type: 'Build',
-                          icon: 'book',
-                          color: '#8B5CF6',
-                          category: 'Mente',
-                          trackingType: 'Count',
-                          targetValue: '20',
-                          targetUnit: 'pág',
-                        })}
-                      >
-                        <Text style={[styles.presetText, { color: theme.colors.text }]}>📖 Leer 20 pág</Text>
-                      </TouchableOpacity>
-                    </>
-                  ) : (
-                    <>
-                      <TouchableOpacity
-                        style={[styles.presetChip, { borderColor: theme.colors.borderGlow, backgroundColor: theme.colors.surfaceLight }]}
-                        onPress={() => applyPreset({
-                          name: 'Cero Cigarros',
-                          type: 'Quit',
-                          icon: 'shield',
-                          color: '#EF4444',
-                          category: 'Salud',
-                          trackingType: 'YesNo',
-                          targetValue: '1',
-                          targetUnit: '',
-                        })}
-                      >
-                        <Text style={[styles.presetText, { color: theme.colors.text }]}>🚭 No Fumar</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={[styles.presetChip, { borderColor: theme.colors.borderGlow, backgroundColor: theme.colors.surfaceLight }]}
-                        onPress={() => applyPreset({
-                          name: 'Cero Azúcar Añadida',
-                          type: 'Quit',
-                          icon: 'shield',
-                          color: '#F59E0B',
-                          category: 'Salud',
-                          trackingType: 'YesNo',
-                          targetValue: '1',
-                          targetUnit: '',
-                        })}
-                      >
-                        <Text style={[styles.presetText, { color: theme.colors.text }]}>🍬 Cero Azúcar</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={[styles.presetChip, { borderColor: theme.colors.borderGlow, backgroundColor: theme.colors.surfaceLight }]}
-                        onPress={() => applyPreset({
-                          name: 'Sin Comida Chatarra',
-                          type: 'Quit',
-                          icon: 'shield',
-                          color: '#EC4899',
-                          category: 'Salud',
-                          trackingType: 'YesNo',
-                          targetValue: '1',
-                          targetUnit: '',
-                        })}
-                      >
-                        <Text style={[styles.presetText, { color: theme.colors.text }]}>🍔 Cero Chatarra</Text>
-                      </TouchableOpacity>
-                    </>
-                  )}
-                </ScrollView>
-              </View>
-            )}
-
-            {/* Name Input */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionLabel, { color: theme.colors.mutedText }]}>
-                NOMBRE DEL HÁBITO *
-              </Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.borderGlow, color: theme.colors.text }]}
-                placeholder={habitType === 'Build' ? 'Ej: Meditar 15 minutos' : 'Ej: No tomar refresco'}
-                placeholderTextColor={theme.colors.mutedText}
-                value={name}
-                onChangeText={setName}
-              />
-            </View>
-
-            {/* Category Selector */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionLabel, { color: theme.colors.mutedText }]}>
-                CATEGORÍA
-              </Text>
-              <View style={styles.chipsRow}>
-                {CATEGORIES.map((cat) => (
-                  <TouchableOpacity
-                    key={cat}
-                    onPress={() => setCategory(cat)}
+            <ScrollView
+              ref={scrollViewRef}
+              style={styles.scrollArea}
+              contentContainerStyle={{
+                paddingBottom: keyboardHeight > 0 ? keyboardHeight + 80 : 20,
+              }}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets={true}
+              keyboardDismissMode="on-drag"
+            >
+              {/* Build vs Quit Selector - NO ICONS, clean text only */}
+              <View style={[styles.typeSwitchContainer, { backgroundColor: theme.colors.surface }]}>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => setHabitType('Build')}
+                  style={[
+                    styles.typeTab,
+                    habitType === 'Build' && {
+                      backgroundColor: theme.colors.surfaceLight,
+                      borderColor: color,
+                    },
+                  ]}
+                >
+                  <Text
                     style={[
-                      styles.choiceChip,
-                      category === cat
-                        ? { backgroundColor: color + '25', borderColor: color }
-                        : { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.borderGlow },
+                      styles.typeTabText,
+                      { color: habitType === 'Build' ? theme.colors.text : theme.colors.mutedText },
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.choiceChipText,
-                        { color: category === cat ? color : theme.colors.text },
-                      ]}
-                    >
-                      {cat}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Tracking Type */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionLabel, { color: theme.colors.mutedText }]}>
-                TIPO DE REGISTRO
-              </Text>
-              <View style={styles.chipsRow}>
-                <TouchableOpacity
-                  onPress={() => setTrackingType('YesNo')}
-                  style={[
-                    styles.choiceChip,
-                    trackingType === 'YesNo'
-                      ? { backgroundColor: color + '25', borderColor: color }
-                      : { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.borderGlow },
-                  ]}
-                >
-                  <Text style={[styles.choiceChipText, { color: trackingType === 'YesNo' ? color : theme.colors.text }]}>
-                    Sí / No
+                    Construir Hábito
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  onPress={() => setTrackingType('Count')}
+                  activeOpacity={0.8}
+                  onPress={() => setHabitType('Quit')}
                   style={[
-                    styles.choiceChip,
-                    trackingType === 'Count'
-                      ? { backgroundColor: color + '25', borderColor: color }
-                      : { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.borderGlow },
+                    styles.typeTab,
+                    habitType === 'Quit' && {
+                      backgroundColor: theme.colors.surfaceLight,
+                      borderColor: '#EF4444',
+                    },
                   ]}
                 >
-                  <Text style={[styles.choiceChipText, { color: trackingType === 'Count' ? color : theme.colors.text }]}>
-                    Contador
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => setTrackingType('Measure')}
-                  style={[
-                    styles.choiceChip,
-                    trackingType === 'Measure'
-                      ? { backgroundColor: color + '25', borderColor: color }
-                      : { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.borderGlow },
-                  ]}
-                >
-                  <Text style={[styles.choiceChipText, { color: trackingType === 'Measure' ? color : theme.colors.text }]}>
-                    Medición
+                  <Text
+                    style={[
+                      styles.typeTabText,
+                      { color: habitType === 'Quit' ? theme.colors.text : theme.colors.mutedText },
+                    ]}
+                  >
+                    Romper Vicio
                   </Text>
                 </TouchableOpacity>
               </View>
 
-              {trackingType !== 'YesNo' && (
-                <View style={styles.metaInputRow}>
-                  <View style={{ flex: 1, marginRight: 10 }}>
-                    <Text style={[styles.subLabel, { color: theme.colors.mutedText }]}>Meta Diaria</Text>
-                    <TextInput
-                      style={[styles.input, { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.borderGlow, color: theme.colors.text }]}
-                      keyboardType="numeric"
-                      value={targetValue}
-                      onChangeText={setTargetValue}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.subLabel, { color: theme.colors.mutedText }]}>Unidad</Text>
-                    <TextInput
-                      style={[styles.input, { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.borderGlow, color: theme.colors.text }]}
-                      placeholder="L, km, vasos, pág"
-                      placeholderTextColor={theme.colors.mutedText}
-                      value={targetUnit}
-                      onChangeText={setTargetUnit}
-                    />
-                  </View>
+              {/* Presets */}
+              {!initialHabit && (
+                <View style={styles.section}>
+                  <Text style={[styles.sectionLabel, { color: theme.colors.mutedText }]}>
+                    SUGERENCIAS RÁPIDAS
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.presetsRow}>
+                    {habitType === 'Build' ? (
+                      <>
+                        <TouchableOpacity
+                          style={[styles.presetChip, { borderColor: theme.colors.borderGlow, backgroundColor: theme.colors.surface }]}
+                          onPress={() => applyPreset({
+                            name: 'Beber 2.5L Agua',
+                            type: 'Build',
+                            icon: 'droplets',
+                            color: '#00F0FF',
+                            category: 'Salud',
+                            trackingType: 'Measure',
+                            targetValue: '2.5',
+                            targetUnit: 'L',
+                            autoSource: 'WaterLog',
+                          })}
+                        >
+                          <Text style={[styles.presetText, { color: theme.colors.text }]}>2.5L Agua</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.presetChip, { borderColor: theme.colors.borderGlow, backgroundColor: theme.colors.surface }]}
+                          onPress={() => applyPreset({
+                            name: 'Ir al Gimnasio',
+                            type: 'Build',
+                            icon: 'dumbbell',
+                            color: '#F59E0B',
+                            category: 'Fitness',
+                            trackingType: 'YesNo',
+                            targetValue: '1',
+                            targetUnit: '',
+                            autoSource: 'WorkoutSession',
+                          })}
+                        >
+                          <Text style={[styles.presetText, { color: theme.colors.text }]}>Ir al Gym</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.presetChip, { borderColor: theme.colors.borderGlow, backgroundColor: theme.colors.surface }]}
+                          onPress={() => applyPreset({
+                            name: 'Leer 20 páginas',
+                            type: 'Build',
+                            icon: 'book',
+                            color: '#8B5CF6',
+                            category: 'Mente',
+                            trackingType: 'Count',
+                            targetValue: '20',
+                            targetUnit: 'pág',
+                          })}
+                        >
+                          <Text style={[styles.presetText, { color: theme.colors.text }]}>Leer 20 pág</Text>
+                        </TouchableOpacity>
+                      </>
+                    ) : (
+                      <>
+                        <TouchableOpacity
+                          style={[styles.presetChip, { borderColor: theme.colors.borderGlow, backgroundColor: theme.colors.surface }]}
+                          onPress={() => applyPreset({
+                            name: 'Cero Cigarros',
+                            type: 'Quit',
+                            icon: 'shield',
+                            color: '#EF4444',
+                            category: 'Salud',
+                            trackingType: 'YesNo',
+                            targetValue: '1',
+                            targetUnit: '',
+                          })}
+                        >
+                          <Text style={[styles.presetText, { color: theme.colors.text }]}>No Fumar</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.presetChip, { borderColor: theme.colors.borderGlow, backgroundColor: theme.colors.surface }]}
+                          onPress={() => applyPreset({
+                            name: 'Cero Azúcar Añadida',
+                            type: 'Quit',
+                            icon: 'shield',
+                            color: '#F59E0B',
+                            category: 'Salud',
+                            trackingType: 'YesNo',
+                            targetValue: '1',
+                            targetUnit: '',
+                          })}
+                        >
+                          <Text style={[styles.presetText, { color: theme.colors.text }]}>Cero Azúcar</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.presetChip, { borderColor: theme.colors.borderGlow, backgroundColor: theme.colors.surface }]}
+                          onPress={() => applyPreset({
+                            name: 'Sin Comida Chatarra',
+                            type: 'Quit',
+                            icon: 'shield',
+                            color: '#EC4899',
+                            category: 'Salud',
+                            trackingType: 'YesNo',
+                            targetValue: '1',
+                            targetUnit: '',
+                          })}
+                        >
+                          <Text style={[styles.presetText, { color: theme.colors.text }]}>Cero Chatarra</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </ScrollView>
                 </View>
               )}
-            </View>
 
-            {/* Frequency Selector */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionLabel, { color: theme.colors.mutedText }]}>
-                FRECUENCIA
-              </Text>
-              <View style={styles.chipsRow}>
-                <TouchableOpacity
-                  onPress={() => setFrequencyType('Daily')}
-                  style={[
-                    styles.choiceChip,
-                    frequencyType === 'Daily'
-                      ? { backgroundColor: color + '25', borderColor: color }
-                      : { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.borderGlow },
-                  ]}
-                >
-                  <Text style={[styles.choiceChipText, { color: frequencyType === 'Daily' ? color : theme.colors.text }]}>
-                    Todos los días
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => setFrequencyType('SpecificDays')}
-                  style={[
-                    styles.choiceChip,
-                    frequencyType === 'SpecificDays'
-                      ? { backgroundColor: color + '25', borderColor: color }
-                      : { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.borderGlow },
-                  ]}
-                >
-                  <Text style={[styles.choiceChipText, { color: frequencyType === 'SpecificDays' ? color : theme.colors.text }]}>
-                    Días específicos
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => setFrequencyType('TimesPerWeek')}
-                  style={[
-                    styles.choiceChip,
-                    frequencyType === 'TimesPerWeek'
-                      ? { backgroundColor: color + '25', borderColor: color }
-                      : { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.borderGlow },
-                  ]}
-                >
-                  <Text style={[styles.choiceChipText, { color: frequencyType === 'TimesPerWeek' ? color : theme.colors.text }]}>
-                    X por semana
-                  </Text>
-                </TouchableOpacity>
+              {/* Name Input */}
+              <View style={styles.section}>
+                <Text style={[styles.sectionLabel, { color: theme.colors.mutedText }]}>
+                  NOMBRE DEL HÁBITO *
+                </Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderGlow, color: theme.colors.text }]}
+                  placeholder={habitType === 'Build' ? 'Ej: Meditar 15 minutos' : 'Ej: No tomar refresco'}
+                  placeholderTextColor={theme.colors.mutedText}
+                  value={name}
+                  onChangeText={setName}
+                  onFocus={() => handleFocusField(100)}
+                />
               </View>
 
-              {/* Specific days pills */}
-              {frequencyType === 'SpecificDays' && (
-                <View style={styles.daysRow}>
-                  {DAYS_OF_WEEK.map((d) => {
-                    const isSelected = selectedDays.includes(d.index);
-                    return (
-                      <TouchableOpacity
-                        key={d.index}
-                        onPress={() => handleDayToggle(d.index)}
+              {/* Category Selector */}
+              <View style={styles.section}>
+                <Text style={[styles.sectionLabel, { color: theme.colors.mutedText }]}>
+                  CATEGORÍA
+                </Text>
+                <View style={styles.chipsRow}>
+                  {CATEGORIES.map((cat) => (
+                    <TouchableOpacity
+                      key={cat}
+                      onPress={() => setCategory(cat)}
+                      style={[
+                        styles.choiceChip,
+                        category === cat
+                          ? { backgroundColor: color + '25', borderColor: color }
+                          : { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderGlow },
+                      ]}
+                    >
+                      <Text
                         style={[
-                          styles.dayCircle,
-                          isSelected
-                            ? { backgroundColor: color, borderColor: color }
-                            : { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.borderGlow },
+                          styles.choiceChipText,
+                          { color: category === cat ? color : theme.colors.text },
                         ]}
                       >
-                        <Text
+                        {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Tracking Type */}
+              <View style={styles.section}>
+                <Text style={[styles.sectionLabel, { color: theme.colors.mutedText }]}>
+                  TIPO DE REGISTRO
+                </Text>
+                <View style={styles.chipsRow}>
+                  <TouchableOpacity
+                    onPress={() => setTrackingType('YesNo')}
+                    style={[
+                      styles.choiceChip,
+                      trackingType === 'YesNo'
+                        ? { backgroundColor: color + '25', borderColor: color }
+                        : { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderGlow },
+                    ]}
+                  >
+                    <Text style={[styles.choiceChipText, { color: trackingType === 'YesNo' ? color : theme.colors.text }]}>
+                      Sí / No
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => setTrackingType('Count')}
+                    style={[
+                      styles.choiceChip,
+                      trackingType === 'Count'
+                        ? { backgroundColor: color + '25', borderColor: color }
+                        : { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderGlow },
+                    ]}
+                  >
+                    <Text style={[styles.choiceChipText, { color: trackingType === 'Count' ? color : theme.colors.text }]}>
+                      Contador
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => setTrackingType('Measure')}
+                    style={[
+                      styles.choiceChip,
+                      trackingType === 'Measure'
+                        ? { backgroundColor: color + '25', borderColor: color }
+                        : { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderGlow },
+                    ]}
+                  >
+                    <Text style={[styles.choiceChipText, { color: trackingType === 'Measure' ? color : theme.colors.text }]}>
+                      Medición
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {trackingType !== 'YesNo' && (
+                  <View style={styles.metaInputRow}>
+                    <View style={{ flex: 1, marginRight: 10 }}>
+                      <Text style={[styles.subLabel, { color: theme.colors.mutedText }]}>Meta Diaria</Text>
+                      <TextInput
+                        style={[styles.input, { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderGlow, color: theme.colors.text }]}
+                        keyboardType="numeric"
+                        value={targetValue}
+                        onChangeText={setTargetValue}
+                        onFocus={() => handleFocusField(260)}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.subLabel, { color: theme.colors.mutedText }]}>Unidad</Text>
+                      <TextInput
+                        style={[styles.input, { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderGlow, color: theme.colors.text }]}
+                        placeholder="L, km, vasos, pág"
+                        placeholderTextColor={theme.colors.mutedText}
+                        value={targetUnit}
+                        onChangeText={setTargetUnit}
+                        onFocus={() => handleFocusField(260)}
+                      />
+                    </View>
+                  </View>
+                )}
+              </View>
+
+              {/* Frequency Selector */}
+              <View style={styles.section}>
+                <Text style={[styles.sectionLabel, { color: theme.colors.mutedText }]}>
+                  FRECUENCIA
+                </Text>
+                <View style={styles.chipsRow}>
+                  <TouchableOpacity
+                    onPress={() => setFrequencyType('Daily')}
+                    style={[
+                      styles.choiceChip,
+                      frequencyType === 'Daily'
+                        ? { backgroundColor: color + '25', borderColor: color }
+                        : { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderGlow },
+                    ]}
+                  >
+                    <Text style={[styles.choiceChipText, { color: frequencyType === 'Daily' ? color : theme.colors.text }]}>
+                      Todos los días
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => setFrequencyType('SpecificDays')}
+                    style={[
+                      styles.choiceChip,
+                      frequencyType === 'SpecificDays'
+                        ? { backgroundColor: color + '25', borderColor: color }
+                        : { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderGlow },
+                    ]}
+                  >
+                    <Text style={[styles.choiceChipText, { color: frequencyType === 'SpecificDays' ? color : theme.colors.text }]}>
+                      Días específicos
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => setFrequencyType('TimesPerWeek')}
+                    style={[
+                      styles.choiceChip,
+                      frequencyType === 'TimesPerWeek'
+                        ? { backgroundColor: color + '25', borderColor: color }
+                        : { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderGlow },
+                    ]}
+                  >
+                    <Text style={[styles.choiceChipText, { color: frequencyType === 'TimesPerWeek' ? color : theme.colors.text }]}>
+                      X por semana
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Specific days pills */}
+                {frequencyType === 'SpecificDays' && (
+                  <View style={styles.daysRow}>
+                    {DAYS_OF_WEEK.map((d) => {
+                      const isSelected = selectedDays.includes(d.index);
+                      return (
+                        <TouchableOpacity
+                          key={d.index}
+                          onPress={() => handleDayToggle(d.index)}
                           style={[
-                            styles.dayCircleText,
-                            { color: isSelected ? theme.colors.obsidian : theme.colors.mutedText },
+                            styles.dayCircle,
+                            isSelected
+                              ? { backgroundColor: color, borderColor: color }
+                              : { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderGlow },
                           ]}
                         >
-                          {d.label}
-                        </Text>
+                          <Text
+                            style={[
+                              styles.dayCircleText,
+                              { color: isSelected ? theme.colors.obsidian : theme.colors.mutedText },
+                            ]}
+                          >
+                            {d.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+
+                {frequencyType === 'TimesPerWeek' && (
+                  <View style={{ marginTop: 10 }}>
+                    <Text style={[styles.subLabel, { color: theme.colors.mutedText }]}>Veces por semana</Text>
+                    <TextInput
+                      style={[styles.input, { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderGlow, color: theme.colors.text }]}
+                      keyboardType="numeric"
+                      value={frequencyTargetCount}
+                      onChangeText={setFrequencyTargetCount}
+                      onFocus={() => handleFocusField(340)}
+                    />
+                  </View>
+                )}
+              </View>
+
+              {/* Notification & Reminder Section */}
+              <View style={styles.section}>
+                <View style={[styles.switchRow, { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderGlow }]}>
+                  <View style={{ flex: 1, marginRight: 12 }}>
+                    <Text style={[styles.switchLabel, { color: theme.colors.text }]}>
+                      ¿Recibir notificaciones?
+                    </Text>
+                    <Text style={[styles.switchSub, { color: theme.colors.mutedText }]}>
+                      {frequencyType === 'SpecificDays'
+                        ? 'Recordatorio en los días seleccionados'
+                        : 'Recordatorio diario a la hora fijada'}
+                    </Text>
+                  </View>
+                  <Switch
+                    value={notificationsEnabled}
+                    onValueChange={setNotificationsEnabled}
+                    thumbColor={notificationsEnabled ? color : '#CBD5E1'}
+                    trackColor={{ false: '#334155', true: color + '60' }}
+                  />
+                </View>
+
+                {notificationsEnabled && (
+                  <View style={[styles.timePickerContainer, { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderGlow }]}>
+                    <Text style={[styles.subLabel, { color: theme.colors.mutedText }]}>HORA DEL RECORDATORIO</Text>
+                    <TouchableOpacity
+                      style={[styles.timeBtn, { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.borderGlow }]}
+                      onPress={() => setShowTimePicker(true)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.timeText, { color: theme.colors.neonCyan }]}>
+                        {notificationTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+
+              {/* Neon Color Palette */}
+              <View style={styles.section}>
+                <Text style={[styles.sectionLabel, { color: theme.colors.mutedText }]}>
+                  COLOR DEL HÁBITO
+                </Text>
+                <View style={styles.paletteRow}>
+                  {COLOR_PALETTE.map((c) => (
+                    <TouchableOpacity
+                      key={c}
+                      onPress={() => setColor(c)}
+                      style={[
+                        styles.colorCircle,
+                        { backgroundColor: c },
+                        color === c && { borderColor: '#FFFFFF', borderWidth: 2.5 },
+                      ]}
+                    >
+                      {color === c && <Check size={14} color="#000" />}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Icon Selector */}
+              <View style={styles.section}>
+                <Text style={[styles.sectionLabel, { color: theme.colors.mutedText }]}>
+                  ICONO
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.iconsRow}>
+                  {ICONS.map((item) => {
+                    const ItemIcon = item.Icon;
+                    const isSelected = icon === item.key;
+                    return (
+                      <TouchableOpacity
+                        key={item.key}
+                        onPress={() => setIcon(item.key)}
+                        style={[
+                          styles.iconChip,
+                          isSelected
+                            ? { backgroundColor: color + '25', borderColor: color }
+                            : { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderGlow },
+                        ]}
+                      >
+                        <ItemIcon size={20} color={isSelected ? color : theme.colors.mutedText} />
                       </TouchableOpacity>
                     );
                   })}
-                </View>
-              )}
+                </ScrollView>
+              </View>
 
-              {frequencyType === 'TimesPerWeek' && (
-                <View style={{ marginTop: 10 }}>
-                  <Text style={[styles.subLabel, { color: theme.colors.mutedText }]}>Veces por semana</Text>
-                  <TextInput
-                    style={[styles.input, { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.borderGlow, color: theme.colors.text }]}
-                    keyboardType="numeric"
-                    value={frequencyTargetCount}
-                    onChangeText={setFrequencyTargetCount}
+              {/* Synergy with Gym and Diet */}
+              <View style={[styles.section, styles.synergyBox, { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderGlow }]}>
+                <View style={styles.synergyRow}>
+                  <View style={{ flex: 1, marginRight: 10 }}>
+                    <Text style={[styles.synergyTitle, { color: theme.colors.text }]}>
+                      Sinergia Automática
+                    </Text>
+                    <Text style={[styles.synergyDesc, { color: theme.colors.mutedText }]}>
+                      Autocompletar cuando finalices entrenamientos en Gym o registres agua en Dieta.
+                    </Text>
+                  </View>
+                  <Switch
+                    value={autoCompleteSource === 'WorkoutSession' || autoCompleteSource === 'WaterLog'}
+                    onValueChange={(val) => {
+                      if (!val) {
+                        setAutoCompleteSource(undefined);
+                      } else {
+                        setAutoCompleteSource(icon === 'dumbbell' ? 'WorkoutSession' : 'WaterLog');
+                      }
+                    }}
+                    thumbColor={autoCompleteSource ? color : '#CBD5E1'}
+                    trackColor={{ false: '#334155', true: color + '60' }}
                   />
                 </View>
-              )}
-            </View>
-
-            {/* Neon Color Palette */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionLabel, { color: theme.colors.mutedText }]}>
-                COLOR DEL HÁBITO
-              </Text>
-              <View style={styles.paletteRow}>
-                {COLOR_PALETTE.map((c) => (
-                  <TouchableOpacity
-                    key={c}
-                    onPress={() => setColor(c)}
-                    style={[
-                      styles.colorCircle,
-                      { backgroundColor: c },
-                      color === c && { borderColor: '#FFFFFF', borderWidth: 2.5 },
-                    ]}
-                  >
-                    {color === c && <Check size={14} color="#000" />}
-                  </TouchableOpacity>
-                ))}
               </View>
+            </ScrollView>
+
+            {/* Footer Submit Button */}
+            <View style={[styles.modalFooter, { borderTopColor: theme.colors.borderGlow }]}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={handleSave}
+                disabled={!name.trim()}
+                style={[
+                  styles.saveButton,
+                  { backgroundColor: color, opacity: name.trim() ? 1 : 0.5 },
+                ]}
+              >
+                <Text style={[styles.saveButtonText, { color: theme.colors.obsidian }]}>
+                  {initialHabit ? 'Guardar Cambios' : 'Crear Hábito'}
+                </Text>
+              </TouchableOpacity>
             </View>
-
-            {/* Icon Selector */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionLabel, { color: theme.colors.mutedText }]}>
-                ICONO
-              </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.iconsRow}>
-                {ICONS.map((item) => {
-                  const ItemIcon = item.Icon;
-                  const isSelected = icon === item.key;
-                  return (
-                    <TouchableOpacity
-                      key={item.key}
-                      onPress={() => setIcon(item.key)}
-                      style={[
-                        styles.iconChip,
-                        isSelected
-                          ? { backgroundColor: color + '25', borderColor: color }
-                          : { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.borderGlow },
-                      ]}
-                    >
-                      <ItemIcon size={20} color={isSelected ? color : theme.colors.mutedText} />
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            </View>
-
-            {/* Synergy with Gym and Diet */}
-            <View style={[styles.section, styles.synergyBox, { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.borderGlow }]}>
-              <View style={styles.synergyRow}>
-                <View style={{ flex: 1, marginRight: 10 }}>
-                  <Text style={[styles.synergyTitle, { color: theme.colors.text }]}>
-                    Sinergia Automática
-                  </Text>
-                  <Text style={[styles.synergyDesc, { color: theme.colors.mutedText }]}>
-                    Autocompletar cuando finalices entrenamientos en Gym o registres agua en Dieta.
-                  </Text>
-                </View>
-                <Switch
-                  value={autoCompleteSource === 'WorkoutSession' || autoCompleteSource === 'WaterLog'}
-                  onValueChange={(val) => {
-                    if (!val) {
-                      setAutoCompleteSource(undefined);
-                    } else {
-                      setAutoCompleteSource(icon === 'dumbbell' ? 'WorkoutSession' : 'WaterLog');
-                    }
-                  }}
-                  thumbColor={autoCompleteSource ? color : '#CBD5E1'}
-                  trackColor={{ false: '#334155', true: color + '60' }}
-                />
-              </View>
-            </View>
-
-            <View style={{ height: 20 }} />
-          </ScrollView>
-
-          {/* Footer Submit Button */}
-          <View style={[styles.modalFooter, { borderTopColor: theme.colors.borderGlow }]}>
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={handleSave}
-              disabled={!name.trim()}
-              style={[
-                styles.saveButton,
-                { backgroundColor: color, opacity: name.trim() ? 1 : 0.5 },
-              ]}
-            >
-              <Text style={[styles.saveButtonText, { color: theme.colors.obsidian }]}>
-                {initialHabit ? 'Guardar Cambios' : 'Crear Hábito'}
-              </Text>
-            </TouchableOpacity>
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      <CustomTimePicker
+        visible={showTimePicker}
+        value={notificationTime}
+        onClose={() => setShowTimePicker(false)}
+        onConfirm={(d) => {
+          setNotificationTime(d);
+          setShowTimePicker(false);
+        }}
+      />
     </Modal>
   );
 };
@@ -691,24 +852,27 @@ export const CreateHabitModal: React.FC<CreateHabitModalProps> = ({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.75)',
-    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(13, 14, 17, 0.85)',
+    justifyContent: 'center',
+    padding: 20,
   },
   modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderRadius: 24,
     borderWidth: 1,
     maxHeight: '90%',
+    flexShrink: 1,
+    overflow: 'hidden',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
     borderBottomWidth: 1,
   },
   modalTitle: {
-    fontSize: 17,
+    fontSize: 20,
     fontFamily: 'Geist-Bold',
     fontWeight: '700',
   },
@@ -716,7 +880,8 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   scrollArea: {
-    padding: 16,
+    paddingHorizontal: 20,
+    paddingTop: 16,
   },
   typeSwitchContainer: {
     flexDirection: 'row',
@@ -745,6 +910,7 @@ const styles = StyleSheet.create({
     fontFamily: 'JetBrainsMono-Bold',
     fontWeight: '700',
     marginBottom: 8,
+    letterSpacing: 0.5,
   },
   subLabel: {
     fontSize: 11,
@@ -808,6 +974,43 @@ const styles = StyleSheet.create({
   dayCircleText: {
     fontSize: 13,
     fontFamily: 'JetBrainsMono-Bold',
+    fontWeight: '700',
+  },
+  switchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  switchLabel: {
+    fontSize: 14,
+    fontFamily: 'Geist-Bold',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  switchSub: {
+    fontSize: 11,
+    fontFamily: 'Geist-Regular',
+  },
+  timePickerContainer: {
+    marginTop: 8,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  timeBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  timeText: {
+    fontFamily: 'JetBrainsMono-Bold',
+    fontSize: 15,
     fontWeight: '700',
   },
   paletteRow: {

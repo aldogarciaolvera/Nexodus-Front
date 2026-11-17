@@ -48,7 +48,7 @@ export const FitScreen: React.FC<FitScreenProps> = ({ mode, initialTab }) => {
           >
             {/* Header posicionado idénticamente a Dashboard */}
             <Header 
-              title={isGym ? 'Gym & Rutinas' : 'Dieta & Macros'} 
+              title={isGym ? 'Mi Gym' : 'Mi Dieta'} 
               dots={{
                 total: 2,
                 active: isGym ? 0 : 1,

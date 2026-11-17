@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { AppState, AppStateStatus } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 import { 
   Routine, 
   WorkoutSessionDto, 
@@ -7,6 +8,40 @@ import {
   SetType, 
   gymService 
 } from '../services/gym.service';
+
+const STORE_KEY_WORKOUT_PERSIST = 'nexodus_workout_session_persist';
+
+interface PersistedWorkoutState {
+  sessionId?: string;
+  isActive: boolean;
+  isPaused: boolean;
+  elapsedSeconds: number;
+  workoutStartMs: number;
+  totalPausedMs: number;
+  pauseStartMs: number | null;
+  activeRoutineId?: string;
+}
+
+async function saveWorkoutStateToStorage(state: Partial<PersistedWorkoutState>) {
+  try {
+    if (!state.isActive) {
+      await SecureStore.deleteItemAsync(STORE_KEY_WORKOUT_PERSIST);
+    } else {
+      await SecureStore.setItemAsync(STORE_KEY_WORKOUT_PERSIST, JSON.stringify(state));
+    }
+  } catch {
+    // Ignore storage errors safely
+  }
+}
+
+async function loadWorkoutStateFromStorage(): Promise<PersistedWorkoutState | null> {
+  try {
+    const raw = await SecureStore.getItemAsync(STORE_KEY_WORKOUT_PERSIST);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
 
 export interface RestTimerState {
   isRunning: boolean;
@@ -158,13 +193,14 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
 
   initFromBackend: async () => {
     const { lastBackendSync, isActive } = get();
-    // Cache de 2 minutos para evitar consultas repetitivas al cambiar de vista
-    if (Date.now() - lastBackendSync < 120000 || isActive) {
+    // Cache de 2 minutos para evitar consultas repetitivas si ya está activo en memoria
+    if (Date.now() - lastBackendSync < 120000 && isActive) {
       return;
     }
     set({ lastBackendSync: Date.now() });
 
     try {
+      const localState = await loadWorkoutStateFromStorage();
       const activeSession = await gymService.getActiveWorkoutSession();
       if (activeSession && activeSession.isActive) {
         let routine: Routine | null = null;
@@ -176,12 +212,6 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
           }
         }
 
-        const nowMs = Date.now();
-        const durationSec = activeSession.durationSeconds || 0;
-        const startMs = activeSession.startTime ? new Date(activeSession.startTime).getTime() : nowMs;
-        const elapsed = durationSec > 0 ? durationSec : Math.max(0, Math.floor((nowMs - startMs) / 1000));
-        const effectiveStartMs = nowMs - elapsed * 1000;
-
         // Reconstruct completed sets mapping
         const completedMap: Record<string, number> = {};
         for (const s of activeSession.sets || []) {
@@ -190,21 +220,60 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
           }
         }
 
+        const nowMs = Date.now();
+        let isPaused = false;
+        let elapsed = 0;
+        let effectiveStartMs = nowMs;
+        let totalPausedMs = 0;
+        let pauseStartMs: number | null = null;
+
+        if (localState && localState.isActive && localState.sessionId === activeSession.id) {
+          // Restaurar exactamente el estado local persistido (duración congelada y si estaba pausado)
+          isPaused = localState.isPaused;
+          elapsed = localState.elapsedSeconds;
+          totalPausedMs = localState.totalPausedMs || 0;
+          pauseStartMs = localState.pauseStartMs || (isPaused ? nowMs : null);
+          effectiveStartMs = localState.workoutStartMs || (nowMs - elapsed * 1000);
+        } else {
+          // Sesión backend sin persistencia local previa
+          const durationSec = activeSession.durationSeconds || 0;
+          const startMs = activeSession.startTime ? new Date(activeSession.startTime).getTime() : nowMs;
+          const diffHours = (nowMs - startMs) / (1000 * 3600);
+
+          if (durationSec > 0) {
+            elapsed = durationSec;
+            isPaused = true;
+          } else if (diffHours > 4) {
+            // Si la sesión fue creada hace más de 4 horas sin registrar duración, pausar de inmediato con 0
+            elapsed = 0;
+            isPaused = true;
+          } else {
+            elapsed = Math.max(0, Math.floor((nowMs - startMs) / 1000));
+          }
+          effectiveStartMs = nowMs - elapsed * 1000;
+        }
+
         set({
           isActive: true,
-          isPaused: false,
+          isPaused,
           session: activeSession,
           activeRoutine: routine,
           elapsedSeconds: elapsed,
           currentExerciseIndex: 0,
           completedSets: completedMap,
           workoutStartMs: effectiveStartMs,
-          totalPausedMs: 0,
-          pauseStartMs: null,
+          totalPausedMs,
+          pauseStartMs,
           restEndTimeMs: 0,
         });
 
-        ensureTimerRunning();
+        if (!isPaused) {
+          ensureTimerRunning();
+        } else {
+          stopTimerIfIdle();
+        }
+      } else {
+        await saveWorkoutStateToStorage({ isActive: false });
       }
     } catch {
       // Backend unavailable or user offline
@@ -247,6 +316,17 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
         restEndTimeMs: 0,
       });
 
+      saveWorkoutStateToStorage({
+        sessionId: createdSession.id,
+        isActive: true,
+        isPaused: false,
+        elapsedSeconds: initialDuration,
+        workoutStartMs: effectiveStartMs,
+        totalPausedMs: 0,
+        pauseStartMs: null,
+        activeRoutineId: routine?.id,
+      });
+
       ensureTimerRunning();
       return createdSession;
     } catch (err) {
@@ -272,30 +352,53 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   },
 
   pauseWorkout: () => {
-    const { isPaused, isActive } = get();
+    const { isPaused, isActive, session, elapsedSeconds, workoutStartMs, totalPausedMs, activeRoutine } = get();
     if (!isActive || isPaused) return;
+    const now = Date.now();
     set({
       isPaused: true,
-      pauseStartMs: Date.now(),
+      pauseStartMs: now,
     });
     stopTimerIfIdle();
+    saveWorkoutStateToStorage({
+      sessionId: session?.id,
+      isActive: true,
+      isPaused: true,
+      elapsedSeconds,
+      workoutStartMs,
+      totalPausedMs,
+      pauseStartMs: now,
+      activeRoutineId: activeRoutine?.id,
+    });
   },
   
   resumeWorkout: () => {
-    const { isPaused, pauseStartMs, totalPausedMs, isActive } = get();
+    const { isPaused, pauseStartMs, totalPausedMs, isActive, session, elapsedSeconds, workoutStartMs, activeRoutine } = get();
     if (!isActive || !isPaused) return;
     const additionalPaused = pauseStartMs ? Math.max(0, Date.now() - pauseStartMs) : 0;
+    const newTotalPausedMs = totalPausedMs + additionalPaused;
     set({
       isPaused: false,
       pauseStartMs: null,
-      totalPausedMs: totalPausedMs + additionalPaused,
+      totalPausedMs: newTotalPausedMs,
     });
     ensureTimerRunning();
+    saveWorkoutStateToStorage({
+      sessionId: session?.id,
+      isActive: true,
+      isPaused: false,
+      elapsedSeconds,
+      workoutStartMs,
+      totalPausedMs: newTotalPausedMs,
+      pauseStartMs: null,
+      activeRoutineId: activeRoutine?.id,
+    });
   },
   
   endWorkout: () => {
     stopTimerInterval();
     wasAutoPausedByBackground = false;
+    saveWorkoutStateToStorage({ isActive: false });
     if (appStateSubscription) {
       appStateSubscription.remove();
       appStateSubscription = null;

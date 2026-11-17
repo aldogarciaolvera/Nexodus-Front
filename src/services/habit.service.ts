@@ -119,6 +119,38 @@ export interface HabitStatsDto {
   weeklyTrends: HabitWeeklyProgressDto[];
 }
 
+export const getLocalDateString = (d: Date = new Date()): string => {
+  const year = d.getFullYear();
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+export const getHabitTodayStatus = (
+  habit: HabitDto,
+  referenceDate?: string
+): { isCompleted: boolean; currentAmount: number; percentage: number; status: string } => {
+  const localToday = referenceDate || getLocalDateString();
+  if (habit.todayStatus && habit.todayStatus.date === localToday) {
+    return habit.todayStatus;
+  }
+  const cell = habit.recentHistory?.find((c) => c.date === localToday);
+  if (cell) {
+    return {
+      isCompleted: cell.status === 'Done',
+      currentAmount: cell.amount,
+      percentage: cell.percentage,
+      status: cell.status,
+    };
+  }
+  return {
+    isCompleted: false,
+    currentAmount: 0,
+    percentage: 0,
+    status: habit.habitType === 'Quit' ? 'Done' : 'Missed',
+  };
+};
+
 export const HabitService = {
   getAll: async (includeArchived: boolean = false, recentDays: number = 60): Promise<HabitDto[]> => {
     const res = await apiFetch(`/api/habits?includeArchived=${includeArchived}&recentDays=${recentDays}`);
@@ -154,9 +186,13 @@ export const HabitService = {
   },
 
   checkIn: async (id: string, data: HabitCheckInDto): Promise<HabitDto> => {
+    const payload: HabitCheckInDto = {
+      ...data,
+      date: data.date || getLocalDateString(),
+    };
     const res = await apiFetch(`/api/habits/${id}/check-in`, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
     return handleResponse(res);
   },
