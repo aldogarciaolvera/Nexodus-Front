@@ -30,9 +30,12 @@ export const IdeaDetailsModal = ({ visible, onClose, idea }: IdeaDetailsModalPro
   const [newItemText, setNewItemText] = useState('');
   const [localChecklist, setLocalChecklist] = useState<any[]>([]);
 
+  const sortChecklistPendingFirst = (items: any[]) =>
+    [...items].sort((a, b) => Number(Boolean(a.isCompleted)) - Number(Boolean(b.isCompleted)));
+
   useEffect(() => {
     if (idea) {
-      setLocalChecklist(idea.checklist || []);
+      setLocalChecklist(sortChecklistPendingFirst(idea.checklist || []));
     }
   }, [idea]);
 
@@ -52,8 +55,10 @@ export const IdeaDetailsModal = ({ visible, onClose, idea }: IdeaDetailsModalPro
   });
 
   const handleToggleItem = (itemId: string) => {
-    const updated = localChecklist.map(item => 
-      item.id === itemId ? { ...item, isCompleted: !item.isCompleted } : item
+    const updated = sortChecklistPendingFirst(
+      localChecklist.map(item => 
+        item.id === itemId ? { ...item, isCompleted: !item.isCompleted } : item
+      )
     );
     setLocalChecklist(updated);
     updateMutation.mutate(updated);
@@ -61,7 +66,10 @@ export const IdeaDetailsModal = ({ visible, onClose, idea }: IdeaDetailsModalPro
 
   const handleAddItem = () => {
     if (!newItemText.trim()) return;
-    const updated = [...localChecklist, { id: generateUUID(), text: newItemText.trim(), isCompleted: false }];
+    const updated = sortChecklistPendingFirst([
+      { id: generateUUID(), text: newItemText.trim(), isCompleted: false },
+      ...localChecklist,
+    ]);
     setLocalChecklist(updated);
     setNewItemText('');
     updateMutation.mutate(updated);
@@ -207,11 +215,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   checklistItem: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 12,
   },
   checkbox: {
     marginRight: 12,
+    marginTop: 2,
   },
   checklistText: {
     fontFamily: 'Geist_400Regular',

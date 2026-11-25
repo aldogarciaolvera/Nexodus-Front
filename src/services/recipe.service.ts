@@ -169,6 +169,8 @@ export interface MatchMacrosRequest {
   dietType: string;
   preferences?: string;
   maxPrepTimeMinutes?: number;
+  maxBudgetPerMeal?: number;
+  currency?: string;
 }
 
 export interface PantryCookRequest {

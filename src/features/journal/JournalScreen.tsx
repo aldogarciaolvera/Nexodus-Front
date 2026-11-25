@@ -106,7 +106,9 @@ export const JournalScreen: React.FC<JournalScreenProps> = ({ mode = 'idea' }) =
   };
 
   const { ideas, groupedJournal, sortedDates } = useMemo(() => {
-    const ideaList = notes.filter(n => n.type === 'idea');
+    const ideaList = notes
+      .filter(n => n.type === 'idea')
+      .sort((a, b) => Number(Boolean(a.isCompleted)) - Number(Boolean(b.isCompleted)));
     const journalEntries = notes.filter(n => n.type === 'diario');
 
     // Group journal entries by date string
@@ -193,7 +195,10 @@ export const JournalScreen: React.FC<JournalScreenProps> = ({ mode = 'idea' }) =
 
                     {idea.checklist && idea.checklist.length > 0 ? (
                       <View style={styles.checklistPreview}>
-                        {idea.checklist.slice(0, 3).map((item) => (
+                        {[...idea.checklist]
+                          .sort((a, b) => Number(Boolean(a.isCompleted)) - Number(Boolean(b.isCompleted)))
+                          .slice(0, 3)
+                          .map((item) => (
                           <View key={item.id} style={styles.checklistItem}>
                             {item.isCompleted ? (
                               <CheckCircle2 color={theme.colors.neonCyan} size={14} style={{ marginRight: 8 }} />
@@ -202,7 +207,7 @@ export const JournalScreen: React.FC<JournalScreenProps> = ({ mode = 'idea' }) =
                             )}
                             <Text
                               style={[styles.checklistText, item.isCompleted ? styles.checklistTextCompleted : null]}
-                              numberOfLines={1}
+                              numberOfLines={2}
                             >
                               {item.text}
                             </Text>

@@ -12,6 +12,24 @@ export interface DietTarget {
   isCalorieCyclingEnabled?: boolean;
   workoutDayCarbMultiplier?: number;
   restDayCarbMultiplier?: number;
+  foodBudgetAmount?: number | null;
+  foodBudgetPeriod?: 'Weekly' | 'Biweekly' | 'Monthly' | string;
+  foodBudgetCategoryId?: string | null;
+  foodBudgetCurrency?: string;
+}
+
+export interface FoodBudgetSummary {
+  budgetAmount?: number | null;
+  period: 'Weekly' | 'Biweekly' | 'Monthly' | string;
+  currency: string;
+  spentAmount: number;
+  remainingAmount: number;
+  percentageUsed: number;
+  suggestedPerMealBudget?: number | null;
+  linkedCategoryId?: string | null;
+  linkedCategoryName?: string | null;
+  periodStartDate: string;
+  periodEndDate: string;
 }
 
 export interface CalculateTargetRequest {
@@ -163,6 +181,12 @@ export const dietService = {
       method: 'PUT',
       body: JSON.stringify(target),
     });
+    return await handleResponse(response);
+  },
+
+  // 2b. Resumen de Presupuesto de Comidas (conectado a Finanzas)
+  getFoodBudgetSummary: async (): Promise<FoodBudgetSummary> => {
+    const response = await apiFetch('/api/diet/budget-summary');
     return await handleResponse(response);
   },
 

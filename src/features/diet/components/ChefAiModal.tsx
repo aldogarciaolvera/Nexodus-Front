@@ -22,12 +22,13 @@ import {
   Bookmark,
   RefreshCw,
 } from 'lucide-react-native';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
 import { useAlertStore } from '../../../store/alertStore';
 import { queryKeys } from '../../../services/queryKeys';
 import { recipeService, Recipe, MatchMacrosRequest, translateCookingState } from '../../../services/recipe.service';
+import { dietService } from '../../../services/diet.service';
 import { Skeleton } from '../../../components/Skeleton';
 
 interface ChefAiModalProps {
@@ -58,7 +59,21 @@ export const ChefAiModal: React.FC<ChefAiModalProps> = ({
   const [dietType, setDietType] = useState('HighProtein');
   const [maxTime, setMaxTime] = useState(25);
   const [preferences, setPreferences] = useState('');
+  const [maxBudgetText, setMaxBudgetText] = useState('');
   const [generatedRecipe, setGeneratedRecipe] = useState<Recipe | null>(null);
+
+  const { data: budgetSummary } = useQuery({
+    queryKey: ['diet', 'budgetSummary'],
+    queryFn: dietService.getFoodBudgetSummary,
+    enabled: visible,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  React.useEffect(() => {
+    if (visible && budgetSummary?.suggestedPerMealBudget && !maxBudgetText) {
+      setMaxBudgetText(String(Math.round(budgetSummary.suggestedPerMealBudget)));
+    }
+  }, [visible, budgetSummary?.suggestedPerMealBudget]);
 
   // Generate Recipe Mutation
   const generateMutation = useMutation({
@@ -95,6 +110,7 @@ export const ChefAiModal: React.FC<ChefAiModalProps> = ({
   });
 
   const handleGenerate = () => {
+    const parsedBudget = parseFloat(maxBudgetText.replace(',', '.'));
     generateMutation.mutate({
       remainingCalories: Math.max(150, remainingCals),
       remainingProtein: Math.max(15, remainingProtein),
@@ -104,6 +120,8 @@ export const ChefAiModal: React.FC<ChefAiModalProps> = ({
       dietType,
       preferences: preferences.trim() || undefined,
       maxPrepTimeMinutes: maxTime,
+      maxBudgetPerMeal: !isNaN(parsedBudget) && parsedBudget > 0 ? parsedBudget : undefined,
+      currency: budgetSummary?.currency || 'MXN',
     });
   };
 
@@ -280,6 +298,19 @@ export const ChefAiModal: React.FC<ChefAiModalProps> = ({
                   </TouchableOpacity>
                 ))}
               </View>
+
+              {/* Max Budget per Meal (Optional) */}
+              <Text style={styles.fieldLabel}>
+                PRESUPUESTO MÁXIMO POR COMIDA ({budgetSummary?.currency || 'MXN'}, OPCIONAL)
+              </Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Ej. 80 (evita ingredientes caros)"
+                placeholderTextColor={theme.colors.slate600}
+                keyboardType="numeric"
+                value={maxBudgetText}
+                onChangeText={setMaxBudgetText}
+              />
 
               {/* Preferences / Custom note */}
               <Text style={styles.fieldLabel}>PREFERENCIAS O INGREDIENTES A INCLUIR (OPCIONAL)</Text>

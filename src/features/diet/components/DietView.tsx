@@ -29,6 +29,7 @@ import { NexodusChefCard } from './NexodusChefCard';
 import { RecipeCatalogModal } from './RecipeCatalogModal';
 import { ChefAiModal } from './ChefAiModal';
 import { PantryModal } from './PantryModal';
+import { FoodBudgetCard } from './FoodBudgetCard';
 
 const getLocalDateString = (d: Date = new Date()): string => {
   const year = d.getFullYear();
@@ -318,6 +319,9 @@ export const DietView = () => {
         onOpenCatalog={() => setShowCatalogModal(true)}
         onOpenPantry={() => setShowPantryModal(true)}
       />
+
+      {/* 2b. Food Budget Card (Opción A: Sincronizado con Finanzas) */}
+      <FoodBudgetCard currentTarget={backendTarget ?? undefined} />
 
       {/* 3. Hydration Dedicated Card */}
       <HydrationCard

@@ -15,6 +15,7 @@ import { useAlertStore, AlertState } from '../../store/alertStore';
 import { queryKeys } from '../../services/queryKeys';
 import * as Updates from 'expo-updates';
 import { ProfileEditModal } from './components/ProfileEditModal';
+import { ObsidianTierCard } from './components/ObsidianTierCard';
 import { CustomTimePicker } from '../../components/CustomTimePicker';
 import { useEquipmentStore } from '../../store/equipmentStore';
 import { EquipmentModal } from '../gym/components/EquipmentModal';
@@ -207,6 +208,13 @@ export const SettingsScreen = () => {
             </Svg>
           </TouchableOpacity>
         </View>
+
+        {/* Nivel & Experiencia */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionHeaderText}>NIVEL & EXPERIENCIA</Text>
+        </View>
+
+        <ObsidianTierCard />
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionHeaderText}>PREFERENCIAS</Text>
@@ -466,7 +474,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   profileSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 20,
     backgroundColor: colors.surface,
     padding: 20,
     borderRadius: 16,

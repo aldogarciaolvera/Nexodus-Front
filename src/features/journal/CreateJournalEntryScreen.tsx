@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Keyboard, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTheme } from '../../utils/ThemeContext';
@@ -41,22 +41,43 @@ export const CreateJournalEntryScreen = () => {
   const [title, setTitle] = useState(editNote?.title || '');
   const [content, setContent] = useState(editNote?.content || '');
   
+  const scrollViewRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, (e) => setKeyboardHeight(e.endCoordinates.height));
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const sortChecklistPendingFirst = (items: ChecklistItem[]) =>
+    [...items].sort((a, b) => Number(Boolean(a.isCompleted)) - Number(Boolean(b.isCompleted)));
+
   const [checklist, setChecklist] = useState<ChecklistItem[]>(
     editNote?.checklist?.length 
-      ? editNote.checklist.map((item) => ({ ...item, id: item.id || generateUUID() }))
+      ? sortChecklistPendingFirst(editNote.checklist.map((item) => ({ ...item, id: item.id || generateUUID() })))
       : [{ id: generateUUID(), text: '', isCompleted: false }]
   );
 
   const handleAddChecklistItem = () => {
-    setChecklist([...checklist, { id: generateUUID(), text: '', isCompleted: false }]);
+    setChecklist(prev => sortChecklistPendingFirst([{ id: generateUUID(), text: '', isCompleted: false }, ...prev]));
   };
 
   const handleUpdateChecklistItem = (id: string, text: string) => {
-    setChecklist(checklist.map(item => item.id === id ? { ...item, text } : item));
+    setChecklist(prev => prev.map(item => item.id === id ? { ...item, text } : item));
   };
 
   const handleToggleChecklistItem = (id: string) => {
-    setChecklist(checklist.map(item => item.id === id ? { ...item, isCompleted: !item.isCompleted } : item));
+    setChecklist(prev =>
+      sortChecklistPendingFirst(
+        prev.map(item => item.id === id ? { ...item, isCompleted: !item.isCompleted } : item)
+      )
+    );
   };
 
   const saveMutation = useMutation({
@@ -132,7 +153,19 @@ export const CreateJournalEntryScreen = () => {
           <View style={{ width: 24 }} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingBottom: keyboardHeight > 0 ? keyboardHeight + 80 : 40,
+              justifyContent: 'flex-start',
+            },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={true}
+          keyboardDismissMode="on-drag"
+        >
           {entryType === 'idea' ? (
             <TextInput
               style={styles.titleInput}
@@ -159,6 +192,9 @@ export const CreateJournalEntryScreen = () => {
                     placeholder={`Elemento ${index + 1}...`}
                     placeholderTextColor={theme.colors.mutedText}
                     value={item.text}
+                    multiline
+                    textAlignVertical="top"
+                    scrollEnabled={false}
                     onChangeText={(text) => handleUpdateChecklistItem(item.id, text)}
                   />
                 </View>
@@ -269,16 +305,26 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   checklistItem: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.borderGlow,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   checkbox: {
     marginRight: 12,
+    marginTop: 2,
   },
   checklistInput: {
     flex: 1,
     fontFamily: 'Geist_400Regular',
-    fontSize: 16,
+    fontSize: 15,
+    lineHeight: 22,
     color: colors.text,
+    padding: 0,
+    minHeight: 24,
   },
   checklistInputCompleted: {
     textDecorationLine: 'line-through',
