@@ -1,3 +1,18 @@
+## [0.1.3] - 2026-11-25
+
+### Features
+
+- Mejoras Radicales
+- Modificacion de pantalla de habitos y horarios
+- implement HabitKit-style heatmap grid, habit cards, modals, and carousel integration in tasks
+- Mejoras y Series Corregido
+
+### Bug Fixes
+
+- Correxion de dependencias
+- Mejoras de modelo IA y pantallas
+- Comunicacion con Backend
+
 ## [0.1.2] - 2026-11-11
 
 ### Features
