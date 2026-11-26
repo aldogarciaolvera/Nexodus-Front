@@ -2,6 +2,12 @@ export const queryKeys = {
   todos: {
     all: ['todos'] as const,
   },
+  habits: {
+    all: ['habits'] as const,
+    detail: (id?: string) => ['habit', id] as const,
+    stats: (id?: string) => ['habitStats', id] as const,
+    history: (id?: string, days?: number) => ['habitHistory', id, days] as const,
+  },
   gym: {
     profile: ['profile'] as const,
     routines: ['routines'] as const,
@@ -36,5 +42,12 @@ export const queryKeys = {
     waterAll: ['dietWater'] as const,
     water: (date?: string) => ['dietWater', date] as const,
     fasting: ['dietFasting'] as const,
+    recipes: (filter?: any) => ['dietRecipes', filter] as const,
+    recipe: (id?: string) => ['dietRecipe', id] as const,
+    recipeVariants: (id?: string) => ['dietRecipeVariants', id] as const,
+    pantry: ['dietPantry'] as const,
+  },
+  gamification: {
+    status: ['gamificationStatus'] as const,
   },
 } as const;

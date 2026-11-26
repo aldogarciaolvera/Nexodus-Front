@@ -10,6 +10,7 @@ import { FinanceService } from '../../../services/finance.service';
 import { CategoryService } from '../../../services/category.service';
 import { Skeleton } from '../../../components/Skeleton';
 import { AppNavigationProp } from '../../../utils/navigation';
+import { useCarouselNavStore } from '../../../store/carouselNavStore';
 import { queryKeys } from '../../../services/queryKeys';
 
 export const FinanceCard = () => {
@@ -71,7 +72,7 @@ export const FinanceCard = () => {
     <TouchableOpacity 
       style={styles.card}
       activeOpacity={0.8}
-      onPress={() => navigation.navigate('Money')}
+      onPress={() => useCarouselNavStore.getState().navigateToTab('Money')}
     >
       <View>
         <View style={styles.header}>

@@ -33,5 +33,16 @@ export const AuthService = {
       body: JSON.stringify({ token, refreshToken }),
     });
     return handleResponse(response);
+  },
+  logout: async (refreshToken: string) => {
+    try {
+      const response = await apiFetch('/api/auth/logout', {
+        method: 'POST',
+        body: JSON.stringify({ refreshToken }),
+      });
+      return handleResponse(response);
+    } catch {
+      return null;
+    }
   }
 };

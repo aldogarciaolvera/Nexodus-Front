@@ -9,6 +9,27 @@ export interface DietTarget {
   fastingProtocol: string;
   eatingWindowStart?: string;
   eatingWindowEnd?: string;
+  isCalorieCyclingEnabled?: boolean;
+  workoutDayCarbMultiplier?: number;
+  restDayCarbMultiplier?: number;
+  foodBudgetAmount?: number | null;
+  foodBudgetPeriod?: 'Weekly' | 'Biweekly' | 'Monthly' | string;
+  foodBudgetCategoryId?: string | null;
+  foodBudgetCurrency?: string;
+}
+
+export interface FoodBudgetSummary {
+  budgetAmount?: number | null;
+  period: 'Weekly' | 'Biweekly' | 'Monthly' | string;
+  currency: string;
+  spentAmount: number;
+  remainingAmount: number;
+  percentageUsed: number;
+  suggestedPerMealBudget?: number | null;
+  linkedCategoryId?: string | null;
+  linkedCategoryName?: string | null;
+  periodStartDate: string;
+  periodEndDate: string;
 }
 
 export interface CalculateTargetRequest {
@@ -65,9 +86,51 @@ export interface DailySummary {
   consumedProtein?: number;
   consumedCarbs?: number;
   consumedFat?: number;
-  waterTargetMl?: number;
   consumedWaterMl?: number;
+  burnedCalories?: number;
+  netCalories?: number;
+  waterTargetMl?: number;
+  isWorkoutDay?: boolean;
+  dayType?: 'Workout' | 'Rest' | string;
+  targetCarbsAdjusted?: number;
+  targetCaloriesAdjusted?: number;
+  target?: DietTarget;
   meals: Meal[];
+}
+
+export interface FoodAnalysisItem {
+  foodName: string;
+  cookingState?: 'Raw' | 'Boiled' | 'Grilled' | 'Fried' | 'Baked' | 'Steamed' | string;
+  estimatedGrams: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
+export interface FoodAnalysisResult {
+  dishName: string;
+  totalCalories: number;
+  totalProtein: number;
+  totalCarbs: number;
+  totalFat: number;
+  confidence: number;
+  notes?: string;
+  items: FoodAnalysisItem[];
+}
+
+export interface AnalyzeFoodImageRequest {
+  base64Image: string;
+  mimeType?: string;
+  additionalContext?: string;
+  hint?: string;
+}
+
+export interface FoodCategory {
+  id: string;
+  name: string;
+  description?: string;
+  type?: string;
 }
 
 export interface Food {
@@ -75,14 +138,19 @@ export interface Food {
   name: string;
   brand?: string;
   barcode?: string;
+  categoryId?: string;
+  category?: string;
   servingSize: number;
   servingUnit: string;
   calories: number;
   protein: number;
   carbs: number;
   fat: number;
+  fiber?: number;
   sodiumMg?: number;
   potassiumMg?: number;
+  isCustom?: boolean;
+  createdAt?: string;
 }
 
 export interface FastingStatus {
@@ -113,6 +181,12 @@ export const dietService = {
       method: 'PUT',
       body: JSON.stringify(target),
     });
+    return await handleResponse(response);
+  },
+
+  // 2b. Resumen de Presupuesto de Comidas (conectado a Finanzas)
+  getFoodBudgetSummary: async (): Promise<FoodBudgetSummary> => {
+    const response = await apiFetch('/api/diet/budget-summary');
     return await handleResponse(response);
   },
 
@@ -196,10 +270,36 @@ export const dietService = {
     }
   },
 
+  // 9b. Obtener Categorías de Alimentos del Sistema
+  getFoodCategories: async (): Promise<FoodCategory[]> => {
+    try {
+      const response = await apiFetch('/api/diet/categories');
+      if (response.ok) {
+        return await handleResponse(response);
+      }
+      const fallbackRes = await apiFetch('/api/diet/foods/categories');
+      if (fallbackRes.ok) {
+        return await handleResponse(fallbackRes);
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
   // 10. Crear Alimento Personalizado
   createFood: async (food: Omit<Food, 'id'>): Promise<Food> => {
     const response = await apiFetch('/api/diet/foods', {
       method: 'POST',
+      body: JSON.stringify(food),
+    });
+    return await handleResponse(response);
+  },
+
+  // 10b. Actualizar Alimento Existente
+  updateFood: async (id: string, food: Partial<Food>): Promise<Food> => {
+    const response = await apiFetch(`/api/diet/foods/${id}`, {
+      method: 'PUT',
       body: JSON.stringify(food),
     });
     return await handleResponse(response);
@@ -258,6 +358,15 @@ export const dietService = {
   stopFasting: async (): Promise<FastingStatus> => {
     const response = await apiFetch('/api/diet/fasting/stop', {
       method: 'POST',
+    });
+    return await handleResponse(response);
+  },
+
+  // 17. Nexodus Lens (Análisis visual con Google Gemini Vision)
+  analyzeFoodImage: async (data: AnalyzeFoodImageRequest): Promise<FoodAnalysisResult> => {
+    const response = await apiFetch('/api/diet/lens/analyze', {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
     return await handleResponse(response);
   },

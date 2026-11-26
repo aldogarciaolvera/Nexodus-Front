@@ -8,6 +8,7 @@ import { Skeleton } from '../../../components/Skeleton';
 import { Lightbulb } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { AppNavigationProp } from '../../../utils/navigation';
+import { useCarouselNavStore } from '../../../store/carouselNavStore';
 import { queryKeys } from '../../../services/queryKeys';
 
 const EMPTY_NOTES: NoteDto[] = [];
@@ -33,7 +34,7 @@ export const IdeasCard = () => {
     <TouchableOpacity 
       style={styles.card} 
       activeOpacity={0.8}
-      onPress={() => navigation.navigate('Ideas')}
+      onPress={() => useCarouselNavStore.getState().navigateToTab('Ideas')}
     >
       <View style={styles.header}>
         <View style={styles.iconContainer}>

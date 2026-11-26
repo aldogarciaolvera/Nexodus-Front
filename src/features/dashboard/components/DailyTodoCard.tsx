@@ -11,6 +11,7 @@ import { isItemActiveForDate } from '../../../utils/todoHelpers';
 import { Skeleton } from '../../../components/Skeleton';
 import { TaskHabitItem } from '../../tasks/components/TaskHabitCard';
 import { AppNavigationProp } from '../../../utils/navigation';
+import { useCarouselNavStore } from '../../../store/carouselNavStore';
 import { queryKeys } from '../../../services/queryKeys';
 
 const EMPTY_TODOS: TodoDto[] = [];
@@ -71,7 +72,7 @@ export const DailyTodoCard = () => {
     <TouchableOpacity 
       style={styles.card}
       activeOpacity={0.8}
-      onPress={() => navigation.navigate('Tasks')}
+      onPress={() => useCarouselNavStore.getState().navigateToTab('Tasks')}
       accessibilityRole="button"
       accessibilityLabel={`Tarjeta de tareas de hoy: ${completedTasks} de ${totalTasks} completadas. Toca para ver todas.`}
     >

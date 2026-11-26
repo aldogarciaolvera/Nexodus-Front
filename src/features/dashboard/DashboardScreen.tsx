@@ -3,10 +3,11 @@ import { View, StyleSheet, ScrollView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Header } from '../../components/Header';
 import { DailyTodoCard } from './components/DailyTodoCard';
-import { WorkoutCard } from './components/WorkoutCard';
+import { HabitsCard } from './components/HabitsCard';
 import { DietCard } from './components/DietCard';
 import { FinanceCard } from './components/FinanceCard';
 import { IdeasCard } from './components/IdeasCard';
+import { WorkoutCard } from './components/WorkoutCard';
 import { useTheme } from '../../utils/ThemeContext';
 import { ThemeColors } from '../../utils/theme';
 
@@ -22,7 +23,8 @@ export const DashboardScreen = () => {
           showsVerticalScrollIndicator={false}
         >
           <Header />
-          
+
+          {/* Clean Dashboard Grid */}
           <View style={styles.grid}>
             <View style={styles.gridColumn}>
               <DailyTodoCard />
@@ -30,8 +32,9 @@ export const DashboardScreen = () => {
               <IdeasCard />
             </View>
             <View style={styles.gridColumn}>
-              <WorkoutCard />
+              <HabitsCard />
               <FinanceCard />
+              <WorkoutCard />
             </View>
           </View>
           

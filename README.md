@@ -36,6 +36,420 @@ La aplicación implementa un sistema de diseño propio caracterizado por:
 
 ## 🆕 Últimos Cambios
 
+- **Roadmap Integral (Notas/Ideas, IA Swap de Máquinas + Calentamiento/Cardio, Presupuesto de Comidas, Estiramientos y Cardio en Vivo + GPS):**
+  - **Notas e Ideas (`JournalScreen.tsx`, `IdeaDetailsModal.tsx`, `CreateJournalEntryScreen.tsx`):** Ordenamiento automático colocando pendientes arriba y completados al final (conservando tachado), más edición multilínea expansiva para ver ideas largas completas sin truncar en un renglón.
+  - **Rutinas IA — Descarte de Máquina Puntual, Calentamiento y Cardio (`RoutineAiModal.tsx`, `CreateRoutineScreen.tsx`, `equipmentStore.ts`, `gym.service.ts`):** Botón *"No tengo esta máquina • Cambiar por equivalente"* que excluye solo ese ejercicio/máquina (`excludedExerciseIds`) y solicita reemplazo puntual (`POST /api/routines/ai/swap-exercise`) sin perder la rutina. Se añadieron controles de tiempo/ejercicios específicos de calentamiento y cardio opcional.
+  - **Presupuesto de Comidas conectado a Finanzas (`FoodBudgetCard.tsx`, `DietView.tsx`, `ChefAiModal.tsx`, `diet.service.ts`):** Tarjeta de presupuesto configurable (Semanal, Quincenal o Mensual) sincronizada con gastos de Finanzas (`GET /api/diet/budget-summary`) e integrada con **Chef IA** para evitar ingredientes caros según el tope por comida.
+  - **Estiramientos y Movilidad (`StretchingView.tsx`, `StretchingIllustration.tsx`, `GymView.tsx`):** Sub-pestaña en Gym con plantillas pre-estructuradas de solo lectura listas para iniciar con temporizador guiado, opción de *"Copia editable"*, ilustraciones vectoriales Obsidian Cyan de respaldo y compatibilidad total con la entidad `Exercise`. No afecta la racha diaria de pesas.
+  - **Apartado Exclusivo de Cardio (`CardioView.tsx`, `cardio.service.ts`):** Sub-pestaña en Gym con entorno **Aire Libre / Gimnasio**, propuestas con IA por bloques (`POST /api/cardio/ai/generate`), selector de **estatus en vivo** (`Caminando`, `Trotando`, `Corriendo`, `Sprint`, `Descansando`) registrando segmentos de tiempo, y soporte dual **Tiempo + Estados** y **GPS en Vivo** (`expo-location`) para comparar ambos modos. Opcional y sin afectar la racha de pesas.
+
+- **Generador de Rutinas con IA (Nexodus Coach IA) e Identificador Manual vs. IA (`RoutineAiModal.tsx`, `CreateRoutineScreen.tsx`, `GymView.tsx`, `gym.service.ts`):**
+  - **Modal Asistente `RoutineAiModal`:** Nueva interfaz Obsidian Cyan que consume `POST /api/routines/ai/generate` para diseñar rutinas completas (ejercicios reales de la BD, series, repeticiones, descansos y orden biomecánico) según objetivo (*Hipertrofia*, *Fuerza*, *Resistencia*, *Mixto*), nivel de dificultad y duración estimada (`30m`, `45m`, `60m`, `75m`).
+  - **Contexto Inteligente:** Integra switches para respetar el perfil de equipamiento activo (`useEquipmentStore`) y considerar los músculos fatigados del mapa de recuperación (`getMuscleRecoveryStatus`).
+  - **Vista Previa y Aplicación Controlada:** Muestra tarjetas `Skeleton` durante la generación, previsualización con justificación técnica, opción de regenerar y confirmación con `GlobalAlert` para reemplazar o añadir ejercicios si ya existen en el formulario.
+  - **Identificador de Origen (`isAiGenerated`):** Las rutinas ahora distinguen visualmente entre `MANUAL` e `IA` tanto en el listado de `GymView` como en `CreateRoutineScreen`. Las rutinas creadas manualmente permiten usar el generador de IA al editarse, mientras que las rutinas ya generadas con IA bloquean nuevas regeneraciones con IA para incentivar crear una nueva rutina si el usuario busca otra propuesta.
+  - **Mejoras en `CreateRoutineScreen`:** Se añadió selector de nivel de dificultad y cumplimiento completo del patrón **Safe Keyboard** (`Keyboard.addListener` + auto-scroll al enfocar campos).
+
+- **Limpieza del Dashboard, Traslado de Racha a Gym y Nivel/XP a Configuración (`DashboardScreen.tsx`, `GymView.tsx`, `SettingsScreen.tsx`, `StreakCard.tsx`, `ObsidianTierCard.tsx`):**
+  - **Reorganización y Limpieza del Dashboard (`DashboardScreen.tsx`):**
+    - Se movió la tarjeta de Hábitos (`HabitsCard`) a la parte superior de la segunda columna, situándola arriba en lugar de la tarjeta de ejercicios (`WorkoutCard`), la cual pasó a la parte inferior.
+    - Se retiraron del Dashboard los banners superiores (`ObsidianTierCard` y `StreakCard`), permitiendo que el grid de tarjetas (`DailyTodoCard`, `DietCard`, `IdeasCard`, `HabitsCard`, `FinanceCard`, `WorkoutCard`) aparezca de forma directa e inmediata debajo del encabezado, logrando una interfaz limpia y minimalista.
+  - **Traslado de la Racha a la Pantalla de Gym (`GymView.tsx`, `StreakCard.tsx`, `StreakRestoreModal.tsx`):**
+    - Se reubicó la tarjeta de racha (`StreakCard`) en la pantalla de entrenamiento de gimnasio (`GymView.tsx`), que es la actividad con la que opera la racha de gamificación.
+    - Se sustituyó la antigua fila básica por la tarjeta completa de protocolo: conteo de días de racha, récord histórico, estado diario (Cumplido, En Gracia, Descanso, Pendiente), escudos de protección, cápsulas semanales de progreso (L-D) y el modal para restaurar racha con escudos o cyphers (`StreakRestoreModal`).
+  - **Traslado de XP Ganados y Barra de Nivel a Configuración (`SettingsScreen.tsx`, `ObsidianTierCard.tsx`):**
+    - Se integró la nueva sección `"NIVEL & EXPERIENCIA"` en la pantalla de Configuración (`SettingsScreen.tsx`), ubicada estratégicamente debajo de la tarjeta de perfil del usuario.
+    - Muestra la tarjeta del Protocolo Nexodus con el rango actual (`RANGO INITIATE`, `VANGUARD`, etc.), saldo de Cyphers (`⬡`), total de XP ganados (`NXP GANADOS`), requisitos para el siguiente nivel y la barra de progreso del rango.
+
+- **Sincronización de Cambio de Día Local (Medianoche 00:00) y Sugerencias Rápidas sin Iconos (`habit.service.ts`, `CreateHabitModal.tsx`, `HabitCard.tsx`, `HabitsView.tsx`, `HabitsCard.tsx`, `HabitHeatmapGrid.tsx`):**
+  - **Resolución de Zona Horaria y Rollover a Medianoche (`getLocalDateString`, `getHabitTodayStatus`):**
+    - Se identificó la causa por la cual los hábitos no cambiaban al siguiente día tras la medianoche: el backend operaba con marcas de tiempo en UTC (`DateTime.UtcNow`). En la zona horaria del usuario (UTC-6, México/Centro), el servidor pasaba de fecha a las **6:00 PM (18:00 hrs)** en lugar de la medianoche local. Por ello, cualquier check-in o prueba realizada en la noche quedaba registrada con la fecha del día siguiente en UTC, causando que al llegar las 12:00 AM ya figurara como completada en ese mismo día.
+    - Se implementaron las funciones utilitarias `getLocalDateString` y `getHabitTodayStatus` en `habit.service.ts`:
+      - Todo registro táctil (`checkIn`) envía explícitamente la fecha local del dispositivo (`YYYY-MM-DD`).
+      - La determinación del estado de "Hoy" y los totales completados en `HabitsView`, `HabitCard` y el Dashboard (`HabitsCard`) evalúan la fecha local del cliente.
+      - La cuadrícula `HabitHeatmapGrid` resalta el azulejo del día actual según el calendario local.
+      - El cambio de día ocurre exactamente a las **00:00:00 (12:00 AM medianoche hora local)** sin depender del meridiano de Greenwich.
+  - **Sugerencias Rápidas Limpias en Modal de Creación (`CreateHabitModal.tsx`):**
+    - Se retiraron todos los emojis e iconos de las sugerencias rápidas (`💧`, `🏋️‍♂️`, `📖`, `🚭`, `🍬`, `🍔`), dejando exclusivamente texto limpio (*"2.5L Agua"*, *"Ir al Gym"*, *"Leer 20 pág"*, *"No Fumar"*, *"Cero Azúcar"*, *"Cero Chatarra"*).
+
+- **Separación Arquitectural Estricta de Tareas y Hábitos, Rediseño de Modales Flotantes y Persistencia de Entrenamiento (`HabitsView.tsx`, `CreateHabitModal.tsx`, `HabitCard.tsx`, `TasksScreen.tsx`, `CreateTaskModal.tsx`, `ProgressTelemetry.tsx`, `workoutStore.ts`):**
+  - **Persistencia de Pausa de Entrenamiento sin Desbordamiento Temporal (`workoutStore.ts`):**
+    - Se solucionó la anomalía donde el cronómetro de rutina mostraba tiempos desorbitados (ej. `1357:29`) y estado *"Rutina en progreso"* tras pausar y minimizar o salir de la aplicación.
+    - Se implementó persistencia en `SecureStore` para el estado exacto de entrenamiento (`isPaused`, `elapsedSeconds`, `workoutStartMs`, `totalPausedMs`). Al reabrir la app o montar `GymView`, `initFromBackend` restaura con prioridad el estado local congelado, asegurando que las rutinas pausadas permanezcan congeladas y no se reanuden de forma espuria.
+  - **Mejoras y Experiencia Visual en Hábitos (`HabitsView.tsx`, `HabitCard.tsx`):**
+    - **Eliminación de Filtros Innecesarios:** Se removieron los chips de filtrado superior (`TODOS`, `CONSTRUIR`, `ROMPER VICIOS`, etc.) para mostrar la lista completa y limpia de hábitos.
+    - **Corrección de Desplazamiento y Visibilidad:** Se incorporó un espaciador inferior (`height: 120`) garantizando que el último hábito de la lista ("Meditar") nunca sea recortado ni ocultado por la barra de navegación flotante inferior.
+    - **Botón de Decremento (`-`):** Se añadió un botón para restar cantidad o desmarcar el avance (`Minus` icon) en las tarjetas de hábito, permitiendo corregir errores de registro o avances parciales sin necesidad de reiniciar el día.
+    - **FAB Circular Unificado:** Se retiró el botón comprimido `+ HÁBITO` de la tarjeta de telemetría y se integró el botón de acción flotante circular (`+`) en la esquina inferior derecha (`bottom: 100, right: 20`), idéntico al estándar visual del resto de pantallas de la app.
+  - **Rediseño del Modal de Creación de Hábitos (`CreateHabitModal.tsx`):**
+    - **Modal Flotante Centrado:** Se rediseñó el componente a un modal flotante centrado con fondo translúcido (`rgba(13, 14, 17, 0.85)`), bordes sutiles y radio de 24px, matching el diseño de `CreateTaskModal`.
+    - **Selector de Tipo de Hábito Limpio:** Se retiraron los emojis y glifos (`✨`, `🛡️`), dejando exclusivamente texto limpio y legible: *"Construir Hábito"* y *"Romper Vicio"*.
+    - **Cumplimiento Estricto de la Regla de Teclado:** Se implementó compensación de teclado con `Keyboard.addListener`, `handleFocusField(yOffset)` con `setTimeout` de 120ms para auto-scroll dinámico del campo enfocado (nombre, meta diaria, unidad, etc.) y expansión de padding inferior, impidiendo que el teclado tape los inputs numéricos.
+    - **Recordatorios y Notificaciones para Hábitos:** Se añadió la sección de activación de notificaciones con switch y selector de hora (`CustomTimePicker`), programando alertas locales con `expo-notifications` (diarias o en días específicos de la semana seleccionados).
+  - **Depuración y Enfoque Exclusivo de Tareas (`TasksScreen.tsx`, `CreateTaskModal.tsx`, `ProgressTelemetry.tsx`):**
+    - **Eliminación de Filtros Temporales en Tareas:** Se eliminaron los botones de filtrado de "Hoy", "Mañana", etc., ya que esta vista ahora maneja exclusivamente tareas pendientes.
+    - **Filtrado Estricto de Tareas:** Se filtró la lista de elementos para excluir cualquier hábito (`!t.isHabit`) y se removieron los íconos de racha (`🔥`) de las tarjetas de tareas.
+    - **Telemetría Balanceada en 3 Columnas (`ProgressTelemetry.tsx`):** Se removió el contador de hábitos de la telemetría superior, redistribuyendo de forma armónica 3 columnas simétricas: `COMPLETOS`, `PENDIENTES` y `URGENTES`.
+    - **Modal de Tareas Puro (`CreateTaskModal.tsx`):** Se eliminó el selector Tarea / Hábito, estableciendo el modal puramente para *"Nueva Tarea"* / *"Editar Tarea"*, conservando la opción de repetición programada y recordatorios sin alterar la entidad de hábitos.
+
+- **Tarjeta de Hábitos Diarios en el Dashboard Principal (`HabitsCard.tsx`, `DashboardScreen.tsx`):**
+  - **Nueva Tarjeta de Resumen (`HabitsCard.tsx`):**
+    - Se diseñó e implementó el componente `HabitsCard` en `src/features/dashboard/components/HabitsCard.tsx`, siguiendo rigurosamente las pautas de diseño **Obsidian Cyan** (bordes estructurales de 1px en `#222836`, superficie `#14171F`, acentos en `#00F0FF`/`#38BDF8` y tipografías Geist/JetBrains Mono).
+    - Muestra métricas clave en tiempo real: total de hábitos, hábitos completados en el día (`todayStatus.isCompleted`), indicador de racha activa (`🔥 streak`) y un medidor circular SVG con porcentaje dinámico de cumplimiento.
+    - Presenta un desglose de hasta 3 hábitos priorizados (pendientes primero, seguidos de completados tachados sutilmente y con su racha actual).
+    - Incorpora estados de carga deterministas con `Skeleton` para evitar saltos visuales durante la sincronización de datos con `HabitService.getAll`.
+  - **Integración y Balance del Grid en el Dashboard (`DashboardScreen.tsx`):**
+    - Se integró `HabitsCard` en la columna derecha del grid principal, equilibrando armónicamente la pantalla (Columna Izquierda: Tareas, Dieta e Ideas; Columna Derecha: Rutina Gym, Finanzas y Hábitos).
+    - Al presionar la tarjeta, redirige fluidamente a la pestaña de Hábitos del carrusel mediante `useCarouselNavStore.getState().navigateToTab('Tasks', 'habits')`.
+
+- **Corrección de Aislamiento y Mapeo de Series por Ejercicio en Entrenamiento Activo (`ActiveWorkoutScreen.tsx`, `WorkoutSessionService.cs`):**
+  - **Causa Raíz Identificada:**
+    - En el backend (`WorkoutSessionService.cs`), al iniciar una sesión de entrenamiento (`StartSessionAsync`), las series pre-cargadas de la rutina se numeraban con un acumulador global (`int globalOrder = 1; SetOrder = globalOrder++`) a través de todos los ejercicios (ej. Ejercicio 1 con órdenes 1..3, Ejercicio 2 con órdenes 4..6, Ejercicio 3 con órdenes 7..9).
+    - En el frontend (`ActiveWorkoutScreen.tsx`), la lógica calculaba `maxOrder` usando el `s.setOrder` más alto de las series (`Math.max(..., sessionSets.map(s => s.setOrder))`) y luego iteraba de `1` a `maxOrder` buscando `sessionSets.find(s => s.setOrder === i)`.
+    - Al pasar al Ejercicio 2 (`setOrder` 4, 5, 6), `maxOrder` resultaba en 6 y, al no encontrar series con orden 1, 2 y 3, generaba 3 series fantasma vacías sumadas a las 3 reales (total 6 series). En el Ejercicio 3 (`setOrder` 7, 8, 9), generaba 6 series fantasma más las 3 reales (total 9 series).
+  - **Solución Implementada:**
+    - **Frontend Resiliente y Determinista (`ActiveWorkoutScreen.tsx`):** Se rediseñó el cómputo `currentExerciseSets` para filtrar exclusivamente las series correspondientes al `exerciseId` actual, ordenarlas por `setOrder` y mapearlas por índice de posición relativa (`sessionSets[i]`). Se eliminó la dependencia de órdenes absolutos globales y se asignó un `setOrder` relativo (1, 2, 3...) por ejercicio. Esto resuelve tanto las sesiones nuevas como cualquier sesión activa preexistente en la base de datos.
+    - **Estabilización de Componentes (`SetRowItem`):** Se actualizó la clave de renderizado React a un identificador estable `${exerciseId}_set_${idx + 1}`, garantizando que las filas no se desmonten ni pierdan el foco del teclado al guardar o completar una serie.
+    - **Backend (`WorkoutSessionService.cs`):** Se corrigió la inicialización en `StartSessionAsync` para asignar `SetOrder = s` (1..`re.Sets`) por cada ejercicio en lugar de incrementar un orden global a nivel de sesión.
+
+- **Pausa y Reanudación Automática y Manual de Rutinas de Entrenamiento (`workoutStore.ts`, `ActiveWorkoutScreen.tsx`, `GymView.tsx`, `WorkoutCard.tsx`):**
+  - **Pausa Automática al Salir de la App / Segundo Plano:**
+    - Se incorporó soporte bidireccional en el listener global de ciclo de vida (`AppState.addEventListener`) dentro del store de entrenamiento (`workoutStore.ts`).
+    - Al enviar la aplicación a segundo plano o minimizarla (`background` / `inactive`), si una sesión de entrenamiento está en marcha y no estaba pausada manualmente, el temporizador se pausa de forma automática y transparente registrando la marca de tiempo de suspensión (`pauseStartMs`).
+    - Al regresar a la aplicación (`active`), si la sesión fue suspendida por el paso a segundo plano (`wasAutoPausedByBackground`), se reanuda de inmediato acumulando los milisegundos en pausa en `totalPausedMs`, evitando cualquier desfase temporal.
+  - **Pausa y Salida Controlada ("Pausar y Salir" y Hardware Back en Android):**
+    - Se corrigió el bug de auto-reanudación inmediata en `ActiveWorkoutScreen.tsx` donde un efecto dependiente de `[isPaused]` volvía a iniciar la sesión inmediatamente tras pausar.
+    - Se configuró la acción *"Pausar y Salir"* del modal de salida (`ExitWorkoutModal`) para invocar `pauseWorkout()` y retornar a la vista principal del gimnasio manteniendo el estado de pausa.
+    - Se integró el interceptor de botón físico y gestos de retroceso en Android (`BackHandler.addEventListener('hardwareBackPress')`) para abrir el modal de salida y pausar el cronómetro de forma segura en lugar de desmontar la pantalla abruptamente.
+  - **Indicadores Visuales de Estado en Pausa en Toda la App:**
+    - En `GymView.tsx`: la tarjeta de sesión activa muestra la duración congelada con la etiqueta identificadora `${duracion} (PAUSA)` y el subtítulo *"Rutina en pausa"*. Al presionar *"Continuar Rutina"*, se llama a `resumeWorkout()` y se transiciona de nuevo a la sesión activa.
+    - En `WorkoutCard.tsx` (Dashboard principal): la tarjeta del dashboard ahora detecta `isPaused` mostrando *"Entrenamiento en Pausa"* y *"En Pausa: {nombreRutina}"* con retroalimentación precisa del estado de la sesión.
+
+- **Normalización Integral de Excepciones de Red y Servidor (`api.ts`, `LoginScreen.tsx`, `RegisterScreen.tsx`, `SettingsScreen.tsx`):**
+  - **Erradicación de Stack Traces y Excepciones Nativas (`java.net.ConnectException`, `faildFetch`, `TypeError`):**
+    - Se implementó la función centralizada `normalizeErrorMessage` en el cliente HTTP del núcleo (`api.ts`), interceptando todos los errores de bajo nivel en las peticiones de red de la aplicación.
+    - Captura y traduce de forma elegante fallos de host inalcanzable, errores de DNS, sockets de Java en Android (`ConnectException`, `SocketTimeoutException`), timeouts abortados y respuestas de error HTML de servidores web (502, 503, 504, ASP.NET stack traces) a mensajes en español claros, amigables y orientados al usuario.
+  - **Alineación con la Regla de Alertas Globales (`GlobalAlert`):**
+    - Se integró `useAlertStore.getState().showAlert(...)` en los flujos de autenticación (`LoginScreen` y `RegisterScreen`), reemplazando mensajes crudos de sistema por notificaciones consistentes con la estética Obsidian Cyan ante problemas de conexión o credenciales inválidas.
+
+- **Enfoque Automático, Compensación Dinámica de Teclado y Flujo Natural de Versión en Pantallas de Autenticación (`RegisterScreen.tsx`, `LoginScreen.tsx`):**
+  - **Eliminación de Empalme del Texto de Versión (`versionText`):**
+    - Se corrigió el empalme de la versión (`v0.0.10`) que flotaba de manera fija con `position: 'absolute'` sobre el enlace de *"¿Ya tienes cuenta? Inicia Sesión"* / *"¿No tienes cuenta? Regístrate"*.
+    - Se reubicó el componente dentro del flujo natural del `ScrollView` al final del formulario con `marginTop: 24`, garantizando que nunca se sobreponga a ningún texto ni entrada interactiva en pantallas de cualquier tamaño o durante el desplazamiento.
+  - **Eliminación de Obscurecimiento en Campos de Contraseña:**
+    - Se solucionó la incidencia en la pantalla de registro donde el teclado cubría el campo de contraseña ("Crea una contraseña" y "Confirma tu contraseña") impidiendo visualizar lo que se escribía.
+    - Se integraron listeners reactivos de `Keyboard.addListener` (`keyboardWillShow`/`keyboardDidShow` y `keyboardWillHide`/`keyboardDidHide`) para capturar la altura exacta del teclado en tiempo real y expandir dinámicamente el `paddingBottom` del `ScrollView` (`keyboardHeight + 80px`).
+    - Se añadió auto-desplazamiento suave (`scrollTo`) sincronizado con el evento `onFocus` de cada entrada de texto, posicionando automáticamente el campo enfocado en la mitad superior de la vista libre de teclado.
+    - Se habilitó `automaticallyAdjustKeyboardInsets={true}` y `keyboardDismissMode="on-drag"`, garantizando una experiencia fluida y consistente tanto en iOS como en Android Edge-to-Edge.
+
+- **Estabilización de Cronómetros de Rutina y Descanso a Tiempo Real sin Deriva (`workoutStore.ts`, `ActiveWorkoutScreen.tsx`, `RestTimerOverlay.tsx`, `GymView.tsx`):**
+  - **Erradicación del Avance Rápido (2 segundos por segundo):**
+    - Se identificó la causa raíz por la cual tanto el cronómetro de la sesión activa como el temporizador de descanso avanzaban a doble velocidad ("de 2 en 2 segundos"): el cronometraje dependía de llamadas locales a `setInterval` dentro de múltiples componentes UI con incrementos relativos (`elapsedSeconds + 1` y `remainingSeconds - 1`), los cuales se duplicaban ante montajes concurrentes, navegación apilada o re-renderizados frecuentes.
+    - Se sustituyó el modelo de ticks acumulativos por un sistema de **cálculo de reloj de pared (Wall-Clock / Timestamp-based Timing)**:
+      - Para la sesión: se registran marcas de tiempo absolutas (`workoutStartMs`, `totalPausedMs`, `pauseStartMs`). El tiempo transcurrido se calcula de forma puramente determinista como `Math.floor((Date.now() - workoutStartMs - totalPausedMs) / 1000)`.
+      - Para el descanso: se almacena la marca de finalización exacta (`restEndTimeMs`). El tiempo restante se calcula como `Math.ceil((restEndTimeMs - Date.now()) / 1000)`.
+      - Esta formulación matemática garantiza que, incluso ante múltiples ticks, re-renders o saltos de pantalla, el tiempo mostrado coincida con exactitud milimétrica con el reloj real y sea físicamente imposible avanzar más rápido de 1 segundo por segundo.
+  - **Singleton Global de Temporización y Resiliencia en Segundo Plano:**
+    - Se centralizó el bucle de temporización en un singleton a nivel de módulo en `workoutStore.ts`, desmantelando los intervalos duplicados en `ActiveWorkoutScreen.tsx` y `RestTimerOverlay.tsx`.
+    - Se incorporó soporte para `AppState`: al regresar a la aplicación desde el segundo plano o tras suspender la pantalla del dispositivo, los cronómetros se sincronizan inmediatamente con el tiempo transcurrido en el reloj del sistema sin perder segundos ni congelarse.
+  - **Aislamiento de Rendimiento en Pantallas y Vistas:**
+    - Se desacopló la suscripción a `elapsedSeconds` de los componentes contenedores principales (`ActiveWorkoutScreen` y `GymView`), delegando la reactividad segundo a segundo exclusivamente a subcomponentes memoizados (`WorkoutTimer` y `SessionDurationText`).
+    - Esto previene 60 re-renderizados innecesarios por minuto del árbol completo de ejercicios, tablas de series y métricas en ambas vistas.
+
+- **Corrección de Resolución de Dependencias en Metro Bundler con `pnpm` (`.npmrc`, `metro.config.js`, `node_modules`):**
+  - Se resolvió el fallo de bundling en Android (`Unable to resolve "expo" from "index.ts"`).
+  - La causa raíz era la estructura de enlaces simbólicos aislados (`node_modules/.pnpm`) que genera `pnpm` por defecto, los cuales el resolver de Metro en Windows no recorre adecuadamente.
+  - Se fijó formalmente `node-linker=hoisted` en la configuración del proyecto y se reinstalaron las dependencias, aplanando `node_modules/expo` como directorio nativo directo sin junctions.
+  - Se añadió [`metro.config.js`](./metro.config.js) con la configuración oficial `getDefaultConfig(__dirname)` para garantizar la compatibilidad total entre Expo SDK 58 y Metro.
+
+- **Filtros por Categoría, Traducción de Cocción al Español, Formato Numérico de Calorías y Estabilización de Gemini (`FoodSearchModal.tsx`, `RecipeCatalogModal.tsx`, `ChefAiModal.tsx`, `PantryModal.tsx`, `NexodusLensModal.tsx`, `NexodusChefCard.tsx`, `DietView.tsx`, `api.ts`, `RecipeAiService.cs`, `GeminiVisionService.cs`):**
+  - **Filtros por Categoría en Búsqueda y Adición de Alimentos (`FoodSearchModal.tsx`):**
+    - Se incorporó una barra horizontal de chips desplazable con geometría de cápsula Obsidian Cyan (`Todos`, `Mis Alimentos`, `Recetas y Platos`, `Carnes`, `Pescados`, `Verduras`, `Frutas`, `Lácteos y Huevos`, `Cereales y Granos`, `Legumbres`, `Grasas y Aceites`, `Suplementos`, `Snacks`, `Bebidas`).
+    - Permite filtrar reactivamente el catálogo en memoria combinando el filtro de categoría con la búsqueda por texto a 60 FPS, con actualización en tiempo real de los contadores y mensajes de estado vacío adaptados.
+  - **Traducción Integral de Estados de Cocción al Español (`recipe.service.ts`, `RecipeCatalogModal.tsx`, `ChefAiModal.tsx`, `PantryModal.tsx`, `NexodusLensModal.tsx`, `RecipeService.cs`, `RecipeAiService.cs`):**
+    - Se creó la función unificada `translateCookingState` que traduce de forma determinista términos en inglés como `Liquid` -> `Líquido`, `Grilled` -> `A la plancha`, `Boiled` -> `Hervido`, `Fried` -> `Frito`, `Baked` -> `Horneado`, `Steamed` -> `Al vapor`, `Raw` -> `Crudo`, `Sauteed` -> `Salteado`, `AirFried` -> `En freidora de aire`, etc.
+    - Se aplicó en la vista detallada de ingredientes de todas las recetas (catálogo, chef IA, despensa y lens) y en el backend tanto en las instrucciones del prompt como en la generación de nombres descriptivos para el registro de comidas.
+  - **Limpieza Decimal en el Hub de Dieta (`NexodusChefCard.tsx`, `DietView.tsx`):**
+    - Se eliminó el ruido de punto flotante (`154.599999999999 kcal`) limitando el cálculo de calorías y macronutrientes restantes a un máximo de 2 decimales limpios mediante formateo controlado en la tarjeta principal de Nexodus Chef y en el cálculo diario de macronutrientes.
+  - **Uso Exclusivo de Gemini 3.5 Flash Lite y Protección contra Cancelación de Fetch (`RecipeAiService.cs`, `GeminiVisionService.cs`, `api.ts`):**
+    - Se removió `gemini-3.8-flash` de los candidatos del backend y se fijó `gemini-3.5-flash-lite` como modelo primario por defecto tanto para la generación de recetas como para el análisis visual multimodal de Nexodus Lens.
+    - En el cliente de red (`api.ts`), se amplió el tiempo de espera (timeout) a 60 segundos específicamente para los endpoints de inteligencia artificial (`/api/recipes/ai/`, `/api/diet/vision`), evitando cancelaciones o errores de aborto de fetch en peticiones que requieran procesamiento generativo intensivo.
+
+- **Auto-incorporación de Alimentos e Ingredientes de Recetas Completadas a la BD de Alimentos (`RecipeService.cs`, `RecipeCatalogModal.tsx`, `ChefAiModal.tsx`, `PantryModal.tsx`):**
+  - **Auto-registro de Ingredientes en el Catálogo de Alimentos (`RecipeService.cs`):**
+    - Al completar o registrar cualquier receta en el diario de comidas (`POST /api/recipes/log`), el servicio de backend examina automáticamente cada ingrediente de la receta frente a la base de datos de alimentos (`Foods`).
+    - Si el alimento no existe en el catálogo personalizado del usuario ni en el catálogo público (por ejemplo, ingredientes de recetas generadas por Chef IA o recetas personalizadas), se calcula su porción y macros estándar (normalizados a 100g/ml o su unidad de medida) y se registra automáticamente como nuevo alimento personalizado (`IsCustom = true, UserId = userId, Category = "Ingredientes de Recetas"`).
+    - El registro de la comida (`MealItem.FoodId`) y la receta se enlazan directamente con el identificador del alimento recién creado.
+  - **Auto-registro del Plato Preparado Completo (`RecipeService.cs`):**
+    - Se registra además el plato preparado completo como alimento en la base de datos (`Category = "Platos Preparados"`, 1 porción) con las calorías y macronutrientes por porción de la receta, permitiendo al usuario buscar directamente la receta por su nombre al registrar cualquier otra comida futura.
+  - **Invalidación Reactiva y Disponibilidad Instantánea en Frontend (`RecipeCatalogModal.tsx`, `ChefAiModal.tsx`, `PantryModal.tsx`):**
+    - Tras registrar una receta en el diario, se invalida la clave de consulta de alimentos `queryKeys.diet.foods` (`['dietFoods']`), provocando que el modal de búsqueda de alimentos (`FoodSearchModal.tsx`) actualice su catálogo instantáneamente sin requerir recargas ni reiniciar la sesión.
+
+- **Eliminación de Ciclo de Dependencias / Require Cycle (`authStore.ts`, `auth.service.ts`, `api.ts`):**
+  - Se desacopló la importación de `AuthService` dentro de `authStore.ts`, ejecutando la revocación segura de tokens en `/api/auth/logout` directamente mediante `fetch` nativo con la URL obtenida de `get().getApiUrl()`.
+  - Esto erradicó el ciclo circular `api.ts -> authStore.ts -> auth.service.ts -> api.ts`, convirtiendo el grafo de dependencias en un DAG estrictamente unidireccional y eliminando cualquier riesgo de valores no inicializados en tiempo de ejecución.
+
+- **Verificación Integral de Contratos de API Frontend-Backend y Resiliencia en Registro de Series (`WorkoutSessionService.cs`, `ActiveWorkoutScreen.tsx`, `authStore.ts`, `auth.service.ts`):**
+  - **Auditoría Completa de Endpoints Frontend vs Backend:**
+    - Se comprobó la totalidad de las 14 familias de endpoints de `Nexodus-Back` (Auth, User, Categories, Finances, TodoList, Gamification, Notes, Diet, Pantry, Recipes, Exercises, Routines, Gym Sessions, Workouts) contra los servicios cliente en `Nexodus-Front`.
+  - **Mecanismo Robusto de Upsert en Registro de Series (`WorkoutSessionService.cs`):**
+    - Se corrigió el flujo de `LogSetAsync`: si la serie se identifica por `SetId` o por la combinación `(ExerciseId, SetOrder)` dentro de la sesión activa, se actualiza el registro existente en lugar de arrojar `NotFoundException` o intentar insertar un duplicado en la base de datos.
+    - Esto resuelve permanentemente los errores al alternar el tipo de serie (N, W, D, F, T) o marcar series como completadas en el HUD en vivo.
+  - **Fusión Dinámica de Series Plantilla y Series Guardadas (`ActiveWorkoutScreen.tsx`):**
+    - Se adaptó el cálculo de `currentExerciseSets` para combinar las series ya persistidas en base de datos con las series restantes definidas en la plantilla de la rutina. Esto evita que las series no completadas desaparezcan de la pantalla al guardar la primera serie.
+    - Se estabilizó la `key` de renderizado en `SetRowItem` (`${exerciseId}_${setOrder}`), previniendo desmontajes y pérdidas de foco en inputs de peso y repeticiones.
+  - **Revocación de Sesión en Backend al Cerrar Sesión (`authStore.ts`, `auth.service.ts`):**
+    - Se conectó el método `logout` de `useAuthStore` con el endpoint `/api/auth/logout` del backend, revocando inmediatamente el refresh token en el servidor además de limpiar el almacenamiento seguro local.
+
+- **Auditoría Integral y Optimización Global con Skills (`global-rules`, `accessibility`, `security-audit`, `building-native-ui`):**
+  - **Cumplimiento Estricto de Regla de Teclado (`KeyboardAvoidingView` + `ScrollView`):**
+    - Se incorporó `KeyboardAvoidingView` (con `behavior="padding"` en iOS) y `ScrollView` con `keyboardShouldPersistTaps="handled"` y `showsVerticalScrollIndicator={false}` en todos los formularios modales y vistas que contenían inputs de texto sin protección (`ChefAiModal.tsx`, `PantryModal.tsx`, `RecipeCatalogModal.tsx` y `DietView.tsx` durante el onboarding de dieta).
+    - Esto previene que el teclado de software oculte los campos de entrada de preferencias, búsqueda, ingredientes o datos biométricos.
+  - **Alineación de Identidad Visual Obsidian Cyan (`RestTimerOverlay.tsx`):**
+    - Se depuró la propiedad `elevation: 6` en el overlay de descanso del entrenamiento, erradicando sombras artificiales y basando el 100% de la elevación en capas tonales y bordes estructurales de 1px (`#222836`), en estricto cumplimiento con la regla de diseño Obsidian Cyan.
+  - **Accesibilidad Móvil Universal (WCAG 2.2 AA):**
+    - Se añadieron roles semánticos (`accessibilityRole="button"`), etiquetas descriptivas (`accessibilityLabel`) y áreas de toque aumentadas (`hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}`) a todos los botones de sólo iconos (botones de cierre `X`, botones de navegación de retorno `ChevronLeft` y botones de eliminación `Trash2`), garantizando accesibilidad óptima con lectores de pantalla (TalkBack y VoiceOver).
+  - **Verificación de Cero Advertencias de Deprecación:**
+    - Se verificó que el 100% de los componentes utilizan `SafeAreaView` proveniente de `'react-native-safe-area-context'`, suprimiendo por completo los warnings de deprecación de React Native 0.88 y Expo SDK 58.
+
+- **Blindaje de Seguridad en Frontend y Gestión Determinista de Entornos (`app.json`, `app.config.js`, `eas.json`, `authStore.ts`, `SettingsScreen.tsx`):**
+  - **Erradicación de Tráfico Cleartext (HTTP Inseguro) en Compilaciones Preview y Producción (Punto 2 de Auditoría):**
+    - Se eliminó la directiva global insegura `usesCleartextTraffic: true` de `app.json`.
+    - Se implementó la configuración dinámica de `expo-build-properties` dentro de `app.config.js` basada en la variante de compilación (`APP_VARIANT`):
+      - **Compilación Preview (`preview`) y Producción (`production`):** Se establece `usesCleartextTraffic: false`, forzando que Android bloquee tajantemente cualquier tráfico HTTP plano y obligue a todo el tráfico de red a viajar cifrado por HTTPS/TLS hacia el backend de producción.
+      - **Compilación de Desarrollo (`development`):** Se habilita `usesCleartextTraffic: true` exclusivamente en el entorno de desarrollo local para permitir la comunicación con la API en red local LAN (`http://192.168.1.33:5079`).
+  - **Alineación Determinista de URLs de API por Perfil de EAS Build (`eas.json`):**
+    - **Perfil Preview (`preview`):** Inyecta en el paquete compilado `EXPO_PUBLIC_API_URL: "https://nexodusback.atomsystems.org"` y `APP_VARIANT: "preview"`.
+    - **Perfil Development (`development`):** Inyecta en el paquete compilado `EXPO_PUBLIC_API_URL: "http://192.168.1.33:5079"` y `APP_VARIANT: "development"`.
+    - **Perfil Production (`production`):** Inyecta en el paquete compilado `EXPO_PUBLIC_API_URL: "https://nexodusback.atomsystems.org"` y `APP_VARIANT: "production"`.
+  - **Eliminación del Selector Manual de Entornos en Configuración (`SettingsScreen.tsx`):**
+    - Se removió por completo de la pantalla de Configuración la tarjeta de alternancia manual ("Entorno Producción" / switch / botón de prueba de refresh token), impidiendo que el usuario o tester modifique la URL base en tiempo de ejecución o corrompa el estado de autenticación.
+  - **Simplificación y Reforzamiento del Store de Autenticación (`authStore.ts`):**
+    - Se eliminó el estado mutable `apiEnv` y la acción `setApiEnv` de la interfaz y del store de Zustand.
+    - Se añadió una rutina de auto-limpieza segura en `initialize()` para depurar cualquier clave obsoleta `apiEnv` remanente en `expo-secure-store`.
+    - `getApiUrl()` ahora resuelve determinísticamente la URL correcta según la variable inyectada `process.env.EXPO_PUBLIC_API_URL` o el modo de compilación (`!__DEV__` / `preview` / `production` hacia PR, y desarrollo local como fallback seguro).
+
+- **Evolución del Módulo de Dieta: Unificación de Filtros, Descuento Automático de Despensa, Navegación Directa de Recetas y Difusión Comunitaria (`RecipeCatalogModal.tsx`, `PantryModal.tsx`, `ChefAiModal.tsx` & Backend `RecipeService.cs`, `RecipeAiService.cs`):**
+  - **Filtro Unificado en el Recetario (`RecipeCatalogModal.tsx`):**
+    - Se integraron las dos filas separadas de filtros (tipo de comida y enfoque nutricional) en una única barra horizontal limpia y deslizante (`Todos`, `Desayuno`, `Almuerzo`, `Cena`, `Snacks`, `Alta Proteína`, `Keto`, `Baja Grasa`).
+    - Al presionar cualquier chip, se aplica instantáneamente la combinación de `mealType` y `dietType` adecuada con resaltado cian en Obsidian Cyan.
+  - **Descuento Automático de Ingredientes de la Despensa al Cocinar/Registrar (`RecipeService.cs`):**
+    - Al registrar cualquier receta como plato en el diario nutricional (`/api/recipes/log`), el backend identifica automáticamente los ingredientes que el usuario tiene en su despensa guardada.
+    - Se descuenta la cantidad exacta utilizada (`matchingPantry.Quantity -= usedQuantity`). Si el ingrediente se agota completamente (`<= 0`), se depura de forma segura del inventario.
+    - El frontend invalida la consulta de despensa en tiempo real para reflejar el nuevo stock disponible sin necesidad de recargar la aplicación.
+  - **Navegación Directa a la Pantalla de la Receta en Modo Despensa (`PantryModal.tsx`):**
+    - Al presionar "Crear Recetas con lo que Tengo", la aplicación genera la sugerencia con Chef IA y navega automáticamente y de forma directa a la pantalla detallada de la receta.
+    - La vista incluye desglose completo de macronutrientes, lista de ingredientes con cantidades exactas, pasos numerados de preparación y la sección interactiva para registrarla en el diario solo tras haberla cocinado.
+    - Se incluye botón de retroceso (`< Volver`) para explorar las demás recetas sugeridas o la despensa, y cada sugerencia cuenta con su botón "Ver Receta Completa & Pasos".
+  - **Corrección de Error 404/NotFoundException en Registro de Recetas de Chef IA (`RecipeAiService.cs`, `ChefAiModal.tsx`):**
+    - `GenerateRecipeForRemainingMacrosAsync` ahora persiste inmediatamente en la base de datos la receta generada con su ID correspondiente en lugar de mantenerla en memoria volátil.
+    - Se agregó soporte de `FallbackRecipe` en `LogRecipeAsMealDto` para garantizar tolerancia total a fallos en caso de solicitudes concurrentes o sin conexión previa.
+  - **Difusión Comunitaria Automática (`IsCommunity = true`):**
+    - Toda receta creada, generada por IA o variante personalizada ahora se guarda automáticamente con `IsCommunity = true`, enriqueciendo permanentemente el catálogo global de recetas comunitarias accesibles para todos los usuarios.
+
+- **Enfoque Automático y Desplazamiento Dinámico al Editar Series en Entrenamiento Activo (`ActiveWorkoutScreen.tsx`, `SetRowItem.tsx`):**
+  - **Detección Dinámica del Teclado y Padding Adaptativo:**
+    - Se integraron listeners de `Keyboard.addListener` (`keyboardDidShow` / `keyboardDidHide` y equivalentes iOS) para capturar en tiempo real la altura exacta del teclado virtual del dispositivo.
+    - Se configuró el `contentContainerStyle` del `ScrollView` con un `paddingBottom` reactivo (`Math.max(120, keyboardSpace + 60)`), proporcionando el área de desplazamiento requerida para que cualquier serie (incluso las últimas series de la tabla) quede por encima del teclado.
+  - **Auto-Scroll al Input en Foco (`handleFocusSet`):**
+    - Se agregó el prop `onFocusInput` en `SetRowItem.tsx` conectado al evento `onFocus` de los campos de texto de Peso (`KG`) y Repeticiones (`REPS`).
+    - Al presionar cualquier campo de texto, `ActiveWorkoutScreen` ejecuta un desplazamiento suave automático (`scrollTo`) enfocado en la serie exacta que se está modificando, evitando que el teclado cubra el valor que el usuario está escribiendo o editando.
+  - **Tipado Fuerte de `ScrollViewInstance`:**
+    - Se empleó `ScrollViewInstance` para tipar la referencia del contenedor de desplazamiento en estricto cumplimiento con React Native 0.88 y React 19, garantizando 0 errores de compilación TypeScript.
+
+- **Migración de `SafeAreaView` a `react-native-safe-area-context` (`ExerciseDetailModal.tsx`):**
+  - Se eliminó la importación obsoleta de `SafeAreaView` proveniente de `'react-native'` en `ExerciseDetailModal.tsx`, migrándola a `'react-native-safe-area-context'` para suprimir el warning de deprecación y asegurar total compatibilidad con futuras versiones de React Native y Expo SDK.
+
+- **Unificación de Identidad Visual para Chef IA (`ChefHat`) & Compactación de Filtros en Recetario (`NexodusChefCard.tsx`, `ChefAiModal.tsx`, `PantryModal.tsx`, `RecipeCatalogModal.tsx`):**
+  - **Sustitución Universal del Icono de Chef IA por `ChefHat` (Gorrito de Chef):**
+    - Se reemplazó el icono genérico de destellos (`Sparkles`) por el icono oficial de gorrito de chef (`ChefHat`) de `lucide-react-native` en todos los puntos de contacto de inteligencia culinaria en la app:
+      - Encabezado y botón principal "Completar Macros" en `NexodusChefCard.tsx`.
+      - Encabezado del modal y botón de acción "Diseñar Plato con Chef IA" en `ChefAiModal.tsx`.
+      - Botón de generación inteligente "Crear Recetas con lo que Tengo" en el Modo Despensa (`PantryModal.tsx`).
+      - Encabezado y detalles del catálogo de recetas en `RecipeCatalogModal.tsx`.
+  - **Rediseño Compacto y Erradicación del Desbordamiento en Filtros del Recetario (`RecipeCatalogModal.tsx`):**
+    - Se eliminó el scroll horizontal infinito único de 650px que extendía los 8 chips fuera de la pantalla.
+    - Se implementó un layout estructurado de doble fila compacta con `flexWrap: 'wrap'` y etiquetas directas:
+      - **Fila 1 (Tipo de Comida):** `Todos`, `Desayuno`, `Almuerzo`, `Cena`, `Snack`.
+      - **Fila 2 (Enfoque Nutricional):** `Todos`, `Proteína`, `Keto`, `Baja Grasa`.
+    - Ambas filas se visualizan al 100% dentro del ancho del teléfono sin requerir desplazamiento horizontal excesivo, con código de color dinámico en Obsidian Cyan (`#38BDF8` y `#00F0FF`).
+
+- **Diagrama Anatómico de Músculos Enfocados, Instrucciones Paso a Paso & Normalización de Recuperación Muscular (`ExerciseMuscleAnatomy.tsx`, `ExerciseDetailModal.tsx`, `ActiveWorkoutScreen.tsx` & Backend `WorkoutSessionService.cs`):**
+  - **Componente Anatómico de Músculos Enfocados (`ExerciseMuscleAnatomy.tsx`):**
+    - Renderiza la anatomía humana dual (Vista Anterior y Vista Posterior) iluminando con brillo cian neón (`#00F0FF`) el grupo muscular principal y en cian activo (`#38BDF8`) los músculos secundarios/estabilizadores.
+    - Mapeo inteligente de todos los músculos (`biceps`, `delts`, `pectorals`, `quads`, `lats`, `traps`, `abs`, `calves`, `forearms`, `glutes`, `hamstrings`, etc.) hacia las capas anatómicas compuestas, manteniendo la silueta base en gris estructural (`#222836`).
+    - Leyenda interactiva con indicador de color y nombres traducidos al español (`■ Primario: [Músculo]`, `■ Secundario: [Músculo]`).
+  - **Modal Deslizante de Guía Técnica e Instrucciones (`ExerciseDetailModal.tsx`):**
+    - Se transformó el botón de la barra rápida de `ActiveWorkoutScreen` en **"Técnica & Músculos"** con icono `BookOpen`.
+    - Al tocarlo, abre un modal completo estilo presentación deslizable con:
+      - Encabezado con título del ejercicio y botón de cierre `X`.
+      - Demostración visual en GIF / imagen en contenedor limpio.
+      - Diagrama anatómico completo de activación muscular frontal y dorsal.
+      - Tarjetas de clasificación rápida de Músculo Primario, Músculo Secundario y Equipamiento traducido (polea, mancuerna, barra olímpica, máquina, etc.).
+      - Sección de **Instrucciones Paso a Paso** que formatea y desglosa el campo `instructions` en tarjetas numeradas (`1.`, `2.`, `3.`, `4.`, `5.`) con tipografía `JetBrains Mono` y `Geist`.
+  - **Optimización del Algoritmo de Recuperación Muscular en Backend (`WorkoutSessionService.cs`):**
+    - Se amplió la función `NormalizeMuscleGroup` para reconocer el 100% de los músculos de la base de datos (incluyendo abreviaciones y nombres clave como `delts`, `calves`, `abductors`, `adductors`, `lats`, `traps`, `forearms`, `serratus`, etc.) mapeándolos a los 6 grupos de recuperación (`Pecho`, `Espalda`, `Piernas`, `Hombros`, `Bíceps/Brazos`, `Core`).
+    - Se añadió un fallback para evaluar `BodyPart` cuando el músculo individual no esté categorizado.
+    - Al completar series y finalizar el entrenamiento, cada serie completada actualiza el registro biológico del músculo utilizado, impactando directamente la tarjeta de Recuperación Muscular en `GymView`.
+
+- **Corrección de Entrenamiento Activo, Series, Calculadora de Discos & Modal de Salida (`ActiveWorkoutScreen.tsx`, `SetRowItem.tsx`, `PlateCalculatorModal.tsx`, `ExitWorkoutModal.tsx`, `GymView.tsx` & Backend `Program.cs`):**
+  - **Erradicación de Superposición y Alineación Pixel-Perfect en Tabla de Series (`SetRowItem.tsx` & `ActiveWorkoutScreen.tsx`):**
+    - Se resolvieron los solapamientos de cajas donde los inputs de `REPS` y el botón de check (`✓`) colisionaban.
+    - Se definieron columnas fijas con anchos independientes y balanceados: `SET` (26px), `TIPO` (34px), `PREV` (`flex: 1`, min 44px), `KG` (60px), `REPS` (52px), `CHECK` (32px) y `DELETE` (26px).
+    - Los encabezados de la tabla (`tableHeader`) se sincronizaron al píxel con las filas de datos (`row`), eliminando márgenes flotantes y garantizando que ningún botón se sobreponga.
+  - **Detección Inteligente de Ejercicios con Barra (`isBarbellExercise`):**
+    - El botón de `Calculadora de Discos` ahora se oculta automáticamente para ejercicios con mancuernas, kettlebells, peso corporal, poleas o máquinas (ej. "Pirate supper piernas con kettlebell").
+    - Solo se activa cuando el ejercicio involucra barras olímpicas, press de banca, sentadillas, peso muerto o variantes de barra libre / Smith machine.
+  - **Explicación Fija de Series (`N, W, D, F, T`):**
+    - Se incorporó una barra de leyenda fija, discreta y elegante al pie de la tabla de series con insignias en miniatura con los colores temáticos de Obsidian Cyan:
+      - **N**: Normal (serie efectiva de trabajo)
+      - **W**: Calentamiento (Warmup)
+      - **D**: Drop Set (reducción progresiva de peso)
+      - **F**: Al Fallo (Failure)
+      - **T**: Tiempo (Timed)
+  - **Corrección de Texto en Calculadora de Discos (`PlateCalculatorModal.tsx`):**
+    - El primer botón de la barra olímpica de 20 kg ahora muestra uniformemente `"20 kg"` (sin saltos de línea ni etiquetas incómodas), manteniendo consistencia visual con `15 kg` y `10 kg`.
+  - **Nuevo Modal de Salida & Doble Confirmación para Borrar de BD (`ExitWorkoutModal.tsx`):**
+    - Se eliminó el diálogo nativo amontonado de 3 botones.
+    - Se creó un modal dedicado en Obsidian Cyan con botón de tache (`X`) en la esquina superior derecha que cancela la acción y reanuda el entrenamiento de inmediato.
+    - Muestra solo dos opciones cómodas y accesibles: `"Pausar y Salir"` (botón principal cian) y `"Descartar Sesión"` (botón de alerta roja).
+    - Al pulsar `"Descartar Sesión"`, se activa un paso de doble confirmación preventiva antes de ejecutar `cancelWorkout()`, garantizando que el borrado de datos en la base de datos sea totalmente intencional.
+  - **Corrección del Bug de Pausa del Temporizador:**
+    - Se corrigió el problema donde el temporizador permanecía pausado al salir y volver a entrar o al presionar "Continuar Rutina".
+    - `GymView.tsx` ahora invoca `resumeWorkout()` antes de navegar a `ActiveWorkoutScreen`.
+    - `ActiveWorkoutScreen.tsx` incorpora un `useEffect` automático que reanuda el cronómetro si la pantalla se enfoca o monta con sesión activa pero en estado de pausa.
+  - **Corrección de Error 500 al Guardar / Completar Series (Backend `Program.cs` & `gym.service.ts`):**
+    - Se solucionó la causa raíz del error 500 registrado en el backend al enviar strings de enums (`"type": "Normal"`) mediante la adición de `JsonStringEnumConverter()` en la configuración de serialización JSON de ASP.NET Core (`Program.cs`).
+    - Se sanitizó el servicio cliente en frontend (`gym.service.ts`) para validar y omitir `setId` cuando no sea un GUID válido existente en base de datos, previniendo excepciones en Minimal APIs.
+
+- **Rediseño Visual de Recuperación Muscular & Alineación Anatómica (`BodyRecoveryHeatmap.tsx` & `MuscleRecoveryCard.tsx`):**
+  - **Alineación Anatómica Exacta y Erradicación de Músculos Amontonados:**
+    - Se identificó que las imágenes base de la anatomía correspondían a tres secciones verticales superpuestas (`upper`, `middle`, `lower`). Al montarse en una misma coordenada Y=0, los músculos quedaban amontonados y solapados erróneamente (ej. bíceps y cuádriceps sobre el pecho).
+    - Se generaron capas compuestas de alta fidelidad (`composite_front_*` y `composite_back_*`) integrando los desplazamientos matemáticos exactos: cabeza y hombros superiores (`Y=0`), brazos y core abdominal (`Y=118`), y piernas/cuádriceps/gemelos (`Y=219` para frontal, `Y=320` para dorsal).
+    - El resultado es una anatomía humana esbelta, limpia y proporcionada idéntica a la referencia, donde cada grupo muscular resalta con nitidez en su ubicación física real.
+  - **Contención Estructural de Rectángulos Métricos:**
+    - Se reemplazó el contenedor con `flexWrap` por dos filas estructuradas fijas (`badgeRow`) con distribución equitativa de ancho (`flex: 1`, `gap: 8`), eliminando desbordamientos fuera de la tarjeta y asegurando que las 6 métricas (`PECHO`, `ESPALDA`, `PIERNAS`, `HOMBROS`, `BRAZOS`, `CORE`) queden 100% contenidas dentro de la tarjeta con números completos y legibles.
+  - **Eliminación de Líneas y Barras Redundantes:** Supresión total de la lista inferior de barras de progreso horizontales y textos redundantes de horas.
+  - **Medidor Vertical de Batería / Nivel de Energía:** Barra vertical a la izquierda con borne superior, carril estilizado con borde tonal (`#222836`), llenado reactivo y porcentaje global en `JetBrains Mono` con código de color dinámico.
+  - **Insignia y Consejo Táctico de Entrenamiento:** Píldora de estado de recuperación (`LISTO PARA ENTRENAR`, `RECUPERACIÓN ACTIVA`, `DESCANSO RECOMENDADO`) con recomendación dinámica.
+
+
+- **Carrusel Horizontal Completo de 7 Vistas & Puntos Minimalistas en Header (`MainCarouselScreen.tsx`, `Header.tsx`, `carouselNavStore.ts` & `BottomNav.tsx`):**
+  - **Carrusel Horizontal Unificado:** Reemplazo de la navegación aislada por un único carrusel horizontal nativo a 60 FPS (`ScrollView` con `pagingEnabled={true}`) que abarca las 7 vistas principales de la aplicación en secuencia fluida:
+    `[0: Dashboard (Home) ↔ 1: Mis Ideas ↔ 2: Mi Diario ↔ 3: Tasks ↔ 4: Gym & Rutinas ↔ 5: Dieta & Macros ↔ 6: Finanzas]`.
+  - **Desplazamiento Gestual Continuo y Scroll Vertical Independiente:** Deslizar horizontalmente transiciona de forma instantánea y natural entre cualquier pantalla contigua, mientras cada vista conserva su propio scroll vertical sin conflictos ni desmontajes.
+  - **Puntos de Navegación Minimalistas y Alineación Pixel-Perfect en Header (`Header.tsx`, `FitScreen.tsx`, `JournalScreen.tsx`):**
+    - Se eliminaron las barras de cápsulas (`SwipeCapsuleIndicator`) para adoptar un diseño limpio y minimalista.
+    - Las secciones compuestas por submódulos (`Ideas ↔ Diario` y `Gym ↔ Dieta`) ahora muestran sutiles puntos indicadores (`● ○` / `○ ●`) directamente a un lado del título del encabezado con centrado vertical exacto.
+    - El punto activo adopta una píldora cian neón (`#00F0FF`, 14px), mientras el inactivo permanece como círculo discreto (`#222836`, 6px), permitiendo tocar los puntos para alternar suavemente entre vistas hermanas.
+    - **Alineación Geométrica Universal:** Se unificó la ubicación del `<Header />` dentro del contenedor de desplazamiento con las mismas coordenadas estructurales (`paddingHorizontal: 20`, `paddingTop: Platform.OS === 'android' ? 24 : 12`), logrando que el título y el botón de perfil queden a la misma altura exacta y alineados al píxel respecto a Dashboard, Tasks y Finanzas al deslizar horizontalmente.
+  - **Sincronización y Latencia Cero en Barra Inferior (`BottomNav.tsx` & `carouselNavStore.ts`):**
+    - **Eliminación del Retardo Táctil (`delayPressIn={0}`):** Se eliminó el retraso nativo de 130ms de reconocimiento de pulsaciones en las pestañas de `BottomNav`, logrando que la selección y el brillo del icono activo respondan en 0ms al tocar.
+    - **Aislamiento de Render (`ConnectedBottomNav`):** Se desacopló la barra inferior en un componente memoizado independiente que no suscribe al contenedor principal del carrusel, impidiendo re-renderizados innecesarios de las 7 pantallas completas al alternar de pestaña.
+    - **Memoización de Pantallas y Flags de Desplazamiento Nativo:** Se aplicó `React.memo` a las 7 vistas principales y se añadieron propiedades de aceleración en el `ScrollView` (`directionalLockEnabled={true}`, `bounces={false}`, `overScrollMode="never"`, `keyboardShouldPersistTaps="handled"`), eliminando bloqueos en el hilo de JavaScript y garantizando un desplazamiento instantáneo a 60 FPS.
+    - Las tarjetas interactivas del Dashboard (`DietCard`, `WorkoutCard`, `DailyTodoCard`, `IdeasCard`, `FinanceCard`) activan el deslizamiento animado del carrusel hacia su sección destino mediante `carouselNavStore.navigateToTab(...)`.
+
+- **Rediseño Estructural de Tarjeta de Dieta & Macros en Dashboard (`DietCard.tsx`):**
+  - **Alineación Central del Círculo de Progreso:** Centrado horizontal del indicador radial de calorías con `Svg` de 68x68px, borde de fondo (`#1E2330`) y arco activo en cian eléctrico (`#00F0FF`), visualizando con claridad el porcentaje completado y la etiqueta métrica `KCAL` en `JetBrains Mono`.
+  - **Prevención de Desbordamiento y Sanitización Numérica:** Redondeo estricto con `Math.round()` de todas las calorías consumidas y macronutrientes (proteína, carbohidratos y grasas), erradicando el desbordamiento horizontal provocado por decimales flotantes y por la compresión lateral previa.
+  - **Estructuración Jerárquica Vertical de Textos:**
+    - Resumen calórico centrado inmediatamente debajo del círculo (`consumidas / meta kcal`).
+    - Desglose de macronutrientes en filas independientes de ancho completo con etiqueta (`Prot`, `Carb`, `Gras`), puntos de color tonal (`neonCyan`, `warning`, `slate400`), valores precisos en gramos y micro-barras de progreso de 2.5px que reflejan visualmente el porcentaje alcanzado sin salirse de los límites de la tarjeta.
+  - **Caché y Rendimiento Reactivo:** Adición de políticas de `staleTime` (1 minuto para el resumen diario y 10 minutos para el perfil de usuario), eliminando refetches repetitivos al regresar al dashboard.
+
+- **Optimización de Consultas, Navegación por Gestos (Swipe) & Cápsulas de Navegación (`FitScreen.tsx`, `JournalScreen.tsx`, `SwipeCapsuleIndicator.tsx` & `workoutStore.ts`):**
+  - **Optimización de Caché y Eliminación de Consultas Innecesarias en Gym y Dieta:**
+    - `workoutStore.ts`: Incorporación de `lastBackendSync` con guard de 2 minutos en `initFromBackend()`, impidiendo peticiones redundantes a `/api/workout-sessions/active` cada vez que el usuario ingresa a la pestaña de Gym.
+    - `GymView.tsx`: Configuración de `staleTime` (10 min para perfil de usuario, 5 min para rutinas) y `gcTime` (30 min) en React Query, evitando reconsultas constantes a la base de datos.
+    - `DietView.tsx`: Configuración de `staleTime` (10 min para perfil, 5 min para target nutricional).
+    - **Montaje Persistente en Memoria:** Tanto `GymView` como `DietView` (así como `Ideas` y `Diario`) se conservan montados continuamente en memoria dentro de un paginador horizontal desacoplado con scroll vertical independiente, erradicando el ciclo de desmontaje y re-montaje que volvía a solicitar datos al backend.
+  - **Navegación por Gestos Fluidos a 60 FPS (Swipe Horizontal):**
+    - `FitScreen.tsx`: Reemplazo del switch estático por un carrusel/paginador horizontal nativo (`ScrollView` con `pagingEnabled`, `bounces={false}` y `showsHorizontalScrollIndicator={false}`). Deslizar de derecha a izquierda o de izquierda a derecha transiciona suavemente entre **Gym** y **Dieta**.
+    - **Transición Perimetral entre Pestañas Vecinas:** Soporte de gestos en los extremos (`onScrollEndDrag`). Arrastrar a la derecha en Gym conduce directamente a la pestaña de **Tasks**, mientras que arrastrar a la izquierda en Dieta conduce a **Money**.
+    - `JournalScreen.tsx`: Paginador horizontal por gestos idéntico entre **Mis Ideas** y **Mi Diario**, con transición perimetral hacia **Home** (Dashboard) y **Tasks**.
+  - **Componente Reutilizable `SwipeCapsuleIndicator.tsx`:**
+    - Indicador de cápsulas estilizado en Obsidian Cyan con bordes estructurales de 1px (`#222836`), geometría `rounded-full` y tonal layering.
+    - Muestra las cápsulas centrales de la pantalla activa con indicador de punto brillante cian (`#00F0FF`), así como flechas de guía laterales (`← Tasks | [ Gym ] [ Dieta ] | Money →`) que informan al usuario hacia qué pantallas adyacentes puede desplazarse.
+    - Totalmente interactivo: soporta tanto el gesto de arrastre en la pantalla como el toque directo en las cápsulas o en las flechas de guía para una navegación inmediata y accesible.
+
+- **Fase 4: Frontend Nutrition, Nexodus Lens (AI Vision) & Balance Calórico Neto (`src/features/diet/`):**
+  - **Nexodus Lens Modal (`NexodusLensModal.tsx`):**
+    - Escaneo visual de comidas con soporte de cámara fotográfica y selección desde galería mediante `expo-image-picker`.
+    - Comunicación en tiempo real con el backend `/api/diet/lens/analyze` impulsado por Google Gemini Multimodal Vision.
+    - Estados de carga animados con skeletons estilizados en Obsidian Cyan.
+    - Desglose inteligente de macronutrientes (calorías totales, proteína, carbohidratos, grasas, índice de confianza del modelo).
+    - Desglose granular de ingredientes detectados con porciones estimadas en gramos.
+    - Botón de acción directa para transformar los alimentos detectados en una comida y registrarla en un toque.
+  - **Widget de Balance Calórico Neto (`NetCaloricBalanceCard.tsx`):**
+    - Ecuación visual en vivo: `Ingesta (Consumidas) - Entreno (Quemadas) = Balance Neto`.
+    - Cálculo de superávit o déficit calórico en tiempo real contra la meta diaria configurada.
+    - Integrado de forma reactiva en `DietView.tsx`.
+  - **Actualización de la Vista de Dieta (`DietView.tsx`):**
+    - Fila de acciones principales de acceso rápido en Dieta (`DietView.tsx`): ubicación prominente de los botones "Agregar Comida" (botón sólido cyan) y "Nexodus Lens" (botón de superficie con borde reactivo y chispas) directamente por debajo de la selección del día y por encima de la tarjeta y gráfico de calorías/macronutrientes para un acceso inmediato al registrar comidas.
+    - Integración de la tarjeta de balance neto debajo del resumen calórico y de macronutrientes.
+    - Actualización del icono de la insignia de meta nutricional a diana/objetivo (`Target`) para mayor precisión semántica.
+    - Estado de carga contextual por botón en hidratación (`HydrationCard.tsx`): visualización precisa del indicador `ActivityIndicator` exclusivamente en el botón presionado (`+250ml` o `+500ml`) con bloqueo preventivo y sincronización de volumen real.
+    - Visibilidad condicional y temporizador de ayuno reactivo (`FastingCard.tsx` & `DietView.tsx`): la sección de ayuno intermitente solo se muestra si el plan nutricional contempla una meta de ayuno (ocultándose en modo tradicional), con inicio inmediato de cuenta regresiva en `JetBrains Mono`, transición automática al botón "Concluir" para prevenir reinicios accidentales, y persistencia sincronizada local/backend.
+    - Optimización y caché en catálogo de alimentos (`FoodSearchModal.tsx`): separación de estados para búsqueda por nombre y código de barras con caché en memoria (`Map`) que evita reconsultas innecesarias a la base de datos al alternar entre pestañas o repetir términos.
+    - **Lista Dinámica y Selección Alternable en Catálogo (`FoodSearchModal.tsx`):**
+      - Carga reactiva del catálogo general de alimentos desde la base de datos con React Query (`queryKeys.diet.foods('all')`), visualizando inmediatamente todos los alimentos disponibles al abrir el modal (similar al selector de ejercicios de gimnasio).
+      - Filtrado dinámico e instantáneo en memoria a 60 FPS sin retrasos de red al escribir en el buscador, con búsqueda remota complementaria debounced para términos no comunes.
+      - Soporte para **marcar y desmarcar alimentos**: presionar un alimento seleccionado o su indicador con check lo desmarca inmediatamente y oculta el panel de confirmación.
+    - **Resolución de Conflictos Visuales y Manejo de Teclado (`FoodSearchModal.tsx`):**
+      - Corrección de corte en el último elemento: reestructuración de la lista en un contenedor flex aislado con `KeyboardAvoidingView` y paddings dinámicos seguros que previenen cualquier superposición o truncamiento.
+      - Elevación de panel sobre el teclado: reubicación del footer de confirmación en el flujo flex nativo, logrando que al enfocar el input de cantidad este se eleve automáticamente por encima del teclado.
+      - Teclado numérico (`decimal-pad`) con selección automática de texto al enfocar (`selectTextOnFocus`) para edición rápida e inmediata.
+  - **Permisos de Cámara Globales y Validación en Modales (`App.tsx`, `camera.ts`, `BarcodeScannerModal.tsx`, `NexodusLensModal.tsx` & `FoodSearchModal.tsx`):**
+    - Solicitud de permisos de cámara al abrir la aplicación junto a los permisos de notificaciones mediante el helper unificado `requestCameraPermissions` (`src/utils/camera.ts`).
+    - Validación proactiva en cada modal que utiliza cámara (`BarcodeScannerModal`, `FoodSearchModal`, `NexodusLensModal`), alertando limpiamente mediante `GlobalAlert` si el usuario aún no los ha otorgado o si requiere habilitarlos en los ajustes.
+  - **Escáner de Códigos de Barra con Cámara y Auto-completado Inteligente (`BarcodeScannerModal.tsx`, `FoodSearchModal.tsx`, `CreateFoodModal.tsx` & `openFoodFacts.service.ts`):**
+    - Integración de escáner en tiempo real con `expo-camera` (`CameraView`) estilizado con retícula Obsidian Cyan, botón de linterna (torch) y detección automática de códigos de barra (EAN-13, EAN-8, UPC-A, UPC-E, Code 128/39).
+    - Flujo de resolución inteligente y validación de macronutrientes:
+      1. Búsqueda directa en la base de datos interna de alimentos por código de barras. Si cuenta con información nutricional real (calorías/macros > 0), se agrega y selecciona directamente en la comida.
+      2. Si el alimento existe en la base de datos pero sus calorías y macronutrientes están en cero o incompletos (como registros automáticos de la API sin tabla nutricional, ej. Clorets), o si no existe en la base interna:
+         - Se consulta Open Food Facts para consolidar nombre, marca y porción.
+         - Se abre automáticamente `CreateFoodModal.tsx` precargando los datos del producto pero dejando los campos de calorías y macronutrientes listos para que el usuario ingrese los valores exactos de la etiqueta física.
+         - Permite actualizar el registro existente (`updateFood` / `PUT /api/diet/foods/:id`) o crear uno nuevo, autoseleccionándolo inmediatamente tras guardar.
+    - **Estabilización de Componentes Nativos y Manejo Nulo (`BarcodeScannerModal.tsx` & `CreateFoodModal.tsx`):**
+      - Desacoplamiento de `<CameraView>`: En Expo SDK 58 `<CameraView>` no admite elementos hijos; se convirtió en componente auto-cerrado con el visor y controles superpuestos mediante posicionamiento absoluto (`StyleSheet.absoluteFill`).
+      - Corrección de `TypeError: Cannot read property 'toString' of null`: Sanitización estricta de valores nutricionales nulos (`null`) devueltos por la base de datos o API (como `SodiumMg`, `PotassiumMg`, `ServingSize`), previniendo excepciones en tiempo de ejecución en Android/Hermes.
+      - **Enfoque Estabilizado y Consenso de Lectura en Escáner (`BarcodeScannerModal.tsx`):**
+        - Retardo inicial de 750ms para que la lente de la cámara estabilice su autoenfoque y balance de blancos antes de procesar fotogramas.
+        - Algoritmo de consenso multi-frame que exige detectar el mismo código de barras de manera consecutiva e idéntica antes de aceptarlo, descartando falsos positivos o números incompletos generados por reflejos o desenfoque.
+        - Insignia de estado interactiva en el visor ("Estabilizando enfoque...", "Centra el código en el recuadro", "Verificando...") con confirmación visual.
+    - **Edición Rápida de Alimentos por Pulsación Prolongada (`FoodSearchModal.tsx` & `CreateFoodModal.tsx`):**
+      - Soporte para **mantener presionado cualquier alimento de la lista** (`onLongPress` con 400ms) o tocar su botón "Editar" para abrir el modal en modo edición.
+      - Permite actualizar nombre, marca, porción base (ej. cambiar 100g por una porción personalizada), calorías y macronutrientes, refrescando la lista y la porción activa de forma inmediata.
+    - **Reestructuración Visual de Tarjetas de Comidas (`MealItemCard.tsx` & `MealFormModal.tsx`):**
+      - Título principal semántico: el tipo de comida ("Desayuno", "Comida", "Cena", "Snack") ahora se muestra como título principal en lugar del nombre del primer ingrediente, mientras que los alimentos agregados con sus respectivas porciones se muestran claramente como subtítulo.
+      - Cabecera limpia: se simplificó la cabecera superior para mostrar únicamente el indicador de estado coloreado y la hora exacta del registro (ej. `● 00:13`), logrando una jerarquía visual limpia y sin redundancias.
+      - Sincronización automática de nombres en el formulario de comidas al alternar entre tipos de comida.
+    - **Aviso Informativo y Recálculo Dinámico de Porciones en Catálogo (`FoodSearchModal.tsx`):**
+      - Banner informativo permanente: tarjeta informativa con icono `Scale` que comunica al usuario que puede seleccionar cualquier alimento y cambiar los gramos o mililitros a consumir para recalcular automáticamente sus valores nutricionales, o mantenerlo presionado para editar su porción base.
+      - Recálculo reactivo en tiempo real: al seleccionar un alimento y modificar los gramos en el panel inferior, tanto la tarjeta seleccionada en la lista como el panel de confirmación recalculan y actualizan inmediatamente las calorías y macronutrientes correspondientes a la porción elegida con insignias métricas de alta visibilidad.
+    - **Catálogo Colaborativo Comunitario (`DietEndpoints.cs`, `DietService.cs` & `FoodRepository.cs`):**
+      - Alta inicial pública comunitaria: cuando cualquier usuario registra un alimento nuevo por primera vez (mediante escaneo o creación manual), se almacena automáticamente como alimento base del catálogo general (`IsCustom: false`, `UserId: null`), quedando accesible de inmediato para todos los usuarios de la aplicación.
+      - Personalización individual protegida: si un usuario edita un alimento público existente, se genera una copia personalizada (`IsCustom: true`, `UserId: usuario`) para ese usuario, preservando intacto el alimento base para los demás y permitiendo actualizaciones posteriores directas sobre su copia sin crear registros duplicados.
+    - **Deduplicación Canónica y Prevención de Registros Duplicados (`FoodSearchModal.tsx`, `CreateFoodModal.tsx`, `DietEndpoints.cs`, `DietService.cs` & `FoodRepository.cs`):**
+      - Endpoint `PUT /api/diet/foods/{id}` implementado en el backend y conectado en el frontend: actualizar un alimento personalizado modifica directamente la fila correspondiente en la base de datos en vez de duplicarla. Si se edita un alimento genérico del sistema, se asocia o actualiza una copia personalizada única para el usuario autenticado.
+      - Deduplicación canónica en frontend (`getFoodKey` por código de barras o nombre normalizado + marca): evita tarjetas repetidas de un mismo alimento (como "Aguacate Hass") en el catálogo, priorizando siempre la versión personalizada y más reciente.
+      - Sincronización reactiva del estado local `customAddedFoods` al guardar o editar, reemplazando instantáneamente cualquier versión previa sin generar entradas duplicadas.
+    - **Categorías Oficiales del Sistema para Alimentos (`Categories`, `Food.cs`, `DietEndpoints.cs`, `CreateFoodModal.tsx` & `FoodSearchModal.tsx`):**
+      - **Extensión del Modelo de Datos en BD (`Categories`):** Incorporación de la columna discriminadora `Type` (`varchar(20)`, con valor por defecto `'Money'` para las categorías financieras preexistentes y `'Food'` para las categorías de alimentos). `UserId` fue convertido a nullable (`Guid?`) para permitir categorías globales del sistema administradas de forma compartida (`UserId = NULL`).
+      - **Conceptos de Alimentos Predefinidos:** Inicialización automática mediante `DataSeeder` de las categorías del sistema: *Carnes, Pescados y Mariscos, Verduras, Frutas, Lácteos y Huevos, Cereales y Granos, Legumbres, Frutos Secos y Semillas, Grasas y Aceites, Bebidas, Suplementos, Snacks y Dulces, Otros*, con migración retroactiva que catalogó los alimentos preexistentes.
+      - **Asociación en Alimentos (`Food.cs` & `FoodDtos`):** Columnas `CategoryId` (clave foránea con `OnDelete: SetNull`) y `Category` (denormalización para lectura instantánea sin joins).
+      - **Selector Elegante en Creación y Edición (`CreateFoodModal.tsx`):** Selector de pastillas/chips con geometría `rounded-full` y resaltado en Obsidian Cyan ubicado debajo de "Marca", permitiendo elegir exclusivamente entre las categorías del sistema sin que el usuario cree categorías dispersas.
+      - **Insignia Visual en Catálogo (`FoodSearchModal.tsx`):** Badge distintivo de categoría en cada tarjeta del catálogo de alimentos junto a la marca del producto.
+    - **Optimización de Entrada de Porción y Elevación Sobre el Teclado (`FoodSearchModal.tsx`):**
+      - Escucha activa de eventos de teclado en tiempo real (`keyboardDidShow` / `keyboardDidHide`) para computar dinámicamente la elevación del panel inferior (`footerSheet`) por encima del teclado del software en dispositivos Android.
+      - Asignación de teclado numérico (`numeric`) directo y selección automática de texto al enfocar (`selectTextOnFocus`) para escribir la porción de inmediato sin oscurecer los controles de confirmación.
+    - **Aislamiento de Pestañas y Limpieza de Resultados en Código de Barras (`FoodSearchModal.tsx` & `CreateFoodModal.tsx`):**
+      - Prevención de arrastre de códigos de barra entre modos: editar o crear un alimento desde la pestaña de "Buscar por Nombre" ya no contamina el input de código de barras ni altera los resultados de escaneo.
+      - Validación contextual al alternar a la pestaña de "Código de Barras": solo se muestran resultados si el código en el input coincide exactamente con el alimento escaneado, impidiendo que alimentos buscados por nombre aparezcan inesperadamente bajo un código ajeno.
+  - **Servicios API (`diet.service.ts`):**
+    - Tipado y método `analyzeFoodImage` (`POST /api/diet/lens/analyze`).
+    - Actualización de `DailySummary` con `burnedCalories` y `netCalories`.
+
 - **Migración y Actualización a Expo SDK 58:**
   - **Actualización de Runtime y Core:** Se migró de Expo SDK 57 a **Expo SDK 58** (`expo@^58.0.23`), actualizando el runtime a **React Native 0.88.1** y **React 19.3.0** (`@types/react@~19.3.0`).
   - **Alineación de Módulos Nativos:** Todas las dependencias nativas se actualizaron a sus versiones certificadas para SDK 58 (`expo-blur`, `expo-build-properties`, `expo-constants`, `expo-dev-client`, `expo-device`, `expo-font`, `expo-image`, `expo-notifications`, `expo-secure-store`, `expo-status-bar`, `expo-updates`, `react-native-safe-area-context`, `react-native-screens`, `react-native-svg`, `@react-native-community/datetimepicker`).
@@ -298,3 +712,30 @@ eas update --branch preview --message "Actualización a rama preview" --clear-ca
 ```
 
 > **Regla de oro:** Las actualizaciones OTA solo aplican para cambios en JS/TS o diseño. Si agregas una librería con dependencias nativas (ej. nuevo módulo de cámara o permisos del sistema), debes **forzosamente** volver a compilar una nueva APK.
+
+
+---
+
+## RecoveryZone Anatomy & The Nexodus Protocol (Fase 5)
+
+### 1. Mapa Anatómico de Recuperación Muscular (`BodyRecoveryHeatmap.tsx`)
+Inspirado en la ingeniería inversa de Liftoff v2.17.5:
+- **32 capas anatómicas modulares (256x256 PNGs transparentes)** extraídas y alojadas localmente en `assets/musclegraphics/`.
+- Renderizado de alto rendimiento mediante `<Image tintColor={color} />` sobre la silueta base Obsidian `#1C2029`.
+- Vistas alternables con un toque: **Vista Frontal (Anterior)** y **Vista Dorsal (Posterior)**.
+- Código de calor por fatiga basado en modelo exponencial de 48-72h:
+  - `#EF4444` (Rojo): Fatiga Alta / Menos de 35% de recuperación.
+  - `#F59E0B` (Ámbar): En recuperación / Descansando (35% – 69%).
+  - `#38BDF8` (Azul): Listo / Casi recuperado (70% – 89%).
+  - `#00F0FF` (Cian Neón): 100% Óptimo para entrenar.
+
+### 2. HUD de Rachas Inteligentes (`StreakCard.tsx`)
+- Llama cian `#00F0FF` con contador numérico monoespaciado (`JetBrains Mono`).
+- Matriz de consistencia semanal (L, M, X, J, V, S, D) con cápsulas visuales para días cumplidos, descansos protegidos y día en curso.
+- Protección con Escudos de Racha y banner de alerta en ventana de gracia (24h).
+- Modal interactivo de restauración (`StreakRestoreModal.tsx`) para recuperar rachas caídas mediante Cyphers o escudos.
+
+### 3. Protocolo de Rangos Obsidian (`ObsidianTierCard.tsx`)
+- Indicador de jerarquía Obsidian (`Initiate`, `Vanguard`, `Cyber`, `Titan`, `Apex`, `Sovereign`, `Obsidian`).
+- Barra de progreso de NXP en tiempo real hacia el siguiente rango.
+- Contador de Cyphers para canje en el Cyber Vault.

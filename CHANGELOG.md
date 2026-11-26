@@ -1,3 +1,48 @@
+## [0.1.3] - 2026-11-25
+
+### Features
+
+- Mejoras Radicales
+- Modificacion de pantalla de habitos y horarios
+- implement HabitKit-style heatmap grid, habit cards, modals, and carousel integration in tasks
+- Mejoras y Series Corregido
+
+### Bug Fixes
+
+- Correxion de dependencias
+- Mejoras de modelo IA y pantallas
+- Comunicacion con Backend
+
+## [0.1.2] - 2026-11-11
+
+### Features
+
+- feat: auditoria de skills
+- feat: Skill security-audit
+- feat: ChefAI y reparacion de pagina de Rutinas
+- feat: Fases 6C y 6D - Nexodus Chef IA, recetario saludable, modo despensa y ciclado de carbohidratos
+- feat: Carrusel y mejoras de header
+- feat: Carrusel de paginas
+- feat: Implementacion de codigo de barras y mejoras en dieta
+
+### Bug Fixes
+
+- fix: Correxion de grupos musculares
+
+## [0.1.1] - 2026-11-07
+
+### Features
+
+- feat: Cambios en pantalla de dieta
+- feat: Fase 5 - RecoveryZone Heatmap & The Nexodus Protocol HUD
+- feat: Fase 4 complemento
+- feat: Fase 4 - Nexodus Lens & Balance Calorico Neto
+- feat: Vulnerabilidades corregidas
+
+### Bug Fixes
+
+- fix: Optimizar toggle de completado en comidas sin reenvio innecesario de items
+
 ## [0.1.0] - 2026-11-06
 
 ### Features

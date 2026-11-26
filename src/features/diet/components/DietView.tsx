@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
 import { 
-  Search, 
-  ScanBarcode, 
-  Sparkles, 
+  Camera, 
+  Target,
   Plus, 
   ChevronLeft, 
   ChevronRight, 
@@ -20,11 +19,17 @@ import { useAlertStore } from '../../../store/alertStore';
 import { DietOnboardingView } from './DietOnboardingView';
 import { Skeleton } from '../../../components/Skeleton';
 import { MealFormModal } from './MealFormModal';
-import { FoodSearchModal } from './FoodSearchModal';
 import { FastingCard } from './FastingCard';
 import { DietMacrosCard } from './DietMacrosCard';
 import { HydrationCard } from './HydrationCard';
 import { MealItemCard } from './MealItemCard';
+import { NexodusLensModal } from './NexodusLensModal';
+import { NetCaloricBalanceCard } from './NetCaloricBalanceCard';
+import { NexodusChefCard } from './NexodusChefCard';
+import { RecipeCatalogModal } from './RecipeCatalogModal';
+import { ChefAiModal } from './ChefAiModal';
+import { PantryModal } from './PantryModal';
+import { FoodBudgetCard } from './FoodBudgetCard';
 
 const getLocalDateString = (d: Date = new Date()): string => {
   const year = d.getFullYear();
@@ -48,12 +53,17 @@ export const DietView = () => {
   const [showMealModal, setShowMealModal] = useState(false);
   const [mealToEdit, setMealToEdit] = useState<Meal | null>(null);
   const [initialMealItems, setInitialMealItems] = useState<MealItem[]>([]);
-  const [showFoodSearchModal, setShowFoodSearchModal] = useState(false);
+  const [showLensModal, setShowLensModal] = useState(false);
+  const [showChefAiModal, setShowChefAiModal] = useState(false);
+  const [showCatalogModal, setShowCatalogModal] = useState(false);
+  const [showPantryModal, setShowPantryModal] = useState(false);
 
   // Profile Query
   const { data: profile, isLoading: isProfileLoading } = useQuery({
     queryKey: queryKeys.user.profile,
     queryFn: UserService.getProfile,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   const isDietActive = Boolean(profile?.dieta ?? (profile as any)?.Dieta);
@@ -63,6 +73,8 @@ export const DietView = () => {
     queryKey: queryKeys.diet.target,
     queryFn: dietService.getTarget,
     enabled: isDietActive,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   // Daily Summary Query
@@ -82,13 +94,13 @@ export const DietView = () => {
   // Water Mutation
   const addWaterMutation = useMutation({
     mutationFn: (amount: number) => dietService.addWater(selectedDate, amount),
-    onSuccess: () => {
+    onSuccess: (_, amount) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.diet.water(selectedDate) });
       queryClient.invalidateQueries({ queryKey: queryKeys.diet.daily(selectedDate) });
-      addWater(250);
+      addWater(amount);
     },
-    onError: () => {
-      addWater(250); // Fallback local
+    onError: (_, amount) => {
+      addWater(amount); // Fallback local
     },
   });
 
@@ -115,27 +127,49 @@ export const DietView = () => {
     );
   }
 
-  // Si la dieta está en false en el perfil del usuario, mostrar pantalla de onboarding / creación de plan
+  // Si la dieta está en false en el perfil del usuario, mostrar pantalla de onboarding / creación de plan con soporte de teclado y scroll
   if (!isDietActive) {
     return (
-      <DietOnboardingView 
-        profile={profile} 
-        isEditing={false} 
-        onCompleted={() => {
-          queryClient.invalidateQueries({ queryKey: queryKeys.user.profile });
-          queryClient.invalidateQueries({ queryKey: queryKeys.diet.target });
-          queryClient.invalidateQueries({ queryKey: queryKeys.diet.daily(selectedDate) });
-        }} 
-      />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingBottom: 60 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <DietOnboardingView 
+            profile={profile} 
+            isEditing={false} 
+            onCompleted={() => {
+              queryClient.invalidateQueries({ queryKey: queryKeys.user.profile });
+              queryClient.invalidateQueries({ queryKey: queryKeys.diet.target });
+              queryClient.invalidateQueries({ queryKey: queryKeys.diet.daily(selectedDate) });
+            }} 
+          />
+        </ScrollView>
+      </KeyboardAvoidingView>
     );
   }
 
-  // Consolidated Targets
-  const targetCals = backendTarget?.targetCalories || dietProfile?.targetCalories || 2200;
+  // Consolidated Targets (Dynamic Gym Calorie / Carb Cycling prioritized if available)
+  const targetCals = dailySummary?.targetCaloriesAdjusted || backendTarget?.targetCalories || dietProfile?.targetCalories || 2200;
   const targetProtein = backendTarget?.proteinGrams || dietProfile?.proteinGrams || 160;
-  const targetCarbs = backendTarget?.carbsGrams || dietProfile?.carbsGrams || 220;
+  const targetCarbs = dailySummary?.targetCarbsAdjusted || backendTarget?.carbsGrams || dietProfile?.carbsGrams || 220;
   const targetFat = backendTarget?.fatGrams || dietProfile?.fatGrams || 70;
   const targetWaterMl = backendTarget?.waterTargetMl || dietProfile?.waterTargetMl || 3000;
+
+  // Protocolo de Ayuno Intermitente (mostrar tarjeta solo si está configurado y no es tradicional)
+  const rawFastingProtocol = dietProfile?.fastingProtocol || backendTarget?.fastingProtocol;
+  const isFastingConfigured = Boolean(
+    rawFastingProtocol &&
+    rawFastingProtocol.trim().toLowerCase() !== 'none' &&
+    rawFastingProtocol.trim().toLowerCase() !== 'tradicional' &&
+    rawFastingProtocol.trim().toLowerCase() !== 'traditional' &&
+    rawFastingProtocol.trim().toLowerCase() !== 'sin ayuno'
+  );
 
   // Daily Consumed Metrics
   const meals: Meal[] = dailySummary?.meals || [];
@@ -143,6 +177,12 @@ export const DietView = () => {
   const consumedProtein = dailySummary?.consumedProtein ?? meals.reduce((sum, m) => sum + (m.protein || 0), 0);
   const consumedCarbs = dailySummary?.consumedCarbs ?? meals.reduce((sum, m) => sum + (m.carbs || 0), 0);
   const consumedFat = dailySummary?.consumedFat ?? meals.reduce((sum, m) => sum + (m.fat || 0), 0);
+
+  // Remaining Macros for Chef AI (redondeados a 2 decimales para evitar ruido de punto flotante)
+  const remainingCals = Math.round(Math.max(0, targetCals - consumedCals) * 100) / 100;
+  const remainingProtein = Math.round(Math.max(0, targetProtein - consumedProtein) * 100) / 100;
+  const remainingCarbs = Math.round(Math.max(0, targetCarbs - consumedCarbs) * 100) / 100;
+  const remainingFat = Math.round(Math.max(0, targetFat - consumedFat) * 100) / 100;
 
   const currentWater = waterData?.consumedWaterMl ?? waterData?.totalMl ?? dailySummary?.consumedWaterMl ?? consumedWaterMl;
 
@@ -165,12 +205,7 @@ export const DietView = () => {
   const handleToggleMealComplete = async (meal: Meal) => {
     try {
       await dietService.updateMeal(meal.id, {
-        date: meal.date,
-        mealType: meal.mealType,
-        name: meal.name,
-        time: meal.time,
         isCompleted: !meal.isCompleted,
-        items: meal.items,
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.diet.daily(selectedDate) });
     } catch (e: any) {
@@ -227,12 +262,40 @@ export const DietView = () => {
 
         {/* Goal Badge Pill */}
         <View style={styles.goalBadge}>
-          <Sparkles size={11} color={theme.colors.neonCyan} />
+          <Target size={12} color={theme.colors.neonCyan} />
           <Text style={styles.goalBadgeText}>{getGoalLabel()}</Text>
         </View>
       </View>
 
-      {/* 1. Macros & Calories Summary Card */}
+      {/* Main Diet Actions: Agregar Comida & Nexodus Lens (Acceso Rápido Superior) */}
+      <View style={styles.actionsRow}>
+        <TouchableOpacity
+          style={styles.addMealActionBtn}
+          onPress={() => {
+            setMealToEdit(null);
+            setShowMealModal(true);
+          }}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Registrar nueva comida"
+        >
+          <Plus size={16} color={theme.colors.obsidian} />
+          <Text style={styles.addMealActionText}>Agregar Comida</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.lensTriggerBtn}
+          onPress={() => setShowLensModal(true)}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Abrir Nexodus Lens para escaneo de comida con IA"
+        >
+          <Camera color={theme.colors.neonCyan} size={16} />
+          <Text style={styles.lensTriggerText}>Nexodus Lens</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* 1. Macros & Calories Summary Card (con ciclado de carbohidratos Gym/Descanso) */}
       <DietMacrosCard
         targetCals={targetCals}
         consumedCals={consumedCals}
@@ -242,33 +305,44 @@ export const DietView = () => {
         consumedCarbs={consumedCarbs}
         targetFat={targetFat}
         consumedFat={consumedFat}
+        isWorkoutDay={dailySummary?.isWorkoutDay}
+        dayType={dailySummary?.dayType}
+        isCalorieCyclingEnabled={backendTarget?.isCalorieCyclingEnabled ?? true}
       />
 
-      {/* 2. Hydration Dedicated Card */}
+      {/* 2. Nexodus Chef Hub & Healthy Recipes */}
+      <NexodusChefCard
+        remainingCals={remainingCals}
+        remainingProtein={remainingProtein}
+        remainingCarbs={remainingCarbs}
+        onOpenChefAi={() => setShowChefAiModal(true)}
+        onOpenCatalog={() => setShowCatalogModal(true)}
+        onOpenPantry={() => setShowPantryModal(true)}
+      />
+
+      {/* 2b. Food Budget Card (Opción A: Sincronizado con Finanzas) */}
+      <FoodBudgetCard currentTarget={backendTarget ?? undefined} />
+
+      {/* 3. Hydration Dedicated Card */}
       <HydrationCard
         currentWaterMl={currentWater}
         targetWaterMl={targetWaterMl}
         onAddWater={(amount) => addWaterMutation.mutate(amount)}
         isPending={addWaterMutation.isPending}
+        pendingAmount={addWaterMutation.variables}
       />
 
-      {/* 3. Intermittent Fasting Widget (Single-query with countdown) */}
-      <FastingCard fastingProtocol={backendTarget?.fastingProtocol || dietProfile?.fastingProtocol || '16:8'} />
+      {/* 4. Net Caloric Balance Card (Ingesta - Entreno = Balance Neto) */}
+      <NetCaloricBalanceCard
+        consumedCals={consumedCals}
+        burnedCals={dailySummary?.burnedCalories || 0}
+        targetCals={targetCals}
+      />
 
-      {/* 4. Quick Search & Barcode Trigger */}
-      <TouchableOpacity
-        style={styles.searchInputContainer}
-        onPress={() => setShowFoodSearchModal(true)}
-        activeOpacity={0.8}
-        accessibilityRole="button"
-        accessibilityLabel="Abrir buscador de alimentos o código de barras"
-      >
-        <Search color={theme.colors.mutedText} size={18} />
-        <Text style={styles.searchPlaceholder}>Buscar alimento o código de barras...</Text>
-        <View style={styles.scanBtn}>
-          <ScanBarcode color={theme.colors.neonCyan} size={16} />
-        </View>
-      </TouchableOpacity>
+      {/* 5. Intermittent Fasting Widget (Solo visible si el plan de dieta tiene una meta de ayuno configurada) */}
+      {isFastingConfigured && (
+        <FastingCard fastingProtocol={rawFastingProtocol || '16:8'} />
+      )}
 
       {/* 5. Scheduled Feedings Header */}
       <View style={styles.feedingsHeader}>
@@ -278,20 +352,6 @@ export const DietView = () => {
             {meals.filter((m) => m.isCompleted).length} Completadas • {meals.filter((m) => !m.isCompleted).length} Planeadas
           </Text>
         </View>
-
-        <TouchableOpacity
-          style={styles.addMealBtn}
-          onPress={() => {
-            setMealToEdit(null);
-            setShowMealModal(true);
-          }}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel="Registrar nueva comida"
-        >
-          <Plus size={14} color={theme.colors.obsidian} />
-          <Text style={styles.addMealBtnText}>+ Comida</Text>
-        </TouchableOpacity>
       </View>
 
       {/* 6. Meals List */}
@@ -302,23 +362,11 @@ export const DietView = () => {
         </View>
       ) : meals.length === 0 ? (
         <View style={styles.emptyMealsCard}>
-          <Utensils size={32} color={theme.colors.slate600} />
+          <Utensils size={32} color={theme.colors.neonCyan} />
           <Text style={styles.emptyMealsTitle}>Sin comidas registradas</Text>
           <Text style={styles.emptyMealsSub}>
             No has registrado alimentos para {isToday ? 'el día de hoy' : selectedDate}. Presiona el botón para agregar una comida.
           </Text>
-          <TouchableOpacity
-            style={styles.emptyAddBtn}
-            onPress={() => {
-              setMealToEdit(null);
-              setShowMealModal(true);
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Registrar primera comida"
-          >
-            <Plus size={14} color={theme.colors.neonCyan} />
-            <Text style={styles.emptyAddBtnText}>Registrar Comida</Text>
-          </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.mealsList}>
@@ -353,26 +401,48 @@ export const DietView = () => {
         initialItems={initialMealItems}
       />
 
-      <FoodSearchModal
-        visible={showFoodSearchModal}
-        onClose={() => setShowFoodSearchModal(false)}
-        onSelectFood={(food, qty) => {
-          const ratio = qty / (food.servingSize || 100);
-          const item: MealItem = {
-            foodId: food.id || null,
-            foodName: food.name,
-            quantity: qty,
-            unit: food.servingUnit || 'g',
-            calories: Math.round(food.calories * ratio),
-            protein: Math.round(food.protein * ratio * 10) / 10,
-            carbs: Math.round(food.carbs * ratio * 10) / 10,
-            fat: Math.round(food.fat * ratio * 10) / 10,
-          };
-          setInitialMealItems([item]);
-          setShowFoodSearchModal(false);
-          setMealToEdit(null);
+      {/* Nexodus Lens (AI Vision Modal) */}
+      <NexodusLensModal
+        visible={showLensModal}
+        onClose={() => setShowLensModal(false)}
+        onAddAnalyzedMeal={(items, mealName) => {
+          setInitialMealItems(items);
+          setMealToEdit({
+            id: '',
+            date: selectedDate,
+            mealType: 'Lunch',
+            name: mealName,
+            time: new Date().toTimeString().slice(0, 5),
+            isCompleted: true,
+            items,
+          });
           setShowMealModal(true);
         }}
+      />
+
+      {/* Recipe Catalog Modal (Catálogo de Platos Completos) */}
+      <RecipeCatalogModal
+        visible={showCatalogModal}
+        onClose={() => setShowCatalogModal(false)}
+        selectedDate={selectedDate}
+      />
+
+      {/* Chef AI Modal (Completar Macros Restantes) */}
+      <ChefAiModal
+        visible={showChefAiModal}
+        onClose={() => setShowChefAiModal(false)}
+        selectedDate={selectedDate}
+        remainingCals={remainingCals}
+        remainingProtein={remainingProtein}
+        remainingCarbs={remainingCarbs}
+        remainingFat={remainingFat}
+      />
+
+      {/* Pantry Modal (Modo Despensa - Cocina con lo que tienes) */}
+      <PantryModal
+        visible={showPantryModal}
+        onClose={() => setShowPantryModal(false)}
+        selectedDate={selectedDate}
       />
     </View>
   );
@@ -428,28 +498,45 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.neonCyan,
       letterSpacing: 0.5,
     },
-    searchInputContainer: {
+    actionsRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.borderGlow,
-      borderRadius: 14,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
+      gap: 12,
       marginBottom: 20,
     },
-    searchPlaceholder: {
-      fontFamily: 'Geist_400Regular',
-      fontSize: 13,
-      color: colors.mutedText,
-      marginLeft: 10,
+    addMealActionBtn: {
       flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.neonCyan,
+      paddingVertical: 12,
+      paddingHorizontal: 12,
+      borderRadius: 14,
     },
-    scanBtn: {
-      padding: 6,
+    addMealActionText: {
+      fontFamily: 'Geist_700Bold',
+      fontSize: 13,
+      color: colors.obsidian,
+    },
+    lensTriggerBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
       backgroundColor: colors.surfaceLight,
-      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: 'rgba(0, 240, 255, 0.25)',
+      paddingVertical: 12,
+      paddingHorizontal: 12,
+      borderRadius: 14,
+    },
+    lensTriggerText: {
+      fontFamily: 'Geist_700Bold',
+      fontSize: 13,
+      color: colors.neonCyan,
     },
     feedingsHeader: {
       flexDirection: 'row',
@@ -468,20 +555,6 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: 11,
       color: colors.mutedText,
       marginTop: 2,
-    },
-    addMealBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      backgroundColor: colors.neonCyan,
-      paddingVertical: 6,
-      paddingHorizontal: 12,
-      borderRadius: 10,
-    },
-    addMealBtnText: {
-      fontFamily: 'Geist_700Bold',
-      fontSize: 12,
-      color: colors.obsidian,
     },
     emptyMealsCard: {
       backgroundColor: colors.surface,
@@ -505,23 +578,6 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.mutedText,
       textAlign: 'center',
       lineHeight: 18,
-    },
-    emptyAddBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      backgroundColor: colors.surfaceLight,
-      borderWidth: 1,
-      borderColor: colors.borderGlow,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
-      borderRadius: 10,
-      marginTop: 6,
-    },
-    emptyAddBtnText: {
-      fontFamily: 'Geist_600SemiBold',
-      fontSize: 12,
-      color: colors.neonCyan,
     },
     mealsList: {
       gap: 2,

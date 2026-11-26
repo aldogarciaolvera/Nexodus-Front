@@ -13,6 +13,9 @@ interface DietMacrosCardProps {
   consumedCarbs: number;
   targetFat: number;
   consumedFat: number;
+  isWorkoutDay?: boolean;
+  dayType?: string;
+  isCalorieCyclingEnabled?: boolean;
 }
 
 export const DietMacrosCard: React.FC<DietMacrosCardProps> = ({
@@ -24,6 +27,9 @@ export const DietMacrosCard: React.FC<DietMacrosCardProps> = ({
   consumedCarbs,
   targetFat,
   consumedFat,
+  isWorkoutDay,
+  dayType,
+  isCalorieCyclingEnabled = true,
 }) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
@@ -36,8 +42,22 @@ export const DietMacrosCard: React.FC<DietMacrosCardProps> = ({
   const carbsPct = targetCarbs > 0 ? Math.min(100, Math.round((consumedCarbs / targetCarbs) * 100)) : 0;
   const fatPct = targetFat > 0 ? Math.min(100, Math.round((consumedFat / targetFat) * 100)) : 0;
 
+  const isGymDay = dayType === 'Workout' || isWorkoutDay;
+
   return (
     <View style={styles.card}>
+      {/* Cycling Badge if enabled */}
+      {isCalorieCyclingEnabled && (
+        <View style={styles.cyclingHeaderRow}>
+          <Text style={styles.cyclingTitle}>CICLADO NUTRICIONAL GYM</Text>
+          <View style={[styles.cyclingBadge, isGymDay ? styles.cyclingBadgeGym : styles.cyclingBadgeRest]}>
+            <Text style={[styles.cyclingBadgeText, isGymDay ? styles.cyclingBadgeTextGym : styles.cyclingBadgeTextRest]}>
+              {isGymDay ? '⚡ DÍA ENTRENAMIENTO (+20% CARBOS)' : '🛡️ DÍA RECUPERACIÓN (-20% CARBOS)'}
+            </Text>
+          </View>
+        </View>
+      )}
+
       {/* Top Calories & Progress Row */}
       <View style={styles.topRow}>
         <View style={styles.gaugeContainer}>
@@ -142,6 +162,46 @@ const createStyles = (colors: ThemeColors) =>
       borderColor: colors.borderGlow,
       padding: 16,
       marginBottom: 16,
+    },
+    cyclingHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingBottom: 10,
+      marginBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.borderGlow,
+    },
+    cyclingTitle: {
+      fontFamily: 'JetBrainsMono_700Bold',
+      fontSize: 10,
+      color: colors.slate400,
+      letterSpacing: 0.5,
+    },
+    cyclingBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      borderWidth: 1,
+    },
+    cyclingBadgeGym: {
+      backgroundColor: 'rgba(56, 189, 248, 0.12)',
+      borderColor: colors.neonCyan,
+    },
+    cyclingBadgeRest: {
+      backgroundColor: 'rgba(148, 163, 184, 0.1)',
+      borderColor: colors.slate600,
+    },
+    cyclingBadgeText: {
+      fontFamily: 'JetBrainsMono_500Medium',
+      fontSize: 9,
+      textTransform: 'uppercase',
+    },
+    cyclingBadgeTextGym: {
+      color: colors.neonCyan,
+    },
+    cyclingBadgeTextRest: {
+      color: colors.slate400,
     },
     topRow: {
       flexDirection: 'row',

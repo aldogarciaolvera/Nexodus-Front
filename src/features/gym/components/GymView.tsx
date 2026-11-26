@@ -1,8 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
-import { Activity, Play, Target, CheckCircle2, X } from 'lucide-react-native';
+import { Activity, Play, Target, CheckCircle2, Sparkles } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { UserService } from '../../../services/user.service';
@@ -12,21 +12,41 @@ import { Skeleton } from '../../../components/Skeleton';
 import { useWorkoutStore } from '../../../store/workoutStore';
 import { GymOnboardingModal } from './GymOnboardingModal';
 import { MuscleRecoveryCard } from './MuscleRecoveryCard';
+import { StreakCard } from './StreakCard';
+import { StretchingView } from './StretchingView';
+import { CardioView } from './CardioView';
 import { AppNavigationProp } from '../../../utils/navigation';
 import { queryKeys } from '../../../services/queryKeys';
+
+const SessionDurationText = React.memo(({ style }: { style: any }) => {
+  const elapsedSeconds = useWorkoutStore((s) => s.elapsedSeconds);
+  const isActive = useWorkoutStore((s) => s.isActive);
+  const isPaused = useWorkoutStore((s) => s.isPaused);
+  const activeRoutine = useWorkoutStore((s) => s.activeRoutine);
+  const mins = Math.floor(elapsedSeconds / 60);
+  const secs = elapsedSeconds % 60;
+  const formatted = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  return (
+    <Text style={style}>
+      {isActive && activeRoutine ? (isPaused ? `${formatted} (PAUSA)` : formatted) : '00:00'}
+    </Text>
+  );
+});
 
 export const GymView = () => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
   const navigation = useNavigation<AppNavigationProp>();
   const queryClient = useQueryClient();
+  const [activeSubTab, setActiveSubTab] = useState<'weights' | 'stretching' | 'cardio'>('weights');
 
   const { 
     isActive, 
+    isPaused,
     activeRoutine, 
-    elapsedSeconds, 
     currentExerciseIndex,
     startWorkout, 
+    resumeWorkout,
     initFromBackend,
   } = useWorkoutStore();
 
@@ -43,11 +63,15 @@ export const GymView = () => {
   const { data: profile, isLoading } = useQuery({
     queryKey: queryKeys.gym.profile,
     queryFn: UserService.getProfile,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   const { data: routinesList = [], isLoading: isLoadingRoutines } = useQuery({
     queryKey: queryKeys.gym.routines,
     queryFn: gymService.getRoutines,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   const routineQueries = useQueries({
@@ -122,26 +146,6 @@ export const GymView = () => {
     log.dateCompleted.startsWith(todayDateString)
   ) : undefined;
 
-  const getDayStatus = (dayIndex: number) => {
-    const today = new Date();
-    // JS getDay() returns 0 for Sunday. Convert so 0=Mon, 1=Tue... 6=Sun
-    const currentDayIndex = today.getDay() === 0 ? 6 : today.getDay() - 1;
-    
-    const date = new Date(today);
-    date.setDate(today.getDate() - currentDayIndex + dayIndex);
-    const dateString = date.toISOString().split('T')[0];
-
-    const isToday = dayIndex === currentDayIndex;
-    const isPast = dayIndex < currentDayIndex;
-    
-    const hasWorkout = workoutLogs.some(log => log.dateCompleted.startsWith(dateString));
-
-    if (hasWorkout) return 'completed';
-    if (isPast) return 'missed';
-    if (isToday) return 'active';
-    return 'upcoming';
-  };
-
   if (isLoading || isLoadingRoutines) {
     return (
       <View style={{ gap: 16 }}>
@@ -158,8 +162,40 @@ export const GymView = () => {
     return <GymOnboardingModal profile={profile} />;
   }
 
+  const strengthRoutines = routines.filter((r) => r.routineType !== 'Stretching');
+  const personalStretchingRoutines = routines.filter((r) => r.routineType === 'Stretching');
+
   return (
     <View style={styles.container}>
+      {/* Segmented Sub-Tabs: Pesas | Estiramientos | Cardio */}
+      <View style={styles.subTabsTrack}>
+        {([
+          { id: 'weights', label: 'Pesas' },
+          { id: 'stretching', label: 'Estiramientos' },
+          { id: 'cardio', label: 'Cardio' },
+        ] as const).map((tab) => {
+          const active = activeSubTab === tab.id;
+          return (
+            <TouchableOpacity
+              key={tab.id}
+              style={[styles.subTabPill, active && styles.subTabPillActive]}
+              onPress={() => setActiveSubTab(tab.id)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.subTabText, active && styles.subTabTextActive]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {activeSubTab === 'stretching' ? (
+        <StretchingView personalStretchingRoutines={personalStretchingRoutines} />
+      ) : activeSubTab === 'cardio' ? (
+        <CardioView userWeightKg={profile?.weight} />
+      ) : (
+        <>
       {/* Session Execution Card */}
       {completedTodayWorkout ? (
         <View style={styles.sessionCard}>
@@ -204,9 +240,7 @@ export const GymView = () => {
           <View style={styles.metricsRow}>
             <View style={styles.metricItem}>
               <Text style={styles.metricLabel}>DURACION</Text>
-              <Text style={styles.metricValue}>
-                {isActive && activeRoutine ? formatTime(elapsedSeconds) : '00:00'}
-              </Text>
+              <SessionDurationText style={styles.metricValue} />
             </View>
           </View>
 
@@ -215,6 +249,7 @@ export const GymView = () => {
             activeOpacity={0.8}
             onPress={async () => {
               if (isActive) {
+                resumeWorkout();
                 navigation.navigate('ActiveWorkout');
               } else if (todayRoutine) {
                 await startWorkout(todayRoutine);
@@ -227,7 +262,11 @@ export const GymView = () => {
             </View>
             <View>
               <Text style={styles.resumeTitle}>{isActive && activeRoutine ? 'Continuar Rutina' : 'Comenzar Rutina'}</Text>
-              <Text style={styles.resumeSub}>{isActive && activeRoutine ? 'Rutina en progreso' : 'Listo para empezar'}</Text>
+              <Text style={styles.resumeSub}>
+                {isActive && activeRoutine
+                  ? (isPaused ? 'Rutina en pausa' : 'Rutina en progreso')
+                  : 'Listo para empezar'}
+              </Text>
             </View>
             <View style={{flex: 1}}/>
             <Text style={{color: theme.colors.mutedText}}>→</Text>
@@ -250,46 +289,14 @@ export const GymView = () => {
         </View>
       )}
 
-      {/* Strain Distribution */}
-      <View style={styles.strainContainer}>
-        <View style={styles.streakRow}>
-          <Text style={styles.streakLabel}>RACHA:</Text>
-          <View style={styles.daysContainer}>
-            {['L','M','X','J','V','S','D'].map((day, i) => {
-              const status = getDayStatus(i);
-              
-              let content;
-              if (status === 'completed') {
-                content = <CheckCircle2 size={12} color={theme.colors.neonCyan} />;
-              } else if (status === 'missed') {
-                content = <X size={12} color={theme.colors.error} />;
-              } else {
-                content = <Text style={[styles.dayText, status === 'active' && styles.dayTextActive]}>{day}</Text>;
-              }
-
-              return (
-                <View 
-                  key={i} 
-                  style={[
-                    styles.dayCircle, 
-                    status === 'active' && styles.dayCircleActive, 
-                    status === 'completed' && styles.dayCircleCompleted,
-                    status === 'missed' && { borderColor: theme.colors.error, opacity: 0.8 }
-                  ]}
-                >
-                  {content}
-                </View>
-              );
-            })}
-          </View>
-        </View>
-      </View>
+      {/* Protocol Streak Card */}
+      <StreakCard />
 
       {/* Muscular Recovery Status */}
       <MuscleRecoveryCard />
 
       {/* Routine List */}
-      {routines.sort((a, b) => (a.targetDay || 0) - (b.targetDay || 0)).map((routine, idx) => {
+      {strengthRoutines.sort((a, b) => (a.targetDay || 0) - (b.targetDay || 0)).map((routine, idx) => {
         const days = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
         // targetDay 1 = Monday, 7 = Sunday
         const dayName = routine.targetDay ? (routine.targetDay === 7 ? days[0] : days[routine.targetDay]) : 'Sin día asignado';
@@ -307,7 +314,17 @@ export const GymView = () => {
             <View style={styles.exerciseTop}>
               <View style={styles.exerciseIcon}><Activity color={theme.colors.obsidian} size={16}/></View>
               <View style={styles.exerciseInfo}>
-                <Text style={styles.exerciseTitle}>{routine.name}</Text>
+                <View style={styles.exerciseTitleRow}>
+                  <Text style={styles.exerciseTitle} numberOfLines={1}>{routine.name}</Text>
+                  <View style={[styles.originPill, routine.isAiGenerated && styles.originPillAi]}>
+                    {routine.isAiGenerated && (
+                      <Sparkles color={theme.colors.neonCyan} size={10} />
+                    )}
+                    <Text style={[styles.originPillText, routine.isAiGenerated && styles.originPillTextAi]}>
+                      {routine.isAiGenerated ? 'IA' : 'MANUAL'}
+                    </Text>
+                  </View>
+                </View>
                 <Text style={styles.exerciseSub}>
                   <Text style={{color: theme.colors.neonCyan}}>{dayName}</Text> • {routine.difficultyLevel || 'Beginner'} • {totalExercises} Ejercicios
                 </Text>
@@ -321,6 +338,8 @@ export const GymView = () => {
           </TouchableOpacity>
         );
       })}
+        </>
+      )}
     </View>
   );
 };
@@ -328,6 +347,36 @@ export const GymView = () => {
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     width: '100%',
+  },
+  subTabsTrack: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.borderGlow,
+    padding: 4,
+    marginBottom: 18,
+    gap: 4,
+  },
+  subTabPill: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subTabPillActive: {
+    backgroundColor: colors.surfaceLight,
+    borderWidth: 1,
+    borderColor: colors.neonCyan,
+  },
+  subTabText: {
+    fontFamily: 'Geist_600SemiBold',
+    fontSize: 13,
+    color: colors.mutedText,
+  },
+  subTabTextActive: {
+    color: colors.neonCyan,
   },
   sessionCard: {
     backgroundColor: colors.surface,
@@ -427,45 +476,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: 11,
     color: colors.mutedText,
   },
-  strainContainer: {
-    marginBottom: 24,
-  },
-  streakRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  streakLabel: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 10,
-    color: colors.mutedText,
-    marginRight: 12,
-  },
-  daysContainer: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  dayCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.surfaceLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dayCircleActive: {
-    backgroundColor: colors.neonCyan,
-  },
-  dayCircleCompleted: {
-    backgroundColor: 'rgba(0, 240, 255, 0.1)',
-  },
-  dayText: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 10,
-    color: colors.mutedText,
-  },
-  dayTextActive: {
-    color: colors.obsidian,
-  },
   exerciseCard: {
     backgroundColor: colors.surface,
     borderRadius: 16,
@@ -495,6 +505,38 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: 'Geist_600SemiBold',
     fontSize: 15,
     color: colors.text,
+    flexShrink: 1,
+  },
+  exerciseTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 2,
+  },
+  originPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceLight,
+    borderWidth: 1,
+    borderColor: colors.borderGlow,
+  },
+  originPillAi: {
+    backgroundColor: 'rgba(0, 240, 255, 0.1)',
+    borderColor: 'rgba(0, 240, 255, 0.35)',
+  },
+  originPillText: {
+    fontFamily: 'JetBrainsMono_500Medium',
+    fontSize: 9,
+    color: colors.mutedText,
+    letterSpacing: 0.6,
+  },
+  originPillTextAi: {
+    color: colors.neonCyan,
   },
   exerciseSub: {
     fontFamily: 'JetBrainsMono_400Regular',

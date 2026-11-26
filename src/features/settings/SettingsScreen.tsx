@@ -15,11 +15,13 @@ import { useAlertStore, AlertState } from '../../store/alertStore';
 import { queryKeys } from '../../services/queryKeys';
 import * as Updates from 'expo-updates';
 import { ProfileEditModal } from './components/ProfileEditModal';
+import { ObsidianTierCard } from './components/ObsidianTierCard';
 import { CustomTimePicker } from '../../components/CustomTimePicker';
 import { useEquipmentStore } from '../../store/equipmentStore';
 import { EquipmentModal } from '../gym/components/EquipmentModal';
 import { useDietStore } from '../../store/dietStore';
 import { DietSetupModal } from '../diet/components/DietSetupModal';
+import { normalizeErrorMessage } from '../../services/api';
 import { 
   getGlobalReminderConfig, 
   scheduleGlobalReminder, 
@@ -32,7 +34,7 @@ export const SettingsScreen = () => {
   const { isDarkMode, toggleTheme } = theme;
   const styles = createStyles(theme.colors);
   const navigation = useNavigation();
-  const { logout, user, accessToken, refreshToken, updateTokens, updateAccessToken, apiEnv, setApiEnv, getApiUrl } = useAuthStore();
+  const { logout, user } = useAuthStore();
   const [isProfileModalVisible, setProfileModalVisible] = useState(false);
   const [isEquipmentModalVisible, setEquipmentModalVisible] = useState(false);
   const [isDietModalVisible, setDietModalVisible] = useState(false);
@@ -148,7 +150,7 @@ export const SettingsScreen = () => {
                     ]
                   });
                 } catch (fetchErr: any) {
-                  useAlertStore.getState().showAlert('Error', `No se pudo descargar la actualización: ${fetchErr.message}`);
+                  useAlertStore.getState().showAlert('Error al Descargar', normalizeErrorMessage(fetchErr), 'error');
                 }
               }
             }
@@ -165,13 +167,12 @@ export const SettingsScreen = () => {
         );
       }
     } catch (error: any) {
-      showAlert('Error', `No se pudo comprobar actualizaciones: ${error.message}`);
+      showAlert('Error', `No se pudo comprobar actualizaciones: ${normalizeErrorMessage(error)}`, 'error');
     } finally {
       setIsCheckingUpdates(false);
     }
   };
 
-  const isTester = Array.isArray(user?.role) ? user.role.includes('Tester') : user?.role === 'Tester';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -207,6 +208,13 @@ export const SettingsScreen = () => {
             </Svg>
           </TouchableOpacity>
         </View>
+
+        {/* Nivel & Experiencia */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionHeaderText}>NIVEL & EXPERIENCIA</Text>
+        </View>
+
+        <ObsidianTierCard />
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionHeaderText}>PREFERENCIAS</Text>
@@ -320,77 +328,6 @@ export const SettingsScreen = () => {
             <ChevronRight size={18} color={theme.colors.mutedText} />
           </TouchableOpacity>
         </View>
-        
-        {__DEV__ && isTester && (
-          <View style={[styles.card, { marginTop: 16 }]}>
-            <View style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.rowTitle}>Entorno Producción</Text>
-                <Text style={styles.rowSubtitle}>Actual: {getApiUrl()}</Text>
-              </View>
-              <Switch
-                value={apiEnv === 'production'}
-                onValueChange={async (val) => {
-                  const newEnv = val ? 'production' : 'local';
-                  setApiEnv(newEnv);
-                  
-                  const url = newEnv === 'production' 
-                    ? 'https://nexodusback.atomsystems.org/health'
-                    : `${process.env.EXPO_PUBLIC_API_URL}/health`;
-                    
-                  console.log(`[Env Switch] Cambiando a ${newEnv}. Fetching: ${url}`);
-                  try {
-                    const response = await fetch(url);
-                    const text = await response.text();
-                    console.log(`[Env Switch] Respuesta exitosa de ${url}:`, text);
-                  } catch (e) {
-                    console.error(`[Env Switch] Falló la conexión a ${url}:`, e);
-                  }
-                }}
-                trackColor={{ false: theme.colors.slate600, true: theme.colors.neonCyan }}
-                thumbColor={theme.colors.white}
-              />
-            </View>
-
-            <TouchableOpacity 
-              style={[styles.logoutButton, { backgroundColor: theme.colors.surfaceLight, marginTop: 16, borderColor: theme.colors.neonCyan, borderWidth: 1 }]} 
-              activeOpacity={0.8}
-              onPress={async () => {
-                try {
-                  const apiUrl = getApiUrl();
-                  const response = await fetch(`${apiUrl}/api/auth/refresh`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token: accessToken, refreshToken })
-                  });
-                  const text = await response.text();
-                  if (response.ok) {
-                    const data = JSON.parse(text);
-                    const newToken = data.content?.token || data.token || data.content?.accessToken || data.accessToken;
-                    const newRefreshToken = data.content?.refreshToken || data.refreshToken;
-                    
-                    if (newToken && newRefreshToken) {
-                      await updateTokens(newToken, newRefreshToken);
-                      showAlert('Éxito', 'Token refrescado correctamente', 'success');
-                    } else if (newToken) {
-                      await updateAccessToken(newToken);
-                      showAlert('Éxito', 'Access token refrescado correctamente', 'success');
-                    } else {
-                      showAlert('Error', 'No se encontraron tokens en la respuesta: ' + text);
-                    }
-                  } else {
-                    showAlert('Error Refresh', `Status: ${response.status} Body: ${text}`);
-                  }
-                } catch (e: any) {
-                  showAlert('Error Refresh', e.message || 'Error desconocido');
-                }
-              }}
-            >
-              <Text style={[styles.logoutText, { color: theme.colors.neonCyan }]}>Test Refresh Token</Text>
-            </TouchableOpacity>
-
-          </View>
-        )}
 
         <View style={[styles.card, { marginTop: 16 }]}>
           <TouchableOpacity 
@@ -537,7 +474,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   profileSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 20,
     backgroundColor: colors.surface,
     padding: 20,
     borderRadius: 16,

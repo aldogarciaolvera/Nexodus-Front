@@ -131,7 +131,7 @@ export const PlateCalculatorModal = React.memo(({
                       barWeight === w && styles.barBtnTextActive,
                     ]}
                   >
-                    {w} kg {w === 20 ? '(Olímpica)' : ''}
+                    {w} kg
                   </Text>
                 </TouchableOpacity>
               ))}

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity, ScrollView, ScrollViewInstance, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
@@ -9,6 +9,9 @@ import { AuthService } from '../../services/auth.service';
 import { useAuthStore } from '../../store/authStore';
 import { useNavigation } from '@react-navigation/native';
 import Constants from 'expo-constants';
+
+import { useAlertStore } from '../../store/alertStore';
+import { normalizeErrorMessage } from '../../services/api';
 
 export const RegisterScreen = () => {
   const [username, setUsername] = useState('');
@@ -25,20 +28,58 @@ export const RegisterScreen = () => {
   const login = useAuthStore(state => state.login);
   const navigation = useNavigation();
 
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  // Dynamic keyboard height listener to expand scroll bounds and prevent inputs being obscured
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const handleFocusField = (yOffset: number) => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        y: yOffset,
+        animated: true,
+      });
+    }, 120);
+  };
+
   const handleRegister = async () => {
     // Validations
     if (!username || !email || !password || !confirmPassword || !phoneNumber) {
-      setError('Por favor completa todos los campos requeridos');
+      const msg = 'Por favor completa todos los campos requeridos';
+      setError(msg);
+      useAlertStore.getState().showAlert('Campos Incompletos', msg, 'info');
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Las contraseñas no coinciden');
+      const msg = 'Las contraseñas no coinciden';
+      setError(msg);
+      useAlertStore.getState().showAlert('Contraseñas no coinciden', msg, 'error');
       return;
     }
 
     if (password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres');
+      const msg = 'La contraseña debe tener al menos 6 caracteres';
+      setError(msg);
+      useAlertStore.getState().showAlert('Contraseña muy corta', msg, 'info');
       return;
     }
 
@@ -59,7 +100,9 @@ export const RegisterScreen = () => {
       
       await login(token, response.refreshToken);
     } catch (err: any) {
-      setError(err.message || 'Error al registrarse');
+      const msg = normalizeErrorMessage(err);
+      setError(msg);
+      useAlertStore.getState().showAlert('Error al Registrarse', msg, 'error');
     } finally {
       setLoading(false);
     }
@@ -72,8 +115,17 @@ export const RegisterScreen = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView 
-          contentContainerStyle={styles.scrollContent} 
+          ref={scrollViewRef}
+          contentContainerStyle={[
+            styles.scrollContent,
+            keyboardHeight > 0 && {
+              paddingBottom: keyboardHeight + 80,
+              justifyContent: 'flex-start',
+            }
+          ]} 
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets={true}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
@@ -88,6 +140,7 @@ export const RegisterScreen = () => {
               value={username}
               onChangeText={setUsername}
               autoCapitalize="none"
+              onFocus={() => handleFocusField(0)}
             />
             
             <Input 
@@ -97,6 +150,7 @@ export const RegisterScreen = () => {
               onChangeText={setEmail}
               autoCapitalize="none"
               keyboardType="email-address"
+              onFocus={() => handleFocusField(60)}
             />
             
             <Input 
@@ -105,6 +159,7 @@ export const RegisterScreen = () => {
               value={phoneNumber}
               onChangeText={setPhoneNumber}
               keyboardType="phone-pad"
+              onFocus={() => handleFocusField(140)}
             />
             
             <Input 
@@ -113,6 +168,7 @@ export const RegisterScreen = () => {
               value={password}
               onChangeText={setPassword}
               isPassword
+              onFocus={() => handleFocusField(220)}
             />
 
             <Input 
@@ -121,6 +177,7 @@ export const RegisterScreen = () => {
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               isPassword
+              onFocus={() => handleFocusField(300)}
             />
             
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -138,10 +195,11 @@ export const RegisterScreen = () => {
                 <Text style={styles.loginLink}>Inicia Sesión</Text>
               </TouchableOpacity>
             </View>
+
+            <Text style={styles.versionText}>v{Constants.expoConfig?.version || '0.0.10'}</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-      <Text style={styles.versionText}>v{Constants.expoConfig?.version || '0.0.3'}</Text>
     </SafeAreaView>
   );
 };
@@ -158,7 +216,7 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography, metrics:
     flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: metrics.marginHorizontal,
-    paddingVertical: 40,
+    paddingTop: 40,
     paddingBottom: 80,
   },
   header: {
@@ -193,21 +251,10 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography, metrics:
     marginTop: 8,
     marginBottom: 8,
   },
-  versionText: {
-    position: 'absolute',
-    bottom: 24,
-    width: '100%',
-    textAlign: 'center',
-    color: colors.slate500,
-    fontFamily: typography.fontMono,
-    fontSize: 10,
-    letterSpacing: 1,
-  },
   loginContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: 24,
-    paddingBottom: 24,
   },
   loginText: {
     color: colors.slate400,
@@ -218,6 +265,13 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography, metrics:
     color: colors.neonCyan,
     fontFamily: typography.fontFamilyBold,
     fontSize: 14,
-    textDecorationLine: 'underline',
-  }
+  },
+  versionText: {
+    marginTop: 24,
+    textAlign: 'center',
+    color: colors.slate500,
+    fontFamily: typography.fontMono,
+    fontSize: 10,
+    letterSpacing: 1,
+  },
 });

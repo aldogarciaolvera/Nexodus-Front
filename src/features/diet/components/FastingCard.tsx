@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Clock, Play, Square, Flame, Sparkles } from 'lucide-react-native';
+import { Clock, Play, Square } from 'lucide-react-native';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
 import { dietService, FastingStatus } from '../../../services/diet.service';
 import { queryKeys } from '../../../services/queryKeys';
 import { useAlertStore } from '../../../store/alertStore';
+import { useDietStore } from '../../../store/dietStore';
 import { Skeleton } from '../../../components/Skeleton';
 
 interface FastingCardProps {
@@ -19,37 +20,52 @@ export const FastingCard: React.FC<FastingCardProps> = ({ fastingProtocol = '16:
   const queryClient = useQueryClient();
   const showAlert = useAlertStore((state) => state.showAlert);
 
-  // Consulta única al montar o al mutar (sin polling periódico)
+  const fastingState = useDietStore((state) => state.fastingState);
+  const storeStartFasting = useDietStore((state) => state.startFasting);
+  const storeStopFasting = useDietStore((state) => state.stopFasting);
+
+  // Consulta de estado en backend
   const { data: status, isLoading } = useQuery<FastingStatus>({
     queryKey: queryKeys.diet.fasting,
     queryFn: dietService.getFastingStatus,
-    staleTime: 1000 * 60 * 60, // 1 hora de frescura en caché
+    staleTime: 1000 * 60 * 5, // 5 minutos de frescura
     refetchOnWindowFocus: false,
     refetchInterval: false,
   });
+
+  const parseTargetHours = (protocol?: string): number => {
+    if (!protocol) return 16;
+    if (protocol.includes('18')) return 18;
+    if (protocol.includes('20')) return 20;
+    if (protocol.includes('16')) return 16;
+    const match = protocol.match(/^(\d+)/);
+    if (match) return parseInt(match[1], 10);
+    return 16;
+  };
+
+  const effectiveProtocol = status?.fastingProtocol || fastingProtocol || '16:8';
+  const defaultHours = parseTargetHours(effectiveProtocol);
+  const targetHours = status?.targetHours || fastingState?.targetHours || defaultHours;
+
+  const isActive = Boolean(status?.isActive || fastingState?.isFasting);
+  const startTimeStr = (status?.isActive && status?.startTime)
+    ? status.startTime
+    : (fastingState?.isFasting && fastingState?.startTime)
+      ? fastingState.startTime
+      : null;
 
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   useEffect(() => {
-    if (!status?.isActive) {
+    if (!isActive || !startTimeStr) {
       setRemainingSeconds(0);
       setElapsedSeconds(0);
       return;
     }
 
-    const targetHours = status.targetHours || 16;
     const targetSecs = targetHours * 3600;
-
-    let startMs: number;
-    if (status.startTime) {
-      startMs = new Date(status.startTime).getTime();
-    } else if (typeof status.elapsedSeconds === 'number') {
-      startMs = Date.now() - status.elapsedSeconds * 1000;
-    } else {
-      startMs = Date.now();
-    }
-
+    const startMs = new Date(startTimeStr).getTime();
     const endMs = startMs + targetSecs * 1000;
 
     const tick = () => {
@@ -63,11 +79,28 @@ export const FastingCard: React.FC<FastingCardProps> = ({ fastingProtocol = '16:
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [status?.isActive, status?.startTime, status?.elapsedSeconds, status?.targetHours]);
+  }, [isActive, startTimeStr, targetHours]);
 
   const startMutation = useMutation({
-    mutationFn: () => dietService.startFasting(16, fastingProtocol),
-    onSuccess: () => {
+    mutationFn: async () => {
+      // 1. Guardar de inmediato localmente para reactividad instantánea
+      await storeStartFasting(targetHours);
+      // 2. Sincronizar con el backend
+      try {
+        const res = await dietService.startFasting(targetHours, effectiveProtocol);
+        return res;
+      } catch (err) {
+        console.warn('Backend start fasting fallback to local store:', err);
+        return {
+          isActive: true,
+          startTime: new Date().toISOString(),
+          targetHours,
+          fastingProtocol: effectiveProtocol,
+        };
+      }
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.diet.fasting, data);
       queryClient.invalidateQueries({ queryKey: queryKeys.diet.fasting });
       showAlert('Ayuno Iniciado', 'Tu temporizador de ayuno está en marcha.', 'success');
     },
@@ -77,8 +110,22 @@ export const FastingCard: React.FC<FastingCardProps> = ({ fastingProtocol = '16:
   });
 
   const stopMutation = useMutation({
-    mutationFn: dietService.stopFasting,
-    onSuccess: () => {
+    mutationFn: async () => {
+      // 1. Concluir de inmediato localmente
+      await storeStopFasting();
+      // 2. Sincronizar con el backend
+      try {
+        const res = await dietService.stopFasting();
+        return res;
+      } catch (err) {
+        console.warn('Backend stop fasting fallback to local store:', err);
+        return {
+          isActive: false,
+        };
+      }
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.diet.fasting, data);
       queryClient.invalidateQueries({ queryKey: queryKeys.diet.fasting });
       showAlert('Ayuno Concluido', '¡Excelente trabajo! Has completado tu sesión de ayuno.', 'success');
     },
@@ -88,7 +135,7 @@ export const FastingCard: React.FC<FastingCardProps> = ({ fastingProtocol = '16:
   });
 
   const handleToggle = () => {
-    if (status?.isActive) {
+    if (isActive) {
       showAlert({
         title: '¿Concluir Ayuno?',
         message: '¿Deseas finalizar tu sesión actual de ayuno intermitente?',
@@ -103,7 +150,7 @@ export const FastingCard: React.FC<FastingCardProps> = ({ fastingProtocol = '16:
     }
   };
 
-  if (isLoading) {
+  if (isLoading && !fastingState.isFasting) {
     return (
       <View style={styles.card}>
         <Skeleton width="60%" height={20} style={{ marginBottom: 10 }} />
@@ -113,8 +160,6 @@ export const FastingCard: React.FC<FastingCardProps> = ({ fastingProtocol = '16:
     );
   }
 
-  const isActive = status?.isActive ?? false;
-  const targetHours = status?.targetHours || 16;
   const targetSeconds = targetHours * 3600;
   const progressPct = Math.min(100, Math.round((elapsedSeconds / targetSeconds) * 100));
 
@@ -130,13 +175,7 @@ export const FastingCard: React.FC<FastingCardProps> = ({ fastingProtocol = '16:
       <View style={styles.topRow}>
         <View style={styles.titleWithIcon}>
           <Clock size={16} color={theme.colors.neonCyan} />
-          <Text style={styles.cardTitle}>AYUNO INTERMITENTE ({status?.fastingProtocol || fastingProtocol})</Text>
-        </View>
-
-        <View style={[styles.badge, isActive ? styles.badgeActive : styles.badgeInactive]}>
-          <Text style={[styles.badgeText, isActive ? styles.badgeTextActive : styles.badgeTextInactive]}>
-            {isActive ? 'EN AYUNO' : 'VENTANA ALIMENTACIÓN'}
-          </Text>
+          <Text style={styles.cardTitle}>AYUNO INTERMITENTE</Text>
         </View>
       </View>
 
@@ -146,7 +185,7 @@ export const FastingCard: React.FC<FastingCardProps> = ({ fastingProtocol = '16:
           <Text style={styles.timerLabel}>
             {isActive ? (remainingSeconds === 0 ? 'META LOGRADA' : 'TIEMPO RESTANTE') : 'META DE AYUNO'}
           </Text>
-          <Text style={[styles.timerValue, remainingSeconds === 0 && { color: theme.colors.neonCyan }]}>
+          <Text style={[styles.timerValue, isActive && remainingSeconds === 0 && { color: theme.colors.neonCyan }]}>
             {isActive ? formatHMS(remainingSeconds) : `${targetHours} Horas Objetivo`}
           </Text>
         </View>
@@ -219,31 +258,6 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: 11,
       color: colors.neonCyan,
       letterSpacing: 0.8,
-    },
-    badge: {
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-      borderRadius: 6,
-      borderWidth: 1,
-    },
-    badgeActive: {
-      backgroundColor: 'rgba(0, 240, 255, 0.12)',
-      borderColor: 'rgba(0, 240, 255, 0.3)',
-    },
-    badgeInactive: {
-      backgroundColor: colors.surfaceLight,
-      borderColor: colors.borderGlow,
-    },
-    badgeText: {
-      fontFamily: 'JetBrainsMono_500Medium',
-      fontSize: 9,
-      letterSpacing: 0.6,
-    },
-    badgeTextActive: {
-      color: colors.neonCyan,
-    },
-    badgeTextInactive: {
-      color: colors.mutedText,
     },
     timerRow: {
       flexDirection: 'row',

@@ -70,6 +70,21 @@ export const MealFormModal: React.FC<MealFormModalProps> = ({
   const [showFoodSearch, setShowFoodSearch] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  const getMealTypeDefaultName = (type: string) => {
+    switch (type.toLowerCase()) {
+      case 'breakfast':
+        return 'Desayuno';
+      case 'lunch':
+        return 'Comida';
+      case 'dinner':
+        return 'Cena';
+      case 'snack':
+        return 'Snack';
+      default:
+        return 'Comida';
+    }
+  };
+
   useEffect(() => {
     if (visible) {
       if (mealToEdit) {
@@ -82,7 +97,7 @@ export const MealFormModal: React.FC<MealFormModalProps> = ({
       } else {
         setDate(initialDate || new Date().toISOString().split('T')[0]);
         setMealType(initialMealType);
-        setName(initialItems && initialItems.length > 0 ? initialItems[0].foodName : '');
+        setName(getMealTypeDefaultName(initialMealType));
         // Current time format HH:mm
         const now = new Date();
         const hh = String(now.getHours()).padStart(2, '0');
@@ -123,7 +138,7 @@ export const MealFormModal: React.FC<MealFormModalProps> = ({
     setItems((prev) => [...prev, newItem]);
 
     if (!name.trim()) {
-      setName(food.name);
+      setName(getMealTypeDefaultName(mealType));
     }
   };
 
@@ -216,7 +231,13 @@ export const MealFormModal: React.FC<MealFormModalProps> = ({
                   <TouchableOpacity
                     key={type.key}
                     style={[styles.pill, isActive && styles.pillActive]}
-                    onPress={() => setMealType(type.key)}
+                    onPress={() => {
+                      setMealType(type.key);
+                      const defaultNames = ['Desayuno', 'Comida', 'Cena', 'Snack', ''];
+                      if (defaultNames.includes(name.trim())) {
+                        setName(type.label);
+                      }
+                    }}
                     accessibilityRole="tab"
                     accessibilityState={{ selected: isActive }}
                     accessibilityLabel={type.label}
@@ -227,58 +248,6 @@ export const MealFormModal: React.FC<MealFormModalProps> = ({
                   </TouchableOpacity>
                 );
               })}
-            </View>
-
-            {/* Meal Info Card */}
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>DETALLES DE LA COMIDA</Text>
-
-              <Text style={styles.inputLabel}>NOMBRE DE LA COMIDA *</Text>
-              <TextInput
-                style={styles.input}
-                value={name}
-                onChangeText={setName}
-                placeholder="Ej. Pechuga con arroz y aguacate"
-                placeholderTextColor={theme.colors.mutedText}
-                accessibilityLabel="Nombre de la comida"
-              />
-
-              <View style={styles.row}>
-                <View style={{ flex: 1, marginRight: 8 }}>
-                  <Text style={styles.inputLabel}>HORA (HH:MM)</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={time}
-                    onChangeText={setTime}
-                    placeholder="13:30"
-                    placeholderTextColor={theme.colors.mutedText}
-                    accessibilityLabel="Hora de consumo"
-                  />
-                </View>
-
-                <View style={{ flex: 1, marginLeft: 8 }}>
-                  <Text style={styles.inputLabel}>ESTADO</Text>
-                  <TouchableOpacity
-                    style={[styles.statusToggle, isCompleted && styles.statusToggleActive]}
-                    onPress={() => setIsCompleted(!isCompleted)}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: isCompleted }}
-                    accessibilityLabel={isCompleted ? 'Completado' : 'Planeado'}
-                  >
-                    <View
-                      style={[
-                        styles.statusCheck,
-                        isCompleted && { backgroundColor: theme.colors.neonCyan },
-                      ]}
-                    >
-                      {isCompleted && <Check size={12} color={theme.colors.obsidian} />}
-                    </View>
-                    <Text style={[styles.statusText, isCompleted && { color: theme.colors.text }]}>
-                      {isCompleted ? 'Completado' : 'Planeado'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
             </View>
 
             {/* Food Items Section */}
@@ -336,6 +305,58 @@ export const MealFormModal: React.FC<MealFormModalProps> = ({
                   ))}
                 </View>
               )}
+            </View>
+
+            {/* Meal Info Card */}
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>DETALLES DE LA COMIDA</Text>
+
+              <Text style={styles.inputLabel}>NOMBRE DE LA COMIDA *</Text>
+              <TextInput
+                style={styles.input}
+                value={name}
+                onChangeText={setName}
+                placeholder="Ej. Pechuga con arroz y aguacate"
+                placeholderTextColor={theme.colors.mutedText}
+                accessibilityLabel="Nombre de la comida"
+              />
+
+              <View style={styles.row}>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <Text style={styles.inputLabel}>HORA (HH:MM)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={time}
+                    onChangeText={setTime}
+                    placeholder="13:30"
+                    placeholderTextColor={theme.colors.mutedText}
+                    accessibilityLabel="Hora de consumo"
+                  />
+                </View>
+
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text style={styles.inputLabel}>ESTADO</Text>
+                  <TouchableOpacity
+                    style={[styles.statusToggle, isCompleted && styles.statusToggleActive]}
+                    onPress={() => setIsCompleted(!isCompleted)}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: isCompleted }}
+                    accessibilityLabel={isCompleted ? 'Completado' : 'Planeado'}
+                  >
+                    <View
+                      style={[
+                        styles.statusCheck,
+                        isCompleted && { backgroundColor: theme.colors.neonCyan },
+                      ]}
+                    >
+                      {isCompleted && <Check size={12} color={theme.colors.obsidian} />}
+                    </View>
+                    <Text style={[styles.statusText, isCompleted && { color: theme.colors.text }]}>
+                      {isCompleted ? 'Completado' : 'Planeado'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
 
             {/* Total Macros Live Card */}

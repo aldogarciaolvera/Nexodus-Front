@@ -43,13 +43,21 @@ export const DietOnboardingView: React.FC<DietOnboardingViewProps> = ({
 
   // Initial values derived from existing dietProfile or userProfile
   const [weight, setWeight] = useState<string>(
-    dietProfile?.weightKg?.toString() || profile?.weight?.toString() || '75'
+    dietProfile?.weightKg != null
+      ? String(dietProfile.weightKg)
+      : profile?.weight != null
+      ? String(profile.weight)
+      : '75'
   );
   const [height, setHeight] = useState<string>(
-    dietProfile?.heightCm?.toString() || (profile?.height ? normalizeHeightCm(profile.height).toString() : '175')
+    dietProfile?.heightCm != null
+      ? String(dietProfile.heightCm)
+      : profile?.height != null
+      ? String(normalizeHeightCm(profile.height))
+      : '175'
   );
   const [age, setAge] = useState<string>(
-    dietProfile?.age?.toString() || '25'
+    dietProfile?.age != null ? String(dietProfile.age) : '25'
   );
   const [sex, setSex] = useState<BiologicalSex>(
     dietProfile?.sex || 'male'
@@ -149,7 +157,7 @@ export const DietOnboardingView: React.FC<DietOnboardingViewProps> = ({
           carbsGrams: calculatedTargets.carbsGrams,
           fatGrams: calculatedTargets.fatGrams,
           waterTargetMl: calculatedTargets.waterTargetMl,
-          fastingProtocol: fastingProtocol === '16:8' ? '16:8' : 'None',
+          fastingProtocol: fastingProtocol === 'none' ? 'None' : fastingProtocol,
           eatingWindowStart: '12:00',
           eatingWindowEnd: '20:00',
         });

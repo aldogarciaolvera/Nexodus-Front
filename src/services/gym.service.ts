@@ -26,12 +26,27 @@ export interface RoutineExercise {
   exercise?: Exercise;
 }
 
+export interface WarmupExercise {
+  name: string;
+  durationSeconds: number;
+  focus?: string;
+}
+
 export interface Routine {
   id: string;
   name: string;
   description: string;
   difficultyLevel: string;
   targetDay?: number; // 1 = Monday, ..., 7 = Sunday
+  isAiGenerated?: boolean;
+  warmupMinutes?: number;
+  warmupExercises?: WarmupExercise[];
+  includeCardio?: boolean;
+  cardioMinutes?: number;
+  cardioType?: string;
+  routineType?: 'Strength' | 'Stretching';
+  isTemplate?: boolean;
+  purpose?: string;
   exercises: RoutineExercise[];
   createdAt: string;
   updatedAt?: string;
@@ -42,7 +57,72 @@ export interface CreateRoutineRequest {
   description: string;
   difficultyLevel: string;
   targetDay?: number;
+  isAiGenerated?: boolean;
+  warmupMinutes?: number;
+  warmupExercises?: WarmupExercise[];
+  includeCardio?: boolean;
+  cardioMinutes?: number;
+  cardioType?: string;
+  routineType?: 'Strength' | 'Stretching';
+  purpose?: string;
   exercises: Omit<RoutineExercise, 'id' | 'exercise'>[];
+}
+
+export type AiRoutineGoal = 'Hypertrophy' | 'Strength' | 'Endurance' | 'Mixed';
+
+export interface GenerateAiRoutineRequest {
+  prompt?: string;
+  routineName?: string;
+  goal: AiRoutineGoal;
+  difficultyLevel: string;
+  durationMinutes: number;
+  availableEquipment?: string[];
+  considerMuscleRecovery: boolean;
+  avoidMuscles?: string[];
+  userWeightKg?: number;
+  userHeightM?: number;
+  excludedExerciseIds?: string[];
+  warmupMinutes?: number;
+  includeCardio?: boolean;
+  cardioMinutes?: number;
+  cardioType?: string;
+}
+
+export interface SwapAiExerciseRequest {
+  exerciseIdToReplace: string;
+  currentRoutineExerciseIds: string[];
+  excludedExerciseIds?: string[];
+  availableEquipment?: string[];
+  goal: AiRoutineGoal;
+  difficultyLevel: string;
+  routineName?: string;
+}
+
+export interface GeneratedAiRoutineExercise {
+  exerciseId: string;
+  name: string;
+  sets: number;
+  reps: number;
+  restTimeInSeconds: number;
+  notes?: string;
+  muscle?: string;
+  bodyPart?: string;
+  equipment?: string;
+  thumbUrl?: string;
+}
+
+export interface GeneratedAiRoutineResponse {
+  name: string;
+  description: string;
+  difficultyLevel: string;
+  estimatedDurationMinutes: number;
+  rationale: string;
+  exercises: GeneratedAiRoutineExercise[];
+  warmupMinutes?: number;
+  warmupExercises?: WarmupExercise[];
+  includeCardio?: boolean;
+  cardioMinutes?: number;
+  cardioType?: string;
 }
 
 export interface CreateWorkoutLogRequest {
@@ -261,6 +341,34 @@ export const gymService = {
     }
   },
 
+  generateAiRoutine: async (data: GenerateAiRoutineRequest): Promise<GeneratedAiRoutineResponse> => {
+    const response = await apiFetch('/api/routines/ai/generate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return handleResponse(response);
+  },
+
+  swapAiExercise: async (data: SwapAiExerciseRequest): Promise<GeneratedAiRoutineExercise> => {
+    const response = await apiFetch('/api/routines/ai/swap-exercise', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return handleResponse(response);
+  },
+
+  getStretchingTemplates: async (): Promise<Routine[]> => {
+    const response = await apiFetch('/api/routines/stretching/templates');
+    return handleResponse(response);
+  },
+
+  cloneStretchingTemplate: async (templateKey: string): Promise<Routine> => {
+    const response = await apiFetch(`/api/routines/stretching/templates/${encodeURIComponent(templateKey)}/clone`, {
+      method: 'POST',
+    });
+    return handleResponse(response);
+  },
+
   // Workout Logs
   getWorkoutLogs: async (): Promise<WorkoutLog[]> => {
     const response = await apiFetch('/api/workouts');
@@ -314,9 +422,28 @@ export const gymService = {
   },
 
   logWorkoutSet: async (sessionId: string, data: LogWorkoutSetRequest): Promise<WorkoutSetDto> => {
+    const isGuid = (val?: string) => !!val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+    const payload: Record<string, any> = {
+      exerciseId: data.exerciseId,
+      setOrder: data.setOrder,
+      type: data.type || 'Normal',
+      weightKg: Number(data.weightKg) || 0,
+      reps: Number(data.reps) || 0,
+      isCompleted: data.isCompleted ?? false,
+    };
+    if (isGuid(data.setId)) {
+      payload.setId = data.setId;
+    }
+    if (data.rpe !== undefined && data.rpe !== null) {
+      payload.rpe = Number(data.rpe);
+    }
+    if (data.durationSeconds !== undefined && data.durationSeconds !== null) {
+      payload.durationSeconds = Number(data.durationSeconds);
+    }
+
     const response = await apiFetch(`/api/gym/sessions/${sessionId}/sets`, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
     return handleResponse(response);
   },

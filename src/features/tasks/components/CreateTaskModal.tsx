@@ -1,5 +1,16 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, Switch, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Modal,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  Switch,
+  ScrollView,
+} from 'react-native';
 import { useTheme } from '../../../utils/ThemeContext';
 import { ThemeColors } from '../../../utils/theme';
 import { Input } from '../../../components/Input';
@@ -24,11 +35,17 @@ const FREQUENCIES: { id: TaskFrequency; label: string }[] = [
   { id: 'Monthly', label: 'Mensual' },
 ];
 
-export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClose, onAdd, onEdit, isLoading, editingItem }) => {
+export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
+  visible,
+  onClose,
+  onAdd,
+  onEdit,
+  isLoading,
+  editingItem,
+}) => {
   const theme = useTheme();
   const styles = createStyles(theme.colors);
-  
-  const [isHabit, setIsHabit] = useState<boolean>(false);
+
   const [title, setTitle] = useState('');
   const [subtitle, setSubtitle] = useState('');
   const [tag, setTag] = useState<string | null>(null);
@@ -41,15 +58,14 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
   const [notificationTime, setNotificationTime] = useState(new Date(new Date().setHours(9, 0, 0, 0)));
   const [showTimePicker, setShowTimePicker] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (visible) {
       if (editingItem) {
-        setIsHabit(editingItem.isHabit);
         setTitle(editingItem.task);
         setSubtitle(editingItem.subtitle || '');
         setTag(editingItem.tag || null);
         setUrgent(editingItem.urgent);
-        
+
         if (editingItem.frequency) {
           setIsRepeating(true);
           setFrequency((editingItem.frequency as TaskFrequency) || 'Daily');
@@ -64,7 +80,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
           setSelectedWeeklyDays([]);
           setSelectedMonthlyDays([]);
         }
-        
+
         setNotificationsEnabled(!!editingItem.notificationsEnabled);
         if (editingItem.notificationTime) {
           const [hours, minutes] = editingItem.notificationTime.split(':');
@@ -80,7 +96,6 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
         setSubtitle('');
         setTag(null);
         setUrgent(false);
-        setIsHabit(false);
         setFrequency('Daily');
         setIsRepeating(false);
         setSelectedWeeklyDays([]);
@@ -95,15 +110,15 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
     if (!title.trim()) return;
 
     let finalCustomDays = undefined;
-    const finalFrequency = (isHabit || isRepeating) ? frequency : undefined;
+    const finalFrequency = isRepeating ? frequency : undefined;
     if (finalFrequency === 'Weekly' && selectedWeeklyDays.length > 0) {
-      finalCustomDays = selectedWeeklyDays.sort((a,b) => a-b).join(',');
+      finalCustomDays = selectedWeeklyDays.sort((a, b) => a - b).join(',');
     } else if (finalFrequency === 'Monthly' && selectedMonthlyDays.length > 0) {
-      finalCustomDays = selectedMonthlyDays.sort((a,b) => a-b).join(',');
+      finalCustomDays = selectedMonthlyDays.sort((a, b) => a - b).join(',');
     }
 
     const payload = {
-      isHabit,
+      isHabit: false,
       task: title.trim(),
       subtitle: subtitle.trim() || undefined,
       tag: tag || undefined,
@@ -111,8 +126,8 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
       frequency: finalFrequency,
       customDays: finalCustomDays,
       notificationsEnabled,
-      notificationTime: notificationsEnabled 
-        ? `${notificationTime.getHours().toString().padStart(2, '0')}:${notificationTime.getMinutes().toString().padStart(2, '0')}` 
+      notificationTime: notificationsEnabled
+        ? `${notificationTime.getHours().toString().padStart(2, '0')}:${notificationTime.getMinutes().toString().padStart(2, '0')}`
         : undefined,
     };
 
@@ -124,24 +139,23 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <KeyboardAvoidingView 
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
         <View style={styles.overlay}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={Keyboard.dismiss} />
-          
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={Keyboard.dismiss}
+          />
+
           <View style={[styles.modalContent, { maxHeight: '90%', flexShrink: 1 }]}>
             <View style={styles.header}>
-              <Text style={styles.title}>{editingItem ? (isHabit ? 'Editar Hábito' : 'Editar Tarea') : 'Nueva Task'}</Text>
-              <TouchableOpacity 
-                onPress={onClose} 
+              <Text style={styles.title}>{editingItem ? 'Editar Tarea' : 'Nueva Tarea'}</Text>
+              <TouchableOpacity
+                onPress={onClose}
                 style={styles.closeBtn}
                 accessibilityRole="button"
                 accessibilityLabel="Cerrar modal de creación de tarea"
@@ -151,123 +165,123 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
               </TouchableOpacity>
             </View>
 
-            <ScrollView 
-              showsVerticalScrollIndicator={false} 
+            <ScrollView
+              showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={{ paddingBottom: 16 }}
             >
-              <View style={styles.typeSelector}>
-                <TouchableOpacity 
-                  style={[styles.typeBtn, !isHabit && styles.typeBtnActive]}
-                  onPress={() => setIsHabit(false)}
-                >
-                  <Text style={[styles.typeBtnText, !isHabit && styles.typeBtnTextActive]}>TAREA</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.typeBtn, isHabit && styles.typeBtnActive]}
-                  onPress={() => setIsHabit(true)}
-                >
-                  <Text style={[styles.typeBtnText, isHabit && styles.typeBtnTextActive]}>HABITO</Text>
-                </TouchableOpacity>
-              </View>
-
               <View style={styles.form}>
-                <Input 
-                  label="TITULO" 
-                  placeholder="¿Que necesitas hacer?" 
+                <Input
+                  label="TITULO"
+                  placeholder="¿Que necesitas hacer?"
                   value={title}
                   onChangeText={setTitle}
                   autoFocus
                 />
-                <Input 
-                  label="DESCRIPCION (OPCIONAL)" 
-                  placeholder="Detalles extra..." 
+
+                <Input
+                  label="DESCRIPCION (OPCIONAL)"
+                  placeholder="Detalles extra..."
                   value={subtitle}
                   onChangeText={setSubtitle}
+                  multiline
+                  numberOfLines={3}
                 />
+
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>ETIQUETA (OPCIONAL)</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tagScroll}>
-                    {TAGS.map(t => (
-                      <TouchableOpacity 
-                        key={t} 
-                        style={[styles.tagBtn, tag === t && styles.tagBtnActive]}
-                        onPress={() => setTag(tag === t ? null : t)}
-                      >
-                        <Text style={[styles.tagText, tag === t && styles.tagTextActive]}>{t}</Text>
-                      </TouchableOpacity>
-                    ))}
+                    {TAGS.map((t) => {
+                      const isSelected = tag === t;
+                      return (
+                        <TouchableOpacity
+                          key={t}
+                          style={[styles.tagBtn, isSelected && styles.tagBtnActive]}
+                          onPress={() => setTag(isSelected ? null : t)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.tagText, isSelected && styles.tagTextActive]}>{t}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </ScrollView>
                 </View>
 
-                {!isHabit && (
-                  <View style={styles.switchRow}>
-                    <Text style={styles.switchLabel}>¿Repetir tarea?</Text>
-                    <Switch 
-                      value={isRepeating} 
-                      onValueChange={setIsRepeating} 
-                      trackColor={{ false: theme.colors.slate600, true: theme.colors.neonCyan }}
-                      thumbColor={theme.colors.white}
-                    />
-                  </View>
-                )}
+                <View style={styles.switchRow}>
+                  <Text style={styles.switchLabel}>¿Repetir tarea?</Text>
+                  <Switch
+                    value={isRepeating}
+                    onValueChange={setIsRepeating}
+                    trackColor={{ false: theme.colors.slate600, true: theme.colors.neonCyan }}
+                    thumbColor={theme.colors.white}
+                  />
+                </View>
 
-                {(isHabit || isRepeating) && (
+                {isRepeating && (
                   <FrequencySelector
                     frequency={frequency}
                     onFrequencyChange={setFrequency}
                     selectedWeeklyDays={selectedWeeklyDays}
                     onToggleWeeklyDay={(dayId) => {
                       if (selectedWeeklyDays.includes(dayId)) {
-                        setSelectedWeeklyDays(prev => prev.filter(v => v !== dayId));
+                        setSelectedWeeklyDays((prev) => prev.filter((v) => v !== dayId));
                       } else {
-                        setSelectedWeeklyDays(prev => [...prev, dayId]);
+                        setSelectedWeeklyDays((prev) => [...prev, dayId]);
                       }
                     }}
                     frequencies={FREQUENCIES}
                   />
                 )}
 
-                {(isHabit || isRepeating) && frequency === 'Monthly' && (
+                {isRepeating && frequency === 'Monthly' && (
                   <View style={styles.inputGroup}>
                     <Text style={styles.label}>DÍAS DEL MES</Text>
                     <View style={styles.daysGrid}>
-                      {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
-                        <TouchableOpacity 
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                        <TouchableOpacity
                           key={d}
-                          style={[styles.dayBtn, selectedMonthlyDays.includes(d) && styles.dayBtnActive, { width: 32, height: 32, borderRadius: 16, margin: 2 }]}
+                          style={[
+                            styles.dayBtn,
+                            selectedMonthlyDays.includes(d) && styles.dayBtnActive,
+                            { width: 32, height: 32, borderRadius: 16, margin: 2 },
+                          ]}
                           onPress={() => {
                             if (selectedMonthlyDays.includes(d)) {
-                              setSelectedMonthlyDays(prev => prev.filter(v => v !== d));
+                              setSelectedMonthlyDays((prev) => prev.filter((v) => v !== d));
                             } else {
-                              setSelectedMonthlyDays(prev => [...prev, d]);
+                              setSelectedMonthlyDays((prev) => [...prev, d]);
                             }
                           }}
                         >
-                          <Text style={[styles.dayText, selectedMonthlyDays.includes(d) && styles.dayTextActive]}>{d}</Text>
+                          <Text
+                            style={[
+                              styles.dayText,
+                              selectedMonthlyDays.includes(d) && styles.dayTextActive,
+                            ]}
+                          >
+                            {d}
+                          </Text>
                         </TouchableOpacity>
                       ))}
                     </View>
                   </View>
                 )}
 
-                {!isHabit && (
-                  <View style={styles.switchRow}>
-                    <Text style={styles.switchLabel}>¿Marcar como Urgente?</Text>
-                    <Switch 
-                      value={urgent} 
-                      onValueChange={setUrgent} 
-                      trackColor={{ false: theme.colors.slate600, true: theme.colors.error }}
-                      thumbColor={theme.colors.white}
-                    />
-                  </View>
-                )}
+                <View style={styles.switchRow}>
+                  <Text style={styles.switchLabel}>¿Marcar como Urgente?</Text>
+                  <Switch
+                    value={urgent}
+                    onValueChange={setUrgent}
+                    trackColor={{ false: theme.colors.slate600, true: theme.colors.error }}
+                    thumbColor={theme.colors.white}
+                  />
+                </View>
 
                 <View style={styles.switchRow}>
                   <Text style={styles.switchLabel}>¿Recibir notificaciones?</Text>
-                  <Switch 
-                    value={notificationsEnabled} 
-                    onValueChange={setNotificationsEnabled} 
+                  <Switch
+                    value={notificationsEnabled}
+                    onValueChange={setNotificationsEnabled}
                     trackColor={{ false: theme.colors.slate600, true: theme.colors.neonCyan }}
                     thumbColor={theme.colors.white}
                   />
@@ -276,25 +290,14 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
                 {notificationsEnabled && (
                   <View style={styles.timePickerContainer}>
                     <Text style={styles.label}>HORA DE NOTIFICACIÓN</Text>
-                    {Platform.OS === 'ios' ? (
-                      <TouchableOpacity 
-                        style={styles.timeBtn} 
-                        onPress={() => setShowTimePicker(true)}
-                      >
-                        <Text style={styles.timeText}>
-                          {notificationTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <TouchableOpacity 
-                        style={styles.timeBtn} 
-                        onPress={() => setShowTimePicker(true)}
-                      >
-                        <Text style={styles.timeText}>
-                          {notificationTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </Text>
-                      </TouchableOpacity>
-                    )}
+                    <TouchableOpacity
+                      style={styles.timeBtn}
+                      onPress={() => setShowTimePicker(true)}
+                    >
+                      <Text style={styles.timeText}>
+                        {notificationTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                    </TouchableOpacity>
 
                     <CustomTimePicker
                       visible={showTimePicker}
@@ -308,9 +311,9 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
                   </View>
                 )}
 
-                <Button 
-                  title={editingItem ? 'Guardar Cambios' : (!isHabit ? 'Añadir Tarea' : 'Crear Hábito')} 
-                  onPress={handleAdd} 
+                <Button
+                  title={editingItem ? 'Guardar Cambios' : 'Añadir Tarea'}
+                  onPress={handleAdd}
                   loading={isLoading}
                   style={styles.submitBtn}
                 />
@@ -323,198 +326,141 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ visible, onClo
   );
 };
 
-const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(13, 14, 17, 0.85)',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  keyboardView: {
-    width: '100%',
-  },
-  modalContent: {
-    backgroundColor: colors.surfaceLight,
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: colors.borderGlow,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  title: {
-    color: colors.white,
-    fontFamily: 'Geist_500Medium',
-    fontSize: 24,
-  },
-  closeBtn: {
-    padding: 8,
-  },
-  closeText: {
-    color: colors.slate400,
-    fontSize: 20,
-  },
-  typeSelector: {
-    flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 24,
-  },
-  typeBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  typeBtnActive: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.borderGlow,
-  },
-  typeBtnText: {
-    color: colors.slate500,
-    fontFamily: 'JetBrainsMono_400Regular',
-    fontSize: 12,
-    letterSpacing: 1,
-  },
-  typeBtnTextActive: {
-    color: colors.neonCyan,
-    fontFamily: 'JetBrainsMono_700Bold',
-  },
-  form: {
-    gap: 16,
-  },
-  switchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    padding: 16,
-    borderRadius: 12,
-  },
-  switchLabel: {
-    color: colors.white,
-    fontFamily: 'Geist_400Regular',
-    fontSize: 14,
-  },
-  submitBtn: {
-    marginTop: 8,
-  },
-  inputGroup: {
-    marginBottom: 4,
-  },
-  label: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 12,
-    color: colors.slate400,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
-  tagScroll: {
-    gap: 8,
-    paddingRight: 20,
-  },
-  tagBtn: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.borderGlow,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 9999,
-  },
-  tagBtnActive: {
-    borderColor: colors.neonCyan,
-    backgroundColor: 'rgba(0, 240, 255, 0.1)',
-  },
-  tagText: {
-    fontFamily: 'JetBrainsMono_400Regular',
-    fontSize: 12,
-    color: colors.mutedText,
-  },
-  tagTextActive: {
-    color: colors.neonCyan,
-    fontWeight: '600',
-  },
-  frequencySelector: {
-    flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.borderGlow,
-    overflow: 'hidden',
-  },
-  frequencyBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRightWidth: 1,
-    borderRightColor: colors.borderGlow,
-  },
-  frequencyBtnActive: {
-    backgroundColor: 'rgba(0, 240, 255, 0.1)',
-  },
-  frequencyText: {
-    fontFamily: 'JetBrainsMono_400Regular',
-    fontSize: 11,
-    color: colors.slate400,
-  },
-  frequencyTextActive: {
-    color: colors.neonCyan,
-    fontFamily: 'JetBrainsMono_500Medium',
-  },
-  daysGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 4,
-  },
-  dayBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.borderGlow,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-  },
-  dayBtnActive: {
-    borderColor: colors.neonCyan,
-    backgroundColor: 'rgba(0, 240, 255, 0.1)',
-  },
-  dayText: {
-    fontFamily: 'JetBrainsMono_400Regular',
-    fontSize: 12,
-    color: colors.slate400,
-  },
-  dayTextActive: {
-    color: colors.neonCyan,
-    fontFamily: 'JetBrainsMono_500Medium',
-  },
-  timePickerContainer: {
-    backgroundColor: colors.surface,
-    padding: 16,
-    borderRadius: 12,
-    marginTop: -8, // Pull closer to switch row
-  },
-  timeBtn: {
-    backgroundColor: colors.obsidian,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.borderGlow,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  timeText: {
-    fontFamily: 'JetBrainsMono_500Medium',
-    fontSize: 16,
-    color: colors.white,
-  }
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: 'rgba(13, 14, 17, 0.85)',
+      justifyContent: 'center',
+      padding: 20,
+    },
+    modalContent: {
+      backgroundColor: colors.surfaceLight,
+      borderRadius: 24,
+      padding: 24,
+      borderWidth: 1,
+      borderColor: colors.borderGlow,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 20,
+    },
+    title: {
+      color: colors.white,
+      fontFamily: 'Geist_500Medium',
+      fontSize: 22,
+    },
+    closeBtn: {
+      padding: 8,
+    },
+    closeText: {
+      color: colors.slate400,
+      fontSize: 20,
+    },
+    form: {
+      gap: 16,
+    },
+    switchRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      padding: 16,
+      borderRadius: 12,
+    },
+    switchLabel: {
+      color: colors.white,
+      fontFamily: 'Geist_400Regular',
+      fontSize: 14,
+    },
+    submitBtn: {
+      marginTop: 8,
+    },
+    inputGroup: {
+      marginBottom: 4,
+    },
+    label: {
+      fontFamily: 'JetBrainsMono_500Medium',
+      fontSize: 12,
+      color: colors.slate400,
+      marginBottom: 8,
+      textTransform: 'uppercase',
+    },
+    tagScroll: {
+      gap: 8,
+      paddingRight: 20,
+    },
+    tagBtn: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.borderGlow,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 9999,
+    },
+    tagBtnActive: {
+      borderColor: colors.neonCyan,
+      backgroundColor: 'rgba(0, 240, 255, 0.1)',
+    },
+    tagText: {
+      fontFamily: 'JetBrainsMono_400Regular',
+      fontSize: 12,
+      color: colors.mutedText,
+    },
+    tagTextActive: {
+      color: colors.neonCyan,
+      fontWeight: '600',
+    },
+    daysGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginTop: 4,
+    },
+    dayBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.borderGlow,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surface,
+    },
+    dayBtnActive: {
+      borderColor: colors.neonCyan,
+      backgroundColor: 'rgba(0, 240, 255, 0.1)',
+    },
+    dayText: {
+      fontFamily: 'JetBrainsMono_400Regular',
+      fontSize: 12,
+      color: colors.slate400,
+    },
+    dayTextActive: {
+      color: colors.neonCyan,
+      fontFamily: 'JetBrainsMono_500Medium',
+    },
+    timePickerContainer: {
+      backgroundColor: colors.surface,
+      padding: 16,
+      borderRadius: 12,
+      marginTop: -8,
+    },
+    timeBtn: {
+      backgroundColor: colors.obsidian,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.borderGlow,
+      alignItems: 'center',
+      marginTop: 8,
+    },
+    timeText: {
+      fontFamily: 'JetBrainsMono_500Medium',
+      fontSize: 16,
+      color: colors.white,
+    },
+  });

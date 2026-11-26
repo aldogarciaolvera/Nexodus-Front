@@ -1,12 +1,15 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
+  ScrollViewInstance,
   TouchableOpacity,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../utils/ThemeContext';
@@ -20,8 +23,7 @@ import {
   Disc,
   Plus,
   Trophy,
-  Eye,
-  EyeOff,
+  BookOpen,
 } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { useAlertStore } from '../../store/alertStore';
@@ -34,6 +36,8 @@ import { SetRowItem } from './components/SetRowItem';
 import { RestTimerOverlay } from './components/RestTimerOverlay';
 import { PlateCalculatorModal } from './components/PlateCalculatorModal';
 import { WorkoutSummaryModal } from './components/WorkoutSummaryModal';
+import { ExitWorkoutModal } from './components/ExitWorkoutModal';
+import { ExerciseDetailModal } from './components/ExerciseDetailModal';
 import { Skeleton } from '../../components/Skeleton';
 
 const WorkoutTimer = React.memo(({ style }: { style: any }) => {
@@ -59,8 +63,6 @@ export const ActiveWorkoutScreen = () => {
     session,
     activeRoutine,
     currentExerciseIndex,
-    elapsedSeconds,
-    tickTimer,
     pauseWorkout,
     resumeWorkout,
     nextExercise,
@@ -75,19 +77,61 @@ export const ActiveWorkoutScreen = () => {
 
   const [showPlateCalculator, setShowPlateCalculator] = useState(false);
   const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [showExitModal, setShowExitModal] = useState(false);
+  const [showTechniqueModal, setShowTechniqueModal] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
-  const [showGif, setShowGif] = useState(false);
 
-  // Tick main session timer
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
+  const [keyboardSpace, setKeyboardSpace] = useState(0);
+
+  // Dynamic keyboard listeners to prevent inputs being obscured by the software keyboard
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-    if (isActive && !isPaused) {
-      interval = setInterval(() => {
-        tickTimer();
-      }, 1000);
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardSpace(e.endCoordinates.height);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardSpace(0);
+      }
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const handleFocusSet = (setIdx: number) => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        y: Math.max(0, 160 + setIdx * 54),
+        animated: true,
+      });
+    }, 120);
+  };
+
+  // Auto-resume workout only when initially entering screen if session was paused
+  useEffect(() => {
+    const state = useWorkoutStore.getState();
+    if (state.isActive && state.isPaused) {
+      resumeWorkout();
+    } else if (state.isActive) {
+      state.tickTimer();
     }
-    return () => clearInterval(interval);
-  }, [isActive, isPaused, tickTimer]);
+  }, []);
+
+  // Intercept Android hardware back button so it opens ExitWorkoutModal and pauses
+  useEffect(() => {
+    const onBackPress = () => {
+      handleGoBack();
+      return true;
+    };
+    const backSub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => backSub.remove();
+  }, []);
 
   const exercises = activeRoutine?.exercises || [];
   const currentRoutineExercise = exercises[currentExerciseIndex];
@@ -108,7 +152,45 @@ export const ActiveWorkoutScreen = () => {
 
   const displayExercise = fullExerciseData || currentRoutineExercise?.exercise;
 
-  // Current exercise sets in active session
+  // Determine if the exercise is performed with a barbell to conditionally show plate calculator
+  const isBarbellExercise = useMemo(() => {
+    if (!displayExercise) return false;
+    const eq = (displayExercise.equipment || '').toLowerCase();
+    const name = (displayExercise.name || '').toLowerCase();
+
+    // Explicit non-barbell equipment
+    if (
+      eq.includes('kettlebell') || name.includes('kettlebell') ||
+      eq.includes('dumbbell') || name.includes('mancuerna') || name.includes('dumbbell') ||
+      eq.includes('body weight') || eq.includes('bodyweight') || eq.includes('peso corporal') ||
+      eq.includes('cable') || eq.includes('polea') ||
+      eq.includes('band') || eq.includes('liga') ||
+      eq.includes('machine') || eq.includes('máquina') || eq.includes('maquina')
+    ) {
+      return false;
+    }
+
+    // Barbell keywords
+    return (
+      eq.includes('barbell') ||
+      eq.includes('barra') ||
+      eq.includes('smith') ||
+      eq.includes('olympic') ||
+      name.includes('barbell') ||
+      name.includes('barra') ||
+      name.includes('press banca') ||
+      name.includes('press de banca') ||
+      name.includes('bench press') ||
+      name.includes('squat') ||
+      name.includes('sentadilla') ||
+      name.includes('deadlift') ||
+      name.includes('peso muerto') ||
+      name.includes('clean') ||
+      name.includes('snatch')
+    );
+  }, [displayExercise]);
+
+  // Current exercise sets in active session (combinando series guardadas y plantilla de la rutina)
   const currentExerciseSets = useMemo(() => {
     if (!currentRoutineExercise) return [];
     const exerciseId = currentRoutineExercise.exerciseId;
@@ -116,23 +198,29 @@ export const ActiveWorkoutScreen = () => {
       .filter((s) => s.exerciseId === exerciseId)
       .sort((a, b) => a.setOrder - b.setOrder);
 
-    if (sessionSets.length > 0) {
-      return sessionSets;
+    const targetCount = currentRoutineExercise.sets || 3;
+    const totalCount = Math.max(targetCount, sessionSets.length);
+    const mergedSets: WorkoutSetDto[] = [];
+
+    for (let i = 0; i < totalCount; i++) {
+      const existing = sessionSets[i];
+      if (existing) {
+        mergedSets.push({
+          ...existing,
+          setOrder: i + 1, // Numeración relativa 1, 2, 3... por ejercicio
+        });
+      } else {
+        mergedSets.push({
+          setOrder: i + 1,
+          type: 'Normal',
+          weightKg: currentRoutineExercise.weight || 0,
+          reps: currentRoutineExercise.reps || 10,
+          isCompleted: false,
+        } as WorkoutSetDto);
+      }
     }
 
-    // Default template sets based on routine exercise count
-    const targetCount = currentRoutineExercise.sets || 3;
-    const defaultSets: Partial<WorkoutSetDto>[] = [];
-    for (let i = 1; i <= targetCount; i++) {
-      defaultSets.push({
-        setOrder: i,
-        type: 'Normal',
-        weightKg: currentRoutineExercise.weight || 0,
-        reps: currentRoutineExercise.reps || 10,
-        isCompleted: false,
-      });
-    }
-    return defaultSets as WorkoutSetDto[];
+    return mergedSets;
   }, [session?.sets, currentRoutineExercise]);
 
   if (!isActive) {
@@ -141,37 +229,7 @@ export const ActiveWorkoutScreen = () => {
 
   const handleGoBack = () => {
     pauseWorkout();
-    useAlertStore.getState().showAlert({
-      title: 'Sesión en Curso',
-      message: '¿Deseas pausar el entrenamiento para salir o descartar la sesión por completo?',
-      type: 'info',
-      buttons: [
-        {
-          text: 'Continuar Entrenando',
-          style: 'cancel',
-          onPress: () => {
-            useAlertStore.getState().hideAlert();
-            resumeWorkout();
-          },
-        },
-        {
-          text: 'Pausar y Salir',
-          onPress: () => {
-            useAlertStore.getState().hideAlert();
-            navigation.goBack();
-          },
-        },
-        {
-          text: 'Descartar Sesión',
-          style: 'destructive',
-          onPress: async () => {
-            useAlertStore.getState().hideAlert();
-            await cancelWorkout();
-            navigation.goBack();
-          },
-        },
-      ],
-    });
+    setShowExitModal(true);
   };
 
   const handleSaveSet = async (setData: {
@@ -286,8 +344,14 @@ export const ActiveWorkoutScreen = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          ref={scrollViewRef}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: Math.max(120, keyboardSpace + 60) },
+          ]}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
         >
           {/* Exercise Dots Carousel Indicator */}
           {exercises.length > 0 ? (
@@ -378,59 +442,43 @@ export const ActiveWorkoutScreen = () => {
               ) : null}
             </View>
 
-            {/* Quick Actions Row: Plate Calculator + Demo Video Toggle */}
+            {/* Quick Actions Row: Plate Calculator (Barbell only) + Technique & Anatomy Guide */}
             <View style={styles.toolsRow}>
-              <TouchableOpacity
-                style={styles.toolBtn}
-                onPress={() => setShowPlateCalculator(true)}
-              >
-                <Disc size={14} color={theme.colors.neonCyan} />
-                <Text style={styles.toolBtnText}>Calculadora de Discos</Text>
-              </TouchableOpacity>
-
-              {(displayExercise?.gifUrl || displayExercise?.thumbUrl) ? (
+              {isBarbellExercise ? (
                 <TouchableOpacity
                   style={styles.toolBtn}
-                  onPress={() => setShowGif(!showGif)}
+                  onPress={() => setShowPlateCalculator(true)}
                 >
-                  {showGif ? (
-                    <EyeOff size={14} color={theme.colors.slate400} />
-                  ) : (
-                    <Eye size={14} color={theme.colors.slate400} />
-                  )}
-                  <Text style={[styles.toolBtnText, { color: theme.colors.slate400 }]}>
-                    {showGif ? 'Ocultar GIF' : 'Ver Técnica'}
-                  </Text>
+                  <Disc size={14} color={theme.colors.neonCyan} />
+                  <Text style={styles.toolBtnText}>Calculadora de Discos</Text>
                 </TouchableOpacity>
               ) : null}
-            </View>
 
-            {/* Collapsible GIF Demonstration */}
-            {showGif && (displayExercise?.gifUrl || displayExercise?.thumbUrl) ? (
-              <View style={styles.gifPreview}>
-                <Image
-                  source={{ uri: displayExercise?.gifUrl || displayExercise?.thumbUrl }}
-                  style={styles.gifImage}
-                  contentFit="contain"
-                />
-              </View>
-            ) : null}
+              <TouchableOpacity
+                style={styles.toolBtn}
+                onPress={() => setShowTechniqueModal(true)}
+              >
+                <BookOpen size={14} color={theme.colors.neonCyan} />
+                <Text style={styles.toolBtnText}>Técnica & Músculos</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Sets Table */}
           <View style={styles.tableCard}>
             <View style={styles.tableHeader}>
-              <Text style={[styles.thText, { width: 28, textAlign: 'center' }]}>SET</Text>
-              <Text style={[styles.thText, { width: 40, textAlign: 'center' }]}>TIPO</Text>
+              <Text style={[styles.thText, { width: 26, textAlign: 'center' }]}>SET</Text>
+              <Text style={[styles.thText, { width: 34, textAlign: 'center' }]}>TIPO</Text>
               <Text style={[styles.thText, { flex: 1, textAlign: 'center' }]}>PREV</Text>
-              <Text style={[styles.thText, { width: 68, textAlign: 'center' }]}>KG</Text>
-              <Text style={[styles.thText, { width: 68, textAlign: 'center' }]}>REPS</Text>
-              <Text style={[styles.thText, { width: 44, textAlign: 'center' }]}>✓</Text>
+              <Text style={[styles.thText, { width: 60, textAlign: 'center' }]}>KG</Text>
+              <Text style={[styles.thText, { width: 52, textAlign: 'center' }]}>REPS</Text>
+              <Text style={[styles.thText, { width: 32, textAlign: 'center' }]}>✓</Text>
+              <View style={{ width: 26 }} />
             </View>
 
             {currentExerciseSets.map((set, idx) => (
               <SetRowItem
-                key={set.id || idx}
+                key={`${currentRoutineExercise?.exerciseId}_set_${idx + 1}`}
                 setOrder={idx + 1}
                 initialSet={set}
                 previousRecord={
@@ -441,6 +489,7 @@ export const ActiveWorkoutScreen = () => {
                 onSaveSet={handleSaveSet}
                 onDeleteSet={handleDeleteSet}
                 onToggleComplete={handleToggleComplete}
+                onFocusInput={() => handleFocusSet(idx)}
               />
             ))}
 
@@ -453,6 +502,44 @@ export const ActiveWorkoutScreen = () => {
               <Plus size={16} color={theme.colors.neonCyan} />
               <Text style={styles.addSetBtnText}>Añadir Serie</Text>
             </TouchableOpacity>
+
+            {/* Fixed Series Type Legend */}
+            <View style={styles.legendContainer}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendBadge, { backgroundColor: 'rgba(56, 189, 248, 0.15)', borderColor: '#38BDF8' }]}>
+                  <Text style={[styles.legendBadgeText, { color: '#38BDF8' }]}>N</Text>
+                </View>
+                <Text style={styles.legendText}>Normal</Text>
+              </View>
+
+              <View style={styles.legendItem}>
+                <View style={[styles.legendBadge, { backgroundColor: 'rgba(245, 158, 11, 0.15)', borderColor: '#F59E0B' }]}>
+                  <Text style={[styles.legendBadgeText, { color: '#F59E0B' }]}>W</Text>
+                </View>
+                <Text style={styles.legendText}>Warmup</Text>
+              </View>
+
+              <View style={styles.legendItem}>
+                <View style={[styles.legendBadge, { backgroundColor: 'rgba(168, 85, 247, 0.15)', borderColor: '#A855F7' }]}>
+                  <Text style={[styles.legendBadgeText, { color: '#A855F7' }]}>D</Text>
+                </View>
+                <Text style={styles.legendText}>Drop</Text>
+              </View>
+
+              <View style={styles.legendItem}>
+                <View style={[styles.legendBadge, { backgroundColor: 'rgba(255, 51, 102, 0.15)', borderColor: '#FF3366' }]}>
+                  <Text style={[styles.legendBadgeText, { color: '#FF3366' }]}>F</Text>
+                </View>
+                <Text style={styles.legendText}>Fallo</Text>
+              </View>
+
+              <View style={styles.legendItem}>
+                <View style={[styles.legendBadge, { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: '#10B981' }]}>
+                  <Text style={[styles.legendBadgeText, { color: '#10B981' }]}>T</Text>
+                </View>
+                <Text style={styles.legendText}>Tiempo</Text>
+              </View>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -471,13 +558,39 @@ export const ActiveWorkoutScreen = () => {
       <WorkoutSummaryModal
         visible={showSummaryModal}
         session={session}
-        elapsedSeconds={elapsedSeconds}
+        elapsedSeconds={useWorkoutStore.getState().elapsedSeconds}
         isLoading={isFinishing}
         onConfirmFinish={handleConfirmFinish}
         onCancel={() => {
           setShowSummaryModal(false);
           resumeWorkout();
         }}
+      />
+
+      {/* Exit Workout Confirmation Modal */}
+      <ExitWorkoutModal
+        visible={showExitModal}
+        onClose={() => {
+          setShowExitModal(false);
+          resumeWorkout();
+        }}
+        onPauseAndExit={() => {
+          pauseWorkout();
+          setShowExitModal(false);
+          navigation.goBack();
+        }}
+        onConfirmDiscard={async () => {
+          await cancelWorkout();
+          setShowExitModal(false);
+          navigation.goBack();
+          useAlertStore.getState().showAlert('Sesión Descartada', 'El entrenamiento ha sido descartado y eliminado de la base de datos.', 'info');
+        }}
+      />
+      {/* Exercise Detail: Technique, Muscles & Step-by-Step Instructions Modal */}
+      <ExerciseDetailModal
+        visible={showTechniqueModal}
+        exercise={displayExercise}
+        onClose={() => setShowTechniqueModal(false)}
       />
     </SafeAreaView>
   );
@@ -651,7 +764,7 @@ const createStyles = (colors: ThemeColors) =>
       alignItems: 'center',
       gap: 6,
       backgroundColor: colors.surfaceLight,
-      paddingHorizontal: 12,
+      paddingHorizontal: 4,
       paddingVertical: 6,
       borderRadius: 8,
       borderWidth: 1,
@@ -713,5 +826,38 @@ const createStyles = (colors: ThemeColors) =>
       fontFamily: 'Geist_500Medium',
       fontSize: 13,
       color: colors.neonCyan,
+    },
+    legendContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingTop: 12,
+      marginTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: colors.borderGlow,
+      paddingHorizontal: 4,
+    },
+    legendItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    legendBadge: {
+      width: 18,
+      height: 18,
+      borderRadius: 5,
+      borderWidth: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    legendBadgeText: {
+      fontFamily: 'JetBrainsMono_500Medium',
+      fontSize: 9,
+      fontWeight: '700',
+    },
+    legendText: {
+      fontFamily: 'Geist_500Medium',
+      fontSize: 10,
+      color: colors.slate400,
     },
   });

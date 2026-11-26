@@ -48,17 +48,22 @@ export const DEFAULT_PROFILES: EquipmentProfile[] = [
 const STORE_KEY_EQUIPMENT_PROFILES = 'nexodus_equipment_profiles_v1';
 const STORE_KEY_ACTIVE_PROFILE_ID = 'nexodus_active_equipment_profile_v1';
 const STORE_KEY_FILTER_ENABLED = 'nexodus_equipment_filter_enabled_v1';
+const STORE_KEY_EXCLUDED_EXERCISES = 'nexodus_excluded_exercises_v1';
 
 interface EquipmentState {
   profiles: EquipmentProfile[];
   activeProfileId: string;
   filterEnabled: boolean;
+  excludedExerciseIds: string[];
   initialized: boolean;
   
   initialize: () => Promise<void>;
   setActiveProfile: (profileId: string) => Promise<void>;
   toggleEquipmentInActiveProfile: (equipmentId: string) => Promise<void>;
   setFilterEnabled: (enabled: boolean) => Promise<void>;
+  excludeExercise: (exerciseId: string) => Promise<void>;
+  restoreExercise: (exerciseId: string) => Promise<void>;
+  clearExcludedExercises: () => Promise<void>;
   resetToDefaultProfile: (profileId: string) => Promise<void>;
   getActiveProfile: () => EquipmentProfile;
 }
@@ -67,6 +72,7 @@ export const useEquipmentStore = create<EquipmentState>((set, get) => ({
   profiles: DEFAULT_PROFILES,
   activeProfileId: 'commercial',
   filterEnabled: true,
+  excludedExerciseIds: [],
   initialized: false,
 
   initialize: async () => {
@@ -74,6 +80,7 @@ export const useEquipmentStore = create<EquipmentState>((set, get) => ({
       const storedProfiles = await SecureStore.getItemAsync(STORE_KEY_EQUIPMENT_PROFILES);
       const storedActiveId = await SecureStore.getItemAsync(STORE_KEY_ACTIVE_PROFILE_ID);
       const storedFilter = await SecureStore.getItemAsync(STORE_KEY_FILTER_ENABLED);
+      const storedExcluded = await SecureStore.getItemAsync(STORE_KEY_EXCLUDED_EXERCISES);
 
       let profiles = DEFAULT_PROFILES;
       if (storedProfiles) {
@@ -87,6 +94,18 @@ export const useEquipmentStore = create<EquipmentState>((set, get) => ({
         }
       }
 
+      let excludedExerciseIds: string[] = [];
+      if (storedExcluded) {
+        try {
+          const parsed = JSON.parse(storedExcluded);
+          if (Array.isArray(parsed)) {
+            excludedExerciseIds = parsed.filter((id): id is string => typeof id === 'string');
+          }
+        } catch {
+          // Keep empty
+        }
+      }
+
       const activeProfileId = storedActiveId && profiles.some(p => p.id === storedActiveId) 
         ? storedActiveId 
         : 'commercial';
@@ -97,6 +116,7 @@ export const useEquipmentStore = create<EquipmentState>((set, get) => ({
         profiles,
         activeProfileId,
         filterEnabled,
+        excludedExerciseIds,
         initialized: true,
       });
     } catch (e) {
@@ -141,6 +161,37 @@ export const useEquipmentStore = create<EquipmentState>((set, get) => ({
       await SecureStore.setItemAsync(STORE_KEY_FILTER_ENABLED, String(enabled));
     } catch (e) {
       console.error('Error saving filter state', e);
+    }
+  },
+
+  excludeExercise: async (exerciseId: string) => {
+    const current = get().excludedExerciseIds;
+    if (current.includes(exerciseId)) return;
+    const updated = [...current, exerciseId];
+    set({ excludedExerciseIds: updated });
+    try {
+      await SecureStore.setItemAsync(STORE_KEY_EXCLUDED_EXERCISES, JSON.stringify(updated));
+    } catch (e) {
+      console.error('Error saving excluded exercises', e);
+    }
+  },
+
+  restoreExercise: async (exerciseId: string) => {
+    const updated = get().excludedExerciseIds.filter(id => id !== exerciseId);
+    set({ excludedExerciseIds: updated });
+    try {
+      await SecureStore.setItemAsync(STORE_KEY_EXCLUDED_EXERCISES, JSON.stringify(updated));
+    } catch (e) {
+      console.error('Error restoring excluded exercise', e);
+    }
+  },
+
+  clearExcludedExercises: async () => {
+    set({ excludedExerciseIds: [] });
+    try {
+      await SecureStore.deleteItemAsync(STORE_KEY_EXCLUDED_EXERCISES);
+    } catch (e) {
+      console.error('Error clearing excluded exercises', e);
     }
   },
 

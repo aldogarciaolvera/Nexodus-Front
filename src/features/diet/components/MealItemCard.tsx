@@ -23,18 +23,18 @@ export const MealItemCard: React.FC<MealItemCardProps> = ({
 
   const isComp = meal.isCompleted;
 
-  const getMealTypeLabel = (type: string) => {
+  const getMealTypeTitle = (type: string, fallbackName?: string) => {
     switch (type?.toLowerCase()) {
       case 'breakfast':
-        return 'DESAYUNO';
+        return 'Desayuno';
       case 'lunch':
-        return 'COMIDA';
+        return 'Comida';
       case 'dinner':
-        return 'CENA';
+        return 'Cena';
       case 'snack':
-        return 'SNACK';
+        return 'Snack';
       default:
-        return type?.toUpperCase() || 'COMIDA';
+        return fallbackName || 'Comida';
     }
   };
 
@@ -44,9 +44,7 @@ export const MealItemCard: React.FC<MealItemCardProps> = ({
       <View style={styles.headerRow}>
         <View style={styles.typeBadge}>
           <View style={isComp ? styles.dotCyan : styles.dotYellow} />
-          <Text style={styles.typeText}>
-            {getMealTypeLabel(meal.mealType)} {meal.time ? `• ${meal.time}` : ''}
-          </Text>
+          <Text style={styles.typeText}>{meal.time || '12:00'}</Text>
         </View>
 
         <View style={styles.actionsRow}>
@@ -88,11 +86,17 @@ export const MealItemCard: React.FC<MealItemCardProps> = ({
 
       {/* Content */}
       <View style={styles.body}>
-        <Text style={styles.mealName}>{meal.name}</Text>
-        {meal.items && meal.items.length > 0 && (
+        <Text style={styles.mealName}>{getMealTypeTitle(meal.mealType, meal.name)}</Text>
+        {meal.items && meal.items.length > 0 ? (
           <Text style={styles.itemsSummary} numberOfLines={2}>
             {meal.items.map((it) => `${it.foodName} (${it.quantity}${it.unit})`).join(', ')}
           </Text>
+        ) : (
+          meal.name && meal.name !== getMealTypeTitle(meal.mealType) ? (
+            <Text style={styles.itemsSummary} numberOfLines={2}>
+              {meal.name}
+            </Text>
+          ) : null
         )}
       </View>
 
